@@ -1,0 +1,10 @@
+node_modules
+dist
+.scratch
+.git
+infra
+docs
+gtm
+tests
+*.md
+.env

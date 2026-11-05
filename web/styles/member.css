@@ -1,0 +1,93 @@
+/* Member app: the pass is the hero. Dark rubber floor, the gym's colour, big type. */
+body.member {
+  --bg: #121821;
+  --panel: #1b2331;
+  --panel-2: #222c3d;
+  --text: #f1f3f6;
+  --text-2: #aeb7c5;
+  --hair: #2b3647;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+.m-app { max-width: 520px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+.m-top { display: flex; align-items: center; gap: 12px; padding: 18px 20px 6px; }
+.m-top .logo { width: 40px; height: 40px; border-radius: 10px; background: var(--brand); color: var(--brand-ink); display: grid; place-items: center; font-weight: 800; overflow: hidden; flex: none; }
+.m-top .logo img { width: 100%; height: 100%; object-fit: cover; }
+.m-top b { font-size: 1.05rem; }
+.m-top small { display: block; color: var(--text-2); font-size: 0.8rem; }
+.m-body { padding: 14px 20px; display: grid; gap: 16px; }
+.m-hello { font-size: var(--step-3); font-stretch: 78%; font-weight: 800; line-height: 1.05; letter-spacing: -0.01em; }
+
+.pass {
+  --c: var(--plate-green);
+  position: relative;
+  border-radius: 22px;
+  background: var(--panel);
+  overflow: hidden;
+  padding: 22px;
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+  border: 1px solid var(--hair);
+}
+.pass::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 6px; background: var(--c); }
+.pass[data-s="expiring"] { --c: var(--plate-yellow); }
+.pass[data-s="expired"], .pass[data-s="none"] { --c: var(--plate-red); }
+.pass[data-s="frozen"] { --c: var(--plate-blue); }
+.pass .qr { width: min(260px, 70vw); aspect-ratio: 1; background: #fff; border-radius: 16px; padding: 10px; }
+.pass .qr svg { width: 100%; height: 100%; }
+.pass .who-line { display: flex; justify-content: space-between; width: 100%; align-items: baseline; gap: 10px; }
+.pass .who-line b { font-size: 1.25rem; }
+.pass .code { color: var(--text-2); }
+.pass-status { display: flex; align-items: center; gap: 10px; width: 100%; padding-top: 14px; border-top: 1px dashed var(--hair); }
+.pass-status .plate { width: 22px; height: 22px; box-shadow: none; }
+.pass-status .grow { flex: 1; }
+.pass-status small { display: block; color: var(--text-2); }
+.days-big { font-size: 2.6rem; font-stretch: 70%; font-weight: 800; line-height: 1; }
+
+.m-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.m-stat { background: var(--panel); border-radius: 14px; padding: 14px; display: grid; gap: 4px; border: 1px solid var(--hair); }
+.m-stat .num-display { font-size: 1.9rem; }
+.m-stat small { color: var(--text-2); font-size: 0.78rem; line-height: 1.25; }
+
+.m-card { background: var(--panel); border-radius: 16px; border: 1px solid var(--hair); }
+.m-card > header { padding: 14px 16px 6px; display: flex; justify-content: space-between; align-items: center; }
+.m-card > header h2 { font-size: 1.05rem; }
+.m-card .rows > div { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-top: 1px solid var(--hair); }
+.m-card .rows > div:first-child { border-top: 0; }
+.m-muted { color: var(--text-2); }
+
+.m-day { font-size: 0.85rem; color: var(--text-2); margin: 10px 2px 2px; font-weight: 600; }
+.m-class { display: grid; grid-template-columns: 6px 1fr auto; gap: 12px; align-items: center; background: var(--panel); border: 1px solid var(--hair); border-radius: 14px; padding: 12px 14px 12px 0; overflow: hidden; }
+.m-class .bar { align-self: stretch; }
+.m-class b { display: block; }
+.m-class small { color: var(--text-2); }
+.m-btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 999px; padding: 10px 16px; font-weight: 700; cursor: pointer; background: var(--brand); color: var(--brand-ink); white-space: nowrap; min-height: 40px; }
+.m-btn.ghost { background: var(--panel-2); color: var(--text); }
+.m-btn:disabled { opacity: 0.45; }
+.m-btn.block { width: 100%; }
+
+.m-nav { position: fixed; bottom: 0; inset-inline: 0; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px); border-top: 1px solid var(--hair); display: flex; justify-content: center; padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
+.m-nav > div { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; max-width: 520px; }
+.m-nav button { background: none; border: 0; color: var(--text-2); padding: 10px 4px 12px; display: grid; justify-items: center; gap: 3px; font-size: 0.72rem; font-weight: 600; cursor: pointer; }
+.m-nav button svg { width: 24px; height: 24px; }
+.m-nav button[aria-current="page"] { color: var(--text); }
+.m-nav button[aria-current="page"] svg { color: var(--brand); }
+
+.m-input { width: 100%; min-height: 50px; border-radius: 12px; border: 1px solid var(--hair); background: var(--panel); color: var(--text); padding: 0 16px; font-size: 1.05rem; }
+.m-input:focus { outline: none; border-color: var(--brand); }
+.m-login { flex: 1; display: grid; align-content: center; gap: 18px; padding: 28px 22px; }
+.m-login h1 { font-size: var(--step-4); font-stretch: 72%; font-weight: 800; line-height: 0.98; }
+.pin { letter-spacing: 0.5em; text-align: center; font-size: 1.6rem; font-weight: 700; }
+.m-error { color: #ff8a92; }
+
+.chat { display: grid; gap: 10px; }
+.chat .b { padding: 11px 14px; border-radius: 16px; max-width: 86%; white-space: pre-wrap; line-height: 1.5; }
+.chat .b.me { background: var(--brand); color: var(--brand-ink); justify-self: end; border-end-end-radius: 4px; }
+.chat .b.bot { background: var(--panel); border: 1px solid var(--hair); border-end-start-radius: 4px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chips button { background: var(--panel-2); border: 0; color: var(--text); border-radius: 999px; padding: 8px 12px; font-size: 0.85rem; cursor: pointer; }
+.m-program { white-space: pre-wrap; padding: 4px 16px 16px; color: var(--text-2); line-height: 1.55; }
+.install { display: flex; gap: 12px; align-items: center; background: var(--panel-2); border-radius: 14px; padding: 12px 14px; }
+body.member .toast { background: #f1f3f6; color: #121821; }

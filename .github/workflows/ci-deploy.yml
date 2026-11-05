@@ -1,0 +1,67 @@
+# Tests on every push; builds and deploys to AWS on pushes to main.
+# Setup (once): create an IAM role for GitHub OIDC with ECR push + ecs:UpdateService rights
+# and store its ARN in the repository secret AWS_DEPLOY_ROLE_ARN. See infra/README.md.
+name: ci-deploy
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-3
+  ECR_REPOSITORY: gms
+  ECS_CLUSTER: gms-prod
+  ECS_SERVICE: app
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: devpass
+          POSTGRES_DB: gms_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm test
+        env:
+          DATABASE_URL: postgres://postgres:devpass@127.0.0.1:5432/gms_test?sslmode=disable
+      - run: npm run build
+
+  deploy:
+    needs: test
+    # Runs only once the AWS_DEPLOY_ROLE_ARN secret is set in the repository (see infra/README.md)
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.AUTO_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push image
+        run: |
+          IMAGE=${{ steps.ecr.outputs.registry }}/$ECR_REPOSITORY
+          docker build --build-arg APP_VERSION=${GITHUB_SHA::7} -t $IMAGE:${GITHUB_SHA::7} -t $IMAGE:latest .
+          docker push $IMAGE:${GITHUB_SHA::7}
+          docker push $IMAGE:latest
+      - name: Roll out on ECS
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER --service $ECS_SERVICE --force-new-deployment > /dev/null
+          aws ecs wait services-stable --cluster $ECS_CLUSTER --services $ECS_SERVICE

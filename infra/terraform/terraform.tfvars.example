@@ -1,0 +1,9 @@
+region            = "eu-central-1"
+environment       = "prod"
+# Leave empty to start without a domain (free https://xxxx.cloudfront.net address).
+# Later, put your domain here (e.g. "app.gms-lb.com") and run terraform apply again.
+domain_name       = ""
+route53_zone_id   = ""
+superadmin_email  = "you@example.com"
+alarm_email       = "you@example.com"
+image_tag         = "latest"

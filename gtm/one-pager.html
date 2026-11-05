@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>GMS — one-pager</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Sans+Arabic:wght@400;600&display=swap">
+<style>
+/* Printable A4 handout for gym visits. Replace the WhatsApp number at the bottom, then: Print → Save as PDF. */
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+html, body { overflow: hidden; }
+body { margin: 0; width: 210mm; height: 296mm; font-family: "Archivo", sans-serif; color: #1a2230; background: #f4f5f2; }
+.top { background: #1a2230; color: #fff; padding: 14mm 14mm 10mm; position: relative; overflow: hidden; }
+.mark { font-weight: 800; font-stretch: 75%; font-size: 20pt; display: flex; gap: 8px; align-items: center; }
+.mark i { width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle, #1a2230 0 20%, #e4572e 21%); }
+h1 { font-size: 40pt; font-stretch: 66%; font-weight: 800; line-height: .95; margin: 8mm 0 4mm; max-width: 120mm; }
+.top p { color: #b9c2cf; font-size: 11pt; max-width: 120mm; margin: 0; }
+.ar { font-family: "IBM Plex Sans Arabic", sans-serif; direction: rtl; text-align: left; color: #8f9aab !important; margin-top: 3mm !important; }
+.plates { position: absolute; right: 16mm; top: 24mm; display: flex; gap: 3px; align-items: center; }
+.plates span { width: 9mm; border-radius: 3px; }
+.plates::after { content: ""; position: absolute; left: -12mm; right: -12mm; height: 3mm; top: calc(50% - 1.5mm); background: linear-gradient(#cfd5dd, #8d97a5); border-radius: 2mm; z-index: 0; }
+.plates span { position: relative; z-index: 1; }
+.body { padding: 8mm 14mm 0; display: grid; gap: 5mm; }
+.status { display: grid; grid-template-columns: repeat(4, 1fr); background: #fff; border: 1px solid #dde1e6; border-radius: 6px; }
+.status div { padding: 3.5mm; border-right: 1px solid #dde1e6; font-size: 8.5pt; color: #4b5566; }
+.status div:last-child { border: 0; }
+.status b { display: flex; gap: 6px; align-items: center; color: #1a2230; font-size: 10pt; }
+.status b i { width: 11px; height: 11px; border-radius: 50%; background: radial-gradient(circle, #fff 0 20%, var(--c) 21%); }
+.feat { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm 8mm; }
+.feat h3 { margin: 0 0 1mm; font-size: 12.5pt; font-stretch: 85%; }
+.feat p { margin: 0; font-size: 9.5pt; color: #4b5566; line-height: 1.45; }
+.shot { border-radius: 6px; overflow: hidden; border: 1px solid #dde1e6; height: 50mm; }
+.shot img { width: 100%; height: 100%; object-fit: cover; object-position: left top; display: block; }
+.price { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+.price div { background: #fff; border: 1px solid #dde1e6; border-radius: 6px; padding: 4mm; font-size: 8.5pt; color: #4b5566; }
+.price div.pick { border: 2px solid #e4572e; }
+.price b { display: block; color: #1a2230; font-size: 10.5pt; }
+.price .amt { font-size: 22pt; font-stretch: 66%; font-weight: 800; color: #1a2230; }
+.cta { display: flex; justify-content: space-between; align-items: center; background: #1a2230; color: #fff; border-radius: 6px; padding: 5mm 6mm; }
+.cta b { font-size: 13pt; }
+.cta span { color: #b9c2cf; font-size: 9.5pt; }
+.contact { font-size: 13pt; font-weight: 800; color: #fff; text-align: right; }
+</style></head>
+<body>
+<div class="top">
+  <div class="mark"><i></i>GMS</div>
+  <div class="plates" aria-hidden="true"><span style="height:30mm;background:#d1343f"></span><span style="height:27mm;background:#2f6fcf"></span><span style="height:23mm;background:#d99a00"></span><span style="height:19mm;background:#2e8b57"></span></div>
+  <h1>Run the gym, not the paperwork.</h1>
+  <p>The gym software made for Lebanon: memberships, payments in dollars and lira, QR entry, classes, WhatsApp reminders, and an assistant that tells you who is about to leave.</p>
+  <p class="ar">اشتراكات، دفع بالدولار والليرة، دخول بالـ QR، حصص، وتذكير عالواتساب. كلّو بمكان واحد.</p>
+</div>
+<div class="body">
+  <div class="shot"><img src="landing/img/today.webp" alt=""></div>
+  <div class="status">
+    <div style="--c:#2e8b57"><b><i></i>Active</b>Let them in.</div>
+    <div style="--c:#d99a00"><b><i></i>Ending soon</b>Remind with a smile.</div>
+    <div style="--c:#d1343f"><b><i></i>Expired</b>Refused at the door.</div>
+    <div style="--c:#2f6fcf"><b><i></i>Frozen</b>End date moves by itself.</div>
+  </div>
+  <div class="feat">
+    <div><h3>QR entry in one second</h3><p>Dates, visits left, unpaid balance and ladies-only hours checked automatically. No more expired members walking in.</p></div>
+    <div><h3>Dollars and lira, Whish and OMT</h3><p>Each payment at your rate of the day, numbered receipts, and a cash drawer you can count in both currencies.</p></div>
+    <div><h3>WhatsApp reminders, ready to send</h3><p>Renewals, win-backs and class changes prepared for you. One tap sends them from your own WhatsApp.</p></div>
+    <div><h3>Know who is about to leave</h3><p>Learns from your own members, explains why, and drafts a personal message in Arabizi, Arabic, English or French.</p></div>
+    <div><h3>Your own member app</h3><p>Your name and colour, entry QR, class booking with waitlist, programs from coaches. No App Store needed.</p></div>
+    <div><h3>Your real profit</h3><p>Rent, salaries, generator and diesel next to revenue, with coach commissions calculated for you.</p></div>
+  </div>
+  <div class="price">
+    <div><b>Starter</b><span class="amt">$29</span>/month<br>Members, payments, QR entry, reminders, reports.</div>
+    <div class="pick"><b>Pro</b><span class="amt">$59</span>/month<br>+ classes, personal training, member app, at-risk prediction.</div>
+    <div><b>Elite</b><span class="amt">$99</span>/month<br>+ automatic WhatsApp and AI assistant in Arabic and Arabizi.</div>
+  </div>
+  <div class="cta"><div><b>30-day free trial with your own members.</b><br><span>We import your Excel, set your prices and train your reception on site.</span></div><div class="contact">WhatsApp<br>+961 70 141 207</div></div>
+</div>
+</body></html>

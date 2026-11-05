@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GMS — the gym software made for Lebanon</title>
+<meta name="description" content="Memberships, payments in dollars and lira, QR entry, classes, WhatsApp reminders and an AI that tells you who is about to leave. From $29/month.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Sans+Arabic:wght@400;600&display=swap">
+<style>
+  /* Replace WHATSAPP_NUMBER below (search "961XXXXXXXX") with your sales number before publishing. */
+  :root {
+    --rubber: #1a2230; --rubber-2: #243043; --chalk: #f4f5f2; --ink-2: #4b5566; --muted: #7a8494; --line: #dde1e6;
+    --green: #2e8b57; --yellow: #d99a00; --red: #d1343f; --blue: #2f6fcf; --brand: #e4572e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Archivo", system-ui, sans-serif; color: var(--rubber); background: var(--chalk); line-height: 1.55; }
+  [lang="ar"], .ar { font-family: "IBM Plex Sans Arabic", "Archivo", sans-serif; }
+  a { color: inherit; }
+  img { max-width: 100%; height: auto; display: block; }
+  .wrap { width: min(1160px, calc(100% - 40px)); margin: 0 auto; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 14px 22px; border-radius: 8px; font-weight: 700; text-decoration: none; border: 0; }
+  .btn.primary { background: var(--brand); color: #fff; }
+  .btn.line { box-shadow: inset 0 0 0 1px rgba(255,255,255,.35); color: #fff; }
+  :focus-visible { outline: 3px solid #f6a58b; outline-offset: 3px; }
+
+  /* hero: the gym floor */
+  header.hero { background: var(--rubber); color: #fff; overflow: hidden; }
+  nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+  .mark { display: flex; align-items: center; gap: 10px; font-weight: 800; font-stretch: 75%; font-size: 1.5rem; letter-spacing: .01em; text-decoration: none; }
+  .mark i { width: 26px; height: 26px; border-radius: 50%; background: radial-gradient(circle, var(--rubber) 0 20%, var(--brand) 21%); }
+  nav .links { display: flex; gap: 22px; align-items: center; font-weight: 600; }
+  nav .links a { text-decoration: none; color: #c9d0da; }
+  .hero-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 48px; align-items: center; padding: 48px 0 0; }
+  h1 { font-size: clamp(2.8rem, 6.4vw, 5.6rem); font-stretch: 66%; font-weight: 800; line-height: .94; letter-spacing: -.015em; margin: 0 0 22px; }
+  .lede { font-size: 1.2rem; color: #b9c2cf; max-width: 46ch; margin: 0 0 30px; }
+  .lede-ar { font-size: 1.05rem; color: #8f9aab; margin: -16px 0 30px; }
+  .hero-ctas { display: flex; gap: 14px; flex-wrap: wrap; }
+  .price-note { margin-top: 18px; color: #8f9aab; font-size: .95rem; }
+
+  /* the barbell: plates load on the bar once, on page load */
+  .bar-scene { position: relative; height: 470px; }
+  .bar-scene .shot { position: absolute; inset: 0 0 auto 40px; height: 330px; border-radius: 14px; box-shadow: 0 30px 80px rgba(0,0,0,.45); overflow: hidden; }
+  .bar-scene .shot img { width: 100%; height: 100%; object-fit: cover; object-position: left top; }
+  .barbell { position: absolute; left: 0; right: -60px; bottom: 0; height: 120px; display: flex; align-items: center; }
+  .barbell .pole { position: absolute; left: 0; right: 0; height: 12px; border-radius: 6px; background: linear-gradient(#cfd5dd, #8d97a5); top: 54px; }
+  .plates { position: relative; display: flex; align-items: center; gap: 4px; margin-left: 30px; }
+  .plates span { display: block; width: 26px; border-radius: 7px; box-shadow: inset 0 0 0 2px rgba(0,0,0,.18); transform: translateY(-160px); opacity: 0; animation: load .55s cubic-bezier(.2,1.5,.4,1) forwards; }
+  .plates span:nth-child(1) { height: 120px; background: var(--red); animation-delay: .25s; }
+  .plates span:nth-child(2) { height: 112px; background: var(--blue); animation-delay: .4s; }
+  .plates span:nth-child(3) { height: 100px; background: var(--yellow); animation-delay: .55s; }
+  .plates span:nth-child(4) { height: 86px; background: var(--green); animation-delay: .7s; }
+  @keyframes load { to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .plates span { animation: none; transform: none; opacity: 1; } }
+
+  section { padding: 96px 0; }
+  .eyebrowless h2 { font-size: clamp(2rem, 3.6vw, 3rem); font-stretch: 72%; font-weight: 800; line-height: 1.02; margin: 0 0 14px; max-width: 20ch; }
+  .intro { color: var(--ink-2); font-size: 1.15rem; max-width: 60ch; margin: 0 0 48px; }
+
+  /* plate colours = status: explained once, used everywhere */
+  .legend { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--line); border-radius: 12px; background: #fff; margin-bottom: 64px; }
+  .legend div { padding: 22px; border-inline-end: 1px solid var(--line); }
+  .legend div:last-child { border: 0; }
+  .legend b { display: flex; align-items: center; gap: 10px; font-size: 1.1rem; }
+  .legend b i { width: 20px; height: 20px; border-radius: 50%; background: radial-gradient(circle, #fff 0 20%, var(--c) 21%); }
+  .legend p { margin: 6px 0 0; color: var(--ink-2); }
+
+  .feature { display: grid; grid-template-columns: 1fr 1.25fr; gap: 56px; align-items: center; padding: 40px 0; border-top: 1px solid var(--line); }
+  .feature:nth-of-type(even) { grid-template-columns: 1.25fr 1fr; }
+  .feature:nth-of-type(even) .copy { order: 2; }
+  .feature h3 { font-size: 1.9rem; font-stretch: 78%; font-weight: 800; line-height: 1.05; margin: 0 0 12px; }
+  .feature p { color: var(--ink-2); margin: 0 0 12px; max-width: 46ch; }
+  .feature ul { padding-left: 18px; margin: 0; color: var(--ink-2); }
+  .feature li { margin: 4px 0; }
+  .frame { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 20px 50px rgba(26,34,48,.12); background: #fff; }
+  .phones { display: flex; gap: 18px; justify-content: center; }
+  .phones .frame { width: 46%; border-radius: 26px; border: 6px solid var(--rubber); }
+
+  .local { background: var(--rubber); color: #fff; }
+  .local .intro { color: #b9c2cf; }
+  .local-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--rubber-2); border-radius: 12px; overflow: hidden; }
+  .local-grid div { background: var(--rubber); padding: 26px; }
+  .local-grid b { display: block; font-size: 1.15rem; margin-bottom: 6px; }
+  .local-grid p { margin: 0; color: #b9c2cf; }
+
+  .pricing { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; align-items: stretch; }
+  .tier { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 28px; display: flex; flex-direction: column; gap: 14px; }
+  .tier.pick { border: 2px solid var(--brand); }
+  .tier h3 { margin: 0; font-size: 1.3rem; }
+  .tier .amt { font-size: 3.4rem; font-stretch: 66%; font-weight: 800; line-height: 1; }
+  .tier .amt small { font-size: 1rem; font-stretch: 100%; font-weight: 500; color: var(--muted); }
+  .tier ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; color: var(--ink-2); }
+  .tier li::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--green); margin-right: 10px; vertical-align: 1px; }
+  .tier .who { color: var(--muted); font-size: .95rem; min-height: 3em; }
+  .tier .btn { justify-content: center; margin-top: auto; background: var(--rubber); color: #fff; }
+  .tier.pick .btn { background: var(--brand); }
+
+  .pilot { display: grid; grid-template-columns: 1fr auto; gap: 30px; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 40px; }
+  .pilot h2 { font-size: 2.2rem; font-stretch: 72%; margin: 0 0 8px; line-height: 1.05; }
+  .pilot ol { margin: 14px 0 0; padding-left: 20px; color: var(--ink-2); }
+  details { border-top: 1px solid var(--line); padding: 18px 0; }
+  details summary { font-weight: 700; cursor: pointer; font-size: 1.1rem; }
+  details p { color: var(--ink-2); margin: 10px 0 0; max-width: 70ch; }
+  footer { padding: 40px 0 60px; color: var(--muted); font-size: .9rem; }
+
+  @media (max-width: 900px) {
+    .bar-scene .shot { height: 220px; }
+    .hero-grid, .feature, .feature:nth-of-type(even), .pilot { grid-template-columns: 1fr; }
+    .feature:nth-of-type(even) .copy { order: 0; }
+    .bar-scene { height: 320px; }
+    .legend, .local-grid, .pricing { grid-template-columns: 1fr 1fr; }
+    nav .links a:not(.btn) { display: none; }
+    section { padding: 64px 0; }
+  }
+  @media (max-width: 560px) { .legend, .local-grid, .pricing { grid-template-columns: 1fr; } .legend div { border-inline-end: 0; border-bottom: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <nav aria-label="Main">
+      <a class="mark" href="#"><i></i>GMS</a>
+      <div class="links"><a href="#features">Features</a><a href="#pricing">Pricing</a><a href="#faq">Questions</a><a class="btn primary" href="https://wa.me/96170141207?text=Hi%2C%20I%27d%20like%20a%20GMS%20demo%20for%20my%20gym">Book a demo</a></div>
+    </nav>
+    <div class="hero-grid">
+      <div>
+        <h1>Run the gym, not the paperwork.</h1>
+        <p class="lede">Memberships, payments in dollars and lira, QR entry, classes and WhatsApp reminders in one place, with an assistant that tells you who is about to leave before they do.</p>
+        <p class="lede-ar ar" lang="ar" dir="rtl">اشتراكات، دفع بالدولار والليرة، دخول بالـ QR، حصص، وتذكير عالواتساب. كلّو بمكان واحد.</p>
+        <div class="hero-ctas">
+          <a class="btn primary" href="https://wa.me/96170141207?text=Hi%2C%20I%27d%20like%20a%20GMS%20demo%20for%20my%20gym">Book a 15-minute demo on WhatsApp</a>
+          <a class="btn line" href="#pricing">See prices</a>
+        </div>
+        <p class="price-note">From $29 a month. 30-day free trial with your own members imported.</p>
+      </div>
+      <div class="bar-scene" aria-hidden="true">
+        <div class="shot"><img src="img/checkin.webp" alt="" width="1440" height="900"></div>
+        <div class="barbell"><div class="pole"></div><div class="plates"><span></span><span></span><span></span><span></span></div></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="eyebrowless" id="features">
+    <div class="wrap">
+      <h2>Your reception, at a glance.</h2>
+      <p class="intro">Every screen speaks the same language, borrowed from the plates on your floor. Reception reads a member's situation from across the room.</p>
+      <div class="legend">
+        <div style="--c: var(--green)"><b><i></i>Active</b><p>Membership running. Let them in.</p></div>
+        <div style="--c: var(--yellow)"><b><i></i>Ending soon</b><p>Seven days or less, or money owed. Mention it with a smile.</p></div>
+        <div style="--c: var(--red)"><b><i></i>Expired</b><p>Entry refused at the door. One tap to renew.</p></div>
+        <div style="--c: var(--blue)"><b><i></i>Frozen</b><p>Travelling or injured. The end date moves by itself.</p></div>
+      </div>
+
+      <div class="feature">
+        <div class="copy">
+          <h3>Entry by QR code, in one second.</h3>
+          <p>A $25 USB scanner or the tablet's camera reads the member's code. GMS checks the dates, visits left, unpaid balance and ladies-only hours, then shows a big colour and plays a sound.</p>
+          <ul><li>No more expired members walking in</li><li>Visit packs counted automatically</li><li>Class attendance marked at the door</li></ul>
+        </div>
+        <div class="frame"><img src="img/checkin.webp" alt="GMS check-in screen showing a member allowed in" loading="lazy" width="1440" height="900"></div>
+      </div>
+
+      <div class="feature">
+        <div class="copy">
+          <h3>Know who is about to leave.</h3>
+          <p>GMS learns from your own gym's history which habits come before a member quits, and shows you the people to call this week, with the reasons in plain words and the monthly revenue at stake.</p>
+          <ul><li>"No visit in 18 days", "Visits dropped by 6"</li><li>A personal WhatsApp drafted in Arabizi, Arabic, English or French</li><li>Ask your gym: "how much did we make this month?"</li></ul>
+        </div>
+        <div class="frame"><img src="img/risk.webp" alt="List of members at risk of leaving with reasons" loading="lazy" width="1440" height="900"></div>
+      </div>
+
+      <div class="feature">
+        <div class="copy">
+          <h3>An app with your gym's name on it.</h3>
+          <p>Members open a link, sign in with their phone and a PIN, and add it to their home screen. No App Store, your logo and your colour.</p>
+          <ul><li>Entry QR that works offline</li><li>Book classes, join the waitlist</li><li>Programs from their coach, and answers 24/7</li></ul>
+        </div>
+        <div class="phones">
+          <div class="frame"><img src="img/app-pass.webp" alt="Member app showing the entry pass" loading="lazy" width="600" height="1299"></div>
+          <div class="frame"><img src="img/app-classes.webp" alt="Member app showing classes to book" loading="lazy" width="600" height="1299"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="local eyebrowless">
+    <div class="wrap">
+      <h2>Made for how gyms work in Lebanon.</h2>
+      <p class="intro">Built by a Lebanese engineer around what gym owners actually deal with.</p>
+      <div class="local-grid">
+        <div><b>Dollars and lira</b><p>Each payment in its currency at your rate of the day, cash drawer counted in both.</p></div>
+        <div><b>Whish, OMT, cash</b><p>Every method with its reference number and a numbered receipt.</p></div>
+        <div><b>WhatsApp first</b><p>Reminders prepared for you; one tap sends them from the gym's own WhatsApp.</p></div>
+        <div><b>Ladies-only hours</b><p>Set the slots once; the door handles the rest.</p></div>
+        <div><b>Generator and rent</b><p>Record your real costs and see your real profit every month.</p></div>
+        <div><b>Arabic and English</b><p>The whole team works in the language they prefer.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="eyebrowless" id="pricing">
+    <div class="wrap">
+      <h2>Simple prices, in dollars.</h2>
+      <p class="intro">One member kept per month pays for GMS. Monthly, cancel any time. Pay yearly and get two months free.</p>
+      <div class="pricing">
+        <div class="tier">
+          <h3>Starter</h3><div class="amt">$29<small> / month</small></div>
+          <p class="who">For small gyms moving off Excel.</p>
+          <ul><li>Members and memberships</li><li>Payments USD / LBP, receipts</li><li>QR entry, ladies hours, freezes</li><li>WhatsApp reminders (click to send)</li><li>Reports, expenses, leads</li></ul>
+          <a class="btn" href="https://wa.me/96170141207?text=Starter%20plan">Start a free trial</a>
+        </div>
+        <div class="tier pick">
+          <h3>Pro</h3><div class="amt">$59<small> / month</small></div>
+          <p class="who">For gyms with classes and coaches. Most gyms pick this.</p>
+          <ul><li>Everything in Starter</li><li>Classes, bookings, waitlists</li><li>Personal training and commissions</li><li>Your branded member app</li><li>Members-at-risk prediction</li></ul>
+          <a class="btn" href="https://wa.me/96170141207?text=Pro%20plan">Start a free trial</a>
+        </div>
+        <div class="tier">
+          <h3>Elite</h3><div class="amt">$99<small> / month</small></div>
+          <p class="who">For busy gyms that want it all automatic.</p>
+          <ul><li>Everything in Pro</li><li>Automatic WhatsApp Business messages</li><li>AI assistant answering members in Arabizi and Arabic</li><li>Free-form questions about your numbers</li><li>Priority support</li></ul>
+          <a class="btn" href="https://wa.me/96170141207?text=Elite%20plan">Start a free trial</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top: 0">
+    <div class="wrap">
+      <div class="pilot">
+        <div>
+          <h2>Try it for 30 days with your own members.</h2>
+          <ol><li>Send us your member list (Excel or a photo of the notebook).</li><li>We set up your plans, prices, colour and logo, and import everyone.</li><li>We train your reception on site in 30 minutes.</li></ol>
+        </div>
+        <a class="btn primary" href="https://wa.me/96170141207?text=Hi%2C%20I%27d%20like%20the%2030-day%20trial%20of%20GMS">Start my trial</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq" style="padding-top: 0">
+    <div class="wrap">
+      <details><summary>What if the internet cuts at the gym?</summary><p>GMS works from any phone on 4G, and members' entry codes stay readable offline in their app.</p></details>
+      <details><summary>Is my data safe?</summary><p>GMS runs on Amazon Web Services with encrypted storage and 14 days of backups. Each gym only ever sees its own data, and you can export your members to Excel at any time.</p></details>
+      <details><summary>Do I need new hardware?</summary><p>No. A computer, tablet or phone is enough. A USB QR scanner (about $25) makes the entrance faster.</p></details>
+      <details><summary>Can I keep using my WhatsApp?</summary><p>Yes. By default GMS prepares the messages and opens them in your WhatsApp. Elite sends them automatically through WhatsApp Business.</p></details>
+    </div>
+  </section>
+</main>
+<footer><div class="wrap">GMS · Gym Management System · Lebanon</div></footer>
+</body>
+</html>

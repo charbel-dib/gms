@@ -1,0 +1,32 @@
+{
+  "name": "gms",
+  "version": "1.0.0",
+  "description": "GMS — Gym Management System for gyms in Lebanon: memberships, payments USD/LBP, QR check-in, classes, PT, WhatsApp and AI.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "dev": "node scripts/build.mjs --watch & tsx watch server/index.ts",
+    "build": "node scripts/build.mjs",
+    "start": "node dist/server.js",
+    "migrate": "tsx scripts/migrate.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "test": "tsx --test tests/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "esbuild": "0.28.2",
+    "tsx": "^4.19.0",
+    "typescript": "^6.0.0"
+  }
+}
