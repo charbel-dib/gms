@@ -13,7 +13,7 @@ const fromB64u = (s: string) => Buffer.from(s, "base64url");
 
 export interface VapidKeys {
   publicKey: string; // base64url, 65-byte uncompressed P-256 point (what the browser needs)
-  privateJwk: JsonWebKey;
+  privateJwk: crypto.JsonWebKeyInput["key"];
 }
 
 let cached: VapidKeys | null = null;
