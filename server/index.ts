@@ -101,7 +101,7 @@ async function serveDynamicPage(req: http.IncomingMessage, res: http.ServerRespo
   const mm = /^\/m\/([a-z0-9][a-z0-9-]{1,40})(\/[a-z]*)?\/?$/.exec(pathname);
   if (mm) {
     const head = await memberPageHead(mm[1]);
-    if (!head) return false;
+    if (!head || !fs.existsSync(path.join(PUBLIC_DIR, "member.html"))) return false;
     if (!memberTemplate.html || !config.isProd) memberTemplate.html = fs.readFileSync(path.join(PUBLIC_DIR, "member.html"), "utf8");
     const html = memberTemplate.html
       .replace(/<title>[^<]*<\/title>/, `<title>${head.title}</title>`)

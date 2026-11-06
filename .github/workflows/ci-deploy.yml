@@ -37,10 +37,11 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
+      # build first: the tests serve the built pages (member app, website)
+      - run: npm run build
       - run: npm test
         env:
           DATABASE_URL: postgres://postgres:devpass@127.0.0.1:5432/gms_test?sslmode=disable
-      - run: npm run build
 
   deploy:
     needs: test
