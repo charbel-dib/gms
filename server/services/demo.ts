@@ -200,7 +200,70 @@ export async function seedDemoActivity(gymId: string, opts: { members: number; d
     await insertMany(q, "leads", ["gym_id", "name", "phone", "source", "status", "interest", "follow_up_on"], leads);
   });
 
+  await seedShop(gymId, R, reception?.id ?? null, memberRows.map((r) => r[0] as string));
   const train = await trainForGym(gymId);
   const score = await scoreGym(gymId);
   return { members: memberRows.length, memberships: msRows.length, payments: payRows.length, checkins: ckRows.length, bookings: bookingRows.length, model: train, scored: score.scored };
+}
+
+const CATALOG: [name: string, category: string, brand: string, price: number, cost: number, stock: number][] = [
+  ["Whey protein 2 kg — chocolate", "supplements", "Generic", 75, 52, 14],
+  ["Whey protein 2 kg — vanilla", "supplements", "Generic", 75, 52, 3],
+  ["Creatine monohydrate 300 g", "supplements", "Generic", 30, 17, 22],
+  ["Pre-workout 30 servings", "supplements", "Generic", 40, 25, 9],
+  ["BCAA 400 g", "supplements", "Generic", 32, 19, 6],
+  ["Mass gainer 3 kg", "supplements", "Generic", 65, 44, 4],
+  ["Protein bar", "snacks", "Generic", 3, 1.6, 60],
+  ["Water 500 ml", "drinks", "Local", 0.5, 0.2, 120],
+  ["Energy drink", "drinks", "Generic", 2, 1.1, 48],
+  ["Isotonic drink", "drinks", "Generic", 1.5, 0.8, 36],
+  ["Shaker 700 ml", "accessories", "Gym brand", 8, 3, 25],
+  ["Lifting straps", "accessories", "Generic", 12, 5, 2],
+  ["Gym towel", "accessories", "Gym brand", 10, 4, 15],
+];
+
+/** Shop catalog + 90 days of sales, for demos. */
+async function seedShop(gymId: string, R: () => number, userId: string | null, memberIds: string[]) {
+  const exists = await one(db, "SELECT 1 FROM products WHERE gym_id = $1 LIMIT 1", [gymId]);
+  if (exists) return;
+  const rate = Number((await one(db, "SELECT lbp_rate FROM gyms WHERE id = $1", [gymId])).lbp_rate);
+  const products: any[] = [];
+  for (const [i, [name, category, brand, price, cost, stock]] of CATALOG.entries()) {
+    const p = await one(db, `INSERT INTO products (gym_id, name, category, brand, barcode, price, currency, cost_usd, stock, low_stock_at, expires_on)
+                             VALUES ($1,$2,$3,$4,$5,$6,'USD',$7,$8,$9,$10) RETURNING *`,
+      [gymId, name, category, brand, `628000${String(1000 + i)}`, price, cost, stock, category === "drinks" ? 12 : 5,
+        category === "supplements" ? new Date(Date.now() + (40 + Math.floor(R() * 400)) * 86400000).toISOString().slice(0, 10) : null]);
+    products.push(p);
+  }
+  let saleNo = 0;
+  let receipt = (await one(db, "SELECT coalesce(max(receipt_no), 1000) AS r FROM payments WHERE gym_id = $1", [gymId])).r;
+  await db.tx(async (q) => {
+    for (let d = 90; d >= 1; d--) {
+      const perDay = 2 + Math.floor(R() * 6);
+      for (let k = 0; k < perDay; k++) {
+        const picks = [products[Math.floor(Math.pow(R(), 1.6) * products.length)]];
+        if (R() < 0.25) picks.push(products[6 + Math.floor(R() * 4)]);
+        const lines = picks.map((p) => ({ p, qty: p.category === "supplements" ? 1 : 1 + Math.floor(R() * 2) }));
+        const total = Math.round(lines.reduce((s, l) => s + Number(l.p.price) * l.qty, 0) * 100) / 100;
+        const cost = Math.round(lines.reduce((s, l) => s + Number(l.p.cost_usd) * l.qty, 0) * 100) / 100;
+        const member = R() < 0.7 && memberIds.length ? memberIds[Math.floor(R() * memberIds.length)] : null;
+        const at = new Date(Date.now() - d * 86400000 + (8 + Math.floor(R() * 12)) * 3600000);
+        saleNo++;
+        const sale = await one(q, `INSERT INTO sales (gym_id, sale_no, member_id, subtotal_usd, total_usd, cost_usd, lbp_rate, status, sold_by, sold_at)
+                                   VALUES ($1,$2,$3,$4,$4,$5,$6,'paid',$7,$8) RETURNING id`, [gymId, saleNo, member, total, cost, rate, userId, at.toISOString()]);
+        for (const l of lines) {
+          await q.query(`INSERT INTO sale_items (sale_id, product_id, name, qty, unit_price, currency, line_total_usd, unit_cost_usd) VALUES ($1,$2,$3,$4,$5,'USD',$6,$7)`,
+            [sale!.id, l.p.id, l.p.name, l.qty, l.p.price, Math.round(Number(l.p.price) * l.qty * 100) / 100, l.p.cost_usd]);
+        }
+        const lbp = R() < 0.25;
+        receipt++;
+        await q.query(`INSERT INTO payments (gym_id, member_id, sale_id, amount, currency, lbp_rate, amount_usd, method, receipt_no, received_by, paid_at, note)
+                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+          [gymId, member, sale!.id, lbp ? Math.round((total * rate) / 1000) * 1000 : total, lbp ? "LBP" : "USD", rate, total,
+            R() < 0.7 ? "cash" : "whish", receipt, userId, at.toISOString(), `Shop sale #${saleNo}`]);
+      }
+    }
+    await q.query(`INSERT INTO counters (gym_id, name, value) VALUES ($1,'sale',$2), ($1,'receipt',$3)
+                   ON CONFLICT (gym_id, name) DO UPDATE SET value = greatest(counters.value, EXCLUDED.value)`, [gymId, saleNo, receipt]);
+  });
 }

@@ -6,6 +6,7 @@ import { db, many, one } from "./db/index.ts";
 import { ensureSessions } from "./modules/classes.ts";
 import { reminderText, sendWhatsApp } from "./services/whatsapp.ts";
 import { scoreGym, trainForGym } from "./ai/churn.ts";
+import { processQueue, scheduleExpiryNotices, scheduleReminders } from "./services/notify.ts";
 
 async function withLock(key: number, fn: () => Promise<void>) {
   await db.withConnection(async (c) => {
@@ -83,6 +84,14 @@ export function startJobs() {
     const h = await one(db, "SELECT extract(hour FROM now() AT TIME ZONE 'Asia/Beirut')::int AS h");
     if (h.h < 10 || h.h >= 20) return;
     await forEachGym((id) => runReminders(id));
+    await scheduleExpiryNotices();
+  });
+  // push notifications: class/PT reminders every 5 minutes, delivery queue every minute
+  every(5 * 60_000, 9104, async () => {
+    await scheduleReminders();
+  });
+  every(60_000, 9105, async () => {
+    await processQueue();
   });
   // churn: rescore every 6 hours; retrain once a day (night, Beirut time)
   every(6 * 3600_000, 9103, async () => {

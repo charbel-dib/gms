@@ -28,7 +28,7 @@ resource "aws_db_instance" "main" {
   engine_version               = "16"
   instance_class               = var.db_instance_class
   allocated_storage            = var.db_allocated_storage
-  max_allocated_storage        = var.db_allocated_storage * 5
+  max_allocated_storage        = var.db_free_plan ? null : var.db_allocated_storage * 5
   storage_type                 = "gp3"
   storage_encrypted            = true
   db_name                      = "gms"
@@ -39,14 +39,14 @@ resource "aws_db_instance" "main" {
   parameter_group_name         = aws_db_parameter_group.pg16.name
   multi_az                     = var.db_multi_az
   publicly_accessible          = false
-  backup_retention_period      = 14
+  backup_retention_period      = var.db_free_plan ? 1 : 14
   backup_window                = "01:00-02:00"
   maintenance_window           = "sun:02:30-sun:03:30"
   auto_minor_version_upgrade   = true
   deletion_protection          = true
   skip_final_snapshot          = false
   final_snapshot_identifier    = "${local.name}-final"
-  performance_insights_enabled = true
+  performance_insights_enabled = !var.db_free_plan
   copy_tags_to_snapshot        = true
 }
 

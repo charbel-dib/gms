@@ -13,8 +13,8 @@
     "start": "node dist/server.js",
     "migrate": "tsx scripts/migrate.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
-    "test": "tsx --test tests/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "test": "tsx --test --test-concurrency=1 tests/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json"
   },
   "dependencies": {
     "react": "19.2.8",

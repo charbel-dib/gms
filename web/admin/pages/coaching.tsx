@@ -4,6 +4,7 @@ import { Empty, Field, Icon, Loader, Modal, Tabs, useAction, useAsync, useDeboun
 import { fmtDate, fmtTime, money, t } from "../../shared/i18n.ts";
 import { Link, can, useApp } from "../app.tsx";
 import { PaymentFields, emptyPayment, toPaymentBody } from "./forms.tsx";
+import { openReceipt } from "../receipt.tsx";
 
 export function CoachingPage() {
   const { me } = useApp();
@@ -81,7 +82,7 @@ function NewPackageModal({ open, onClose }: { open: boolean; onClose: () => void
     <Modal title="Sell a PT package" open={open} onClose={onClose} wide
       footer={<button className="btn primary" disabled={busy || !member} onClick={async () => {
         const r = await run(() => post("/api/pt/packages", { member_id: member.id, coach_id: f.coach_id || null, title: f.title, sessions_total: Number(f.sessions_total), price: Number(f.price), currency: f.currency, expires_on: f.expires_on || null, payment: toPaymentBody(pay) }), "Package sold");
-        if (r) { setMember(null); onClose(); }
+        if (r) { setMember(null); onClose(); if (r.payment) openReceipt(r.payment.id); }
       }}>Confirm sale</button>}>
       {!member ? (
         <Field label="Member"><input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, phone or number" autoFocus /></Field>

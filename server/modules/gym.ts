@@ -52,6 +52,14 @@ const settingsSchema = z.object({
     token: z.string().max(600).optional(), // write-only, stored encrypted
   }).partial().optional(),
   receiptFooter: z.string().max(300).optional(),
+  push: z.object({
+    enabled: z.boolean(),
+    classReminderHours: z.number().int().min(1).max(24),
+    ptReminderHours: z.number().int().min(1).max(24),
+    quietFrom: hhmm,
+    quietTo: hhmm,
+    types: z.record(z.string(), z.boolean()),
+  }).partial().optional(),
 });
 
 const gymUpdateSchema = z.object({

@@ -74,3 +74,9 @@ variable "alarm_email" {
   type        = string
   default     = ""
 }
+
+variable "db_free_plan" {
+  description = "true while the AWS account is on the Free plan: 1 day of backups, no storage autoscaling, no Performance Insights. Set to false after upgrading the account to get 14 days of backups."
+  type        = bool
+  default     = true
+}

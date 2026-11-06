@@ -7,7 +7,9 @@ import {
 import { addDays, daysBetween, gymRate, gymToday, toUsd, type Currency } from "../services/money.ts";
 import { waLink } from "../services/whatsapp.ts";
 import { config } from "../config.ts";
-import { escapeHtml, parseCsv, toCsv } from "../services/text.ts";
+import { parseCsv, toCsv } from "../services/text.ts";
+import { receiptForStaff } from "../services/receipt.ts";
+import { notify } from "../services/notify.ts";
 
 const memberSchema = z.object({
   first_name: z.string().trim().min(1).max(60),
@@ -41,16 +43,32 @@ export async function recordPayment(
   q: Queryable,
   gymId: string,
   userId: string | null,
-  p: { member_id: string | null; membership_id?: string | null; pt_package_id?: string | null; amount: number; currency: Currency; method: string; reference?: string | null; note?: string | null },
+  p: {
+    member_id: string | null; membership_id?: string | null; pt_package_id?: string | null; sale_id?: string | null;
+    amount: number; currency: Currency; method: string; reference?: string | null; note?: string | null;
+    /** exact USD value when the payment settles a USD total paid in rounded lira */
+    amount_usd?: number;
+  },
 ) {
   const rate = await gymRate(q, gymId);
   const receipt = await nextCounter(q, gymId, "receipt", 1001);
-  return one(
+  const pay = await one(
     q,
-    `INSERT INTO payments (gym_id, member_id, membership_id, pt_package_id, amount, currency, lbp_rate, amount_usd, method, reference, note, receipt_no, received_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-    [gymId, p.member_id, p.membership_id ?? null, p.pt_package_id ?? null, p.amount, p.currency, rate, toUsd(p.amount, p.currency, rate), p.method, p.reference ?? null, p.note ?? null, receipt, userId],
+    `INSERT INTO payments (gym_id, member_id, membership_id, pt_package_id, sale_id, amount, currency, lbp_rate, amount_usd, method, reference, note, receipt_no, received_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+    [gymId, p.member_id, p.membership_id ?? null, p.pt_package_id ?? null, p.sale_id ?? null, p.amount, p.currency, rate,
+      p.amount_usd ?? toUsd(p.amount, p.currency, rate), p.method, p.reference ?? null, p.note ?? null, receipt, userId],
   );
+  if (pay && p.member_id) await notifyPayment(q, gymId, pay);
+  return pay;
+}
+
+async function notifyPayment(q: Queryable, gymId: string, pay: any) {
+  const amount = pay.currency === "LBP" ? `${Math.round(Number(pay.amount)).toLocaleString("en-US")} LBP` : `$${Number(pay.amount).toFixed(2)}`;
+  await notify(q, {
+    gymId, memberId: pay.member_id, kind: "receipt", title: "Payment received ✅",
+    body: `${amount} — receipt #${pay.receipt_no}. Tap to view it.`, url: `/r/${pay.public_token}`, dedupeKey: `pay:${pay.id}`,
+  });
 }
 
 /** Sells a new membership or renews: a renewal starts the day after the current one ends. */
@@ -337,7 +355,7 @@ export function registerMembers(r: Router) {
     const u = await requireStaff(ctx);
     const id = zId.parse(ctx.params.id);
     const m = await getOverview(db, u.gymId, id);
-    const [memberships, payments, checkins, bookings, pt, programs, messages, churn] = await Promise.all([
+    const [memberships, payments, checkins, bookings, pt, programs, messages, churn, notifications, push] = await Promise.all([
       many(db, "SELECT * FROM memberships WHERE member_id = $1 ORDER BY start_date DESC", [id]),
       many(db, "SELECT p.*, us.name AS received_by_name FROM payments p LEFT JOIN users us ON us.id = p.received_by WHERE p.member_id = $1 ORDER BY paid_at DESC", [id]),
       many(db, "SELECT * FROM checkins WHERE member_id = $1 ORDER BY at DESC LIMIT 60", [id]),
@@ -347,9 +365,11 @@ export function registerMembers(r: Router) {
       many(db, `SELECT p.*, us.name AS coach_name FROM programs p LEFT JOIN users us ON us.id = p.coach_id WHERE p.member_id = $1 ORDER BY created_at DESC`, [id]),
       many(db, "SELECT * FROM messages WHERE member_id = $1 ORDER BY created_at DESC LIMIT 30", [id]),
       one(db, "SELECT * FROM churn_scores WHERE member_id = $1", [id]),
+      many(db, "SELECT id, kind, title, body, status, devices, created_at, read_at FROM notifications WHERE member_id = $1 ORDER BY created_at DESC LIMIT 30", [id]),
+      one(db, "SELECT count(*)::int AS devices FROM push_subscriptions WHERE member_id = $1", [id]),
     ]);
     const visits30 = checkins.filter((c) => c.result === "ok" && Date.now() - new Date(c.at).getTime() < 30 * 86400000).length;
-    return { ...m, memberships, payments, checkins, bookings, pt, programs, messages, churn, visits30 };
+    return { ...m, memberships, payments, checkins, bookings, pt, programs, messages, churn, visits30, notifications, push_devices: push.devices };
   });
 
   r.put("/api/members/:id", async (ctx) => {
@@ -538,44 +558,12 @@ export function registerMembers(r: Router) {
     return { ok: true };
   });
 
-  /** Printable receipt (A5 or 80mm thermal printers) — opened in a new tab. */
+  /** Receipt: HTML for the in-app preview/print, shareable link and WhatsApp message. */
   r.get("/api/payments/:id/receipt", async (ctx) => {
     const u = await requireStaff(ctx);
-    const p = await one(
-      db,
-      `SELECT p.*, m.first_name, m.last_name, m.code, ms.plan_name, ms.start_date, ms.end_date, pk.title AS pt_title, us.name AS staff,
-              g.name AS gym_name, g.address, g.phone AS gym_phone, g.settings, (p.paid_at AT TIME ZONE g.timezone) AS local_time
-         FROM payments p JOIN gyms g ON g.id = p.gym_id
-         LEFT JOIN members m ON m.id = p.member_id
-         LEFT JOIN memberships ms ON ms.id = p.membership_id
-         LEFT JOIN pt_packages pk ON pk.id = p.pt_package_id
-         LEFT JOIN users us ON us.id = p.received_by
-        WHERE p.id = $1 AND p.gym_id = $2`,
-      [zId.parse(ctx.params.id), u.gymId],
-    );
-    if (!p) throw notFound("payment");
-    const fmt = (n: number, c: string) => (c === "LBP" ? `${Math.round(n).toLocaleString("en-US")} LBP` : `$${Number(n).toFixed(2)}`);
-    const e = escapeHtml;
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Receipt #${p.receipt_no}</title>
-<style>body{font:14px/1.45 system-ui,sans-serif;max-width:340px;margin:16px auto;color:#111}h1{font-size:18px;margin:0}
-.muted{color:#666;font-size:12px}table{width:100%;border-collapse:collapse;margin:12px 0}td{padding:4px 0;border-bottom:1px dashed #ccc}
-td:last-child{text-align:right}.total{font-size:20px;font-weight:700;text-align:right}.void{color:#b00;font-weight:700;border:2px solid #b00;padding:4px;text-align:center}
-@media print{button{display:none}body{margin:0}}</style></head><body>
-<h1>${e(p.gym_name)}</h1><div class="muted">${e(p.address ?? "")} ${e(p.gym_phone ?? "")}</div>
-<p><b>Receipt #${p.receipt_no}</b><br><span class="muted">${new Date(p.local_time).toISOString().slice(0, 16).replace("T", " ")}</span></p>
-${p.voided_at ? `<div class="void">VOID — ${e(p.void_reason ?? "")}</div>` : ""}
-<table><tr><td>Member</td><td>#${p.code ?? "-"} ${e((p.first_name ?? "") + " " + (p.last_name ?? ""))}</td></tr>
-${p.plan_name ? `<tr><td>Membership</td><td>${e(p.plan_name)}<br><span class="muted">${p.start_date} → ${p.end_date}</span></td></tr>` : ""}
-${p.pt_title ? `<tr><td>Personal training</td><td>${e(p.pt_title)}</td></tr>` : ""}
-<tr><td>Method</td><td>${e(p.method.toUpperCase())}${p.reference ? " · " + e(p.reference) : ""}</td></tr>
-${p.currency === "LBP" ? `<tr><td>Rate</td><td>${Number(p.lbp_rate).toLocaleString("en-US")} LBP/USD</td></tr>` : ""}
-<tr><td>Received by</td><td>${e(p.staff ?? "-")}</td></tr></table>
-<div class="total">${fmt(p.amount, p.currency)}</div>${p.currency === "LBP" ? `<div class="muted" style="text-align:right">≈ $${Number(p.amount_usd).toFixed(2)}</div>` : ""}
-<p class="muted">${e(p.settings?.receiptFooter ?? "Thank you!")}</p>
-<button onclick="print()">Print</button></body></html>`;
-    ctx.res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
-    ctx.res.end(html);
-    return undefined;
+    const r2 = await receiptForStaff(zId.parse(ctx.params.id), u.gymId);
+    if (!r2) throw notFound("payment");
+    return r2;
   });
 
   // ---------- check-in ----------

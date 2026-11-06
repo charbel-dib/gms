@@ -9,3 +9,5 @@ gms.tgz
 *.csv.bak
 infra/terraform/.terraform.lock.hcl.bak
 infra/terraform/*.tfplan
+
+*.tgz

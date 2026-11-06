@@ -33,7 +33,7 @@ export function TodayPage() {
               <section className="today-strip">
                 <div className="stack">
                   <p className="headline-sentence">
-                    <strong>{k.checkins_today}</strong> {k.checkins_today === 1 ? "check-in" : "check-ins"} so far today{k.revenue_today != null && <> and <strong>{money(k.revenue_today)}</strong> collected</>}.{" "}
+                    <strong>{k.checkins_today}</strong> {k.checkins_today === 1 ? "check-in" : "check-ins"} so far today{d.shopToday?.sales > 0 && <>, <strong>{d.shopToday.sales}</strong> shop {d.shopToday.sales === 1 ? "sale" : "sales"}</>}{k.revenue_today != null && <> and <strong>{money(k.revenue_today)}</strong> collected</>}.{" "}
                     {k.expiring_7d > 0 ? <><strong>{k.expiring_7d}</strong> memberships end this week.</> : "No membership ends this week."}{" "}
                     {k.at_risk > 0 && <>{k.at_risk} members look likely to leave.</>}
                   </p>
@@ -130,6 +130,16 @@ export function TodayPage() {
                       <p className="muted" style={{ marginTop: 6, fontSize: "0.85rem" }}>Average {k.checkins_avg_30d} per day.</p>
                     </div>
                   </section>
+                  {d.lowStock?.length > 0 && (
+                    <section className="panel">
+                      <header><h2>Shop: running low</h2><Link className="btn small ghost" to="/shop">Shop</Link></header>
+                      <div className="list">
+                        {d.lowStock.slice(0, 6).map((p: any) => (
+                          <div key={p.id}><span className="plate" data-s={p.stock <= 0 ? "denied" : "warn"} /><span className="grow">{p.name}</span><b>{p.stock <= 0 ? "out" : `${p.stock} left`}</b></div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                   {d.birthdays.length > 0 && (
                     <section className="panel">
                       <header><h2>Birthdays today</h2></header>

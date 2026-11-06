@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { get, post, put } from "../../shared/api.ts";
+import { get, getGymOverride, post, put } from "../../shared/api.ts";
 import { Empty, Field, Icon, Loader, Modal, Segmented, Status, Tabs, initials, toast, toastError, useAction, useAsync, useDebounced } from "../../shared/ui.tsx";
 import { fmtDate, fmtTime, money, relDays, t } from "../../shared/i18n.ts";
 import { qrSvg } from "../../shared/qr.ts";
 import { Link, can, doCheckin, navigate, usePath, useApp } from "../app.tsx";
 import { PaymentFields, SaleFields, emptyPayment, emptySale, toPaymentBody, toSaleBody } from "./forms.tsx";
+import { openReceipt } from "../receipt.tsx";
 
 const STATUSES = ["all", "active", "expiring", "expired", "frozen", "none"] as const;
 
@@ -30,6 +31,7 @@ function NewMemberModal({ open, onClose, lead }: { open: boolean; onClose: () =>
       setF({ first_name: "", last_name: "", phone: "", gender: "", birth_date: "", email: "", source: "walk-in", notes: "" });
       setSale(emptySale());
       navigate(`/members/${r.id}`);
+      if (r.sale?.payment) openReceipt(r.sale.payment.id);
     }
   };
   return (
@@ -73,7 +75,7 @@ export function MembersPage() {
       <div className="page-head">
         <div><h1>{t("Members")}</h1><p>{state.data ? `${state.data.total} shown` : " "}{balance ? " · with an unpaid balance" : ""}</p></div>
         <div className="row">
-          {can(me, "owner", "manager") && <a className="btn" href="/api/members/export.csv"><Icon name="download" />Export</a>}
+          {can(me, "owner", "manager") && <a className="btn" href={`/api/members/export.csv${getGymOverride() ? `?gym=${getGymOverride()}` : ""}`}><Icon name="download" />Export</a>}
           {can(me, "owner", "manager") && <button className="btn" onClick={() => setImporting(true)}><Icon name="upload" />Import from Excel</button>}
           {can(me, "owner", "manager", "reception") && <button className="btn primary" onClick={() => setCreating(true)}><Icon name="plus" />{t("Add member")}</button>}
         </div>
@@ -213,7 +215,7 @@ export function MemberPage({ id }: { id: string }) {
                             <td>#{p.receipt_no}</td><td>{fmtDate(p.paid_at, { day: "numeric", month: "short", year: "numeric" })}</td>
                             <td>{t(p.method)}{p.reference ? <small className="muted"> · {p.reference}</small> : ""}</td>
                             <td className="r">{money(p.amount, p.currency)}{p.currency === "LBP" && <small className="muted"> ≈ {money(p.amount_usd)}</small>}</td>
-                            <td className="r"><a className="btn small ghost" href={`/api/payments/${p.id}/receipt`} target="_blank" rel="noreferrer"><Icon name="print" /></a>
+                            <td className="r"><button className="btn small ghost" onClick={() => openReceipt(p.id)} aria-label="Receipt"><Icon name="receipt" /></button>
                               {!p.voided_at && can(me, "owner", "manager") && <VoidButton id={p.id} onDone={reload} />}</td>
                           </tr>
                         ))}</tbody></table></div>
@@ -249,10 +251,21 @@ export function MemberPage({ id }: { id: string }) {
                     </div>
                   )}
                   {tab === "messages" && (
-                    <div className="panel timeline">
-                      {m.messages.length ? m.messages.map((x: any) => (
-                        <div key={x.id}><span className="muted">{fmtDate(x.created_at)}</span><span style={{ whiteSpace: "pre-wrap" }}>{x.direction === "in" ? "⬅ " : ""}{x.body}</span><span className="tag">{x.status}</span></div>
-                      )) : <Empty title="No messages yet." />}
+                    <div className="stack">
+                      <div className="spread">
+                        <span className="ink-2"><Icon name="bell" width={16} height={16} style={{ display: "inline", verticalAlign: -3 }} /> {m.push_devices ? `Notifications on (${m.push_devices} device${m.push_devices > 1 ? "s" : ""})` : m.has_app_access ? "Notifications not turned on in the app yet" : "No app access yet"}</span>
+                        {m.push_devices > 0 && <button className="btn small" onClick={async () => {
+                          try { const r = await post("/api/notifications/test", { member_id: m.id }); toast(r.ok ? "Test notification delivered" : "The phone did not accept it; ask the member to turn notifications on again", r.ok ? "ok" : "error"); reload(); } catch (e) { toastError(e); }
+                        }}>Send a test notification</button>}
+                      </div>
+                      <div className="panel timeline">
+                        {[...m.messages.map((x: any) => ({ ...x, channel: "WhatsApp" })), ...m.notifications.map((x: any) => ({ ...x, channel: "App", body: `${x.title} — ${x.body}` }))]
+                          .sort((a: any, b: any) => +new Date(b.created_at) - +new Date(a.created_at))
+                          .map((x: any) => (
+                            <div key={x.id}><span className="muted">{fmtDate(x.created_at)}</span><span style={{ whiteSpace: "pre-wrap" }} dir="auto"><small className="tag">{x.channel}</small> {x.direction === "in" ? "⬅ " : ""}{x.body}</span><span className="tag">{x.status === "no_device" ? "in app only" : x.status}{x.read_at ? " · opened" : ""}</span></div>
+                          ))}
+                        {!m.messages.length && !m.notifications.length && <Empty title="No messages yet." />}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -365,7 +378,7 @@ function SellModal({ open, m, onClose }: { open: boolean; m: any; onClose: () =>
         const r = await run(() => post(`/api/members/${m.id}/memberships`, toSaleBody(sale)));
         if (r) {
           toast(`Membership sold: ${fmtDate(r.membership.start_date)} → ${fmtDate(r.membership.end_date)}`);
-          if (r.payment) window.open(`/api/payments/${r.payment.id}/receipt`, "_blank");
+          if (r.payment) openReceipt(r.payment.id);
           setSale(emptySale());
           onClose();
         }
@@ -384,7 +397,7 @@ function PayModal({ open, m, current, onClose }: { open: boolean; m: any; curren
     <Modal title={t("Record payment")} open={open} onClose={onClose}
       footer={<><button className="btn" onClick={onClose}>{t("Cancel")}</button><button className="btn primary" disabled={busy || !Number(p.amount)} onClick={async () => {
         const r = await run(() => post("/api/payments", { member_id: m.id, membership_id: current?.id ?? null, ...toPaymentBody(p) }), "Payment recorded");
-        if (r) { window.open(`/api/payments/${r.id}/receipt`, "_blank"); setP(emptyPayment()); onClose(); }
+        if (r) { openReceipt(r.id); setP(emptyPayment()); onClose(); }
       }}>Save payment</button></>}>
       {Number(m.balance_usd) > 0 && <p>Outstanding balance: <b className="money-neg">{money(m.balance_usd)}</b></p>}
       <PaymentFields value={p} onChange={setP} />

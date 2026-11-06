@@ -16,6 +16,7 @@ import { registerBusiness } from "./modules/business.ts";
 import { registerEngage } from "./modules/engage.ts";
 import { registerPortal } from "./modules/portal.ts";
 import { registerAdmin } from "./modules/admin.ts";
+import { registerShop } from "./modules/shop.ts";
 import { startJobs, stopJobs } from "./jobs.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -30,6 +31,7 @@ registerBusiness(router);
 registerEngage(router);
 registerPortal(router);
 registerAdmin(router);
+registerShop(router);
 
 router.get("/healthz", async () => {
   await db.query("SELECT 1");

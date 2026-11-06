@@ -56,20 +56,37 @@ export function MessagesPage() {
 
 function BroadcastModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [segment, setSegment] = useState("expired_30");
+  const [channel, setChannel] = useState<"whatsapp" | "push" | "both">("whatsapp");
+  const [title, setTitle] = useState("");
   const [body, setBody] = useState("Hi {name}! ");
   const [preview, setPreview] = useState<any>(null);
   const { busy, run } = useAction();
   const segs: Record<string, string> = { active: "Active members", expiring: "Ending this week", expired_30: "Expired in the last 30 days", expired_90: "Expired in the last 90 days", at_risk: "At risk of leaving", unpaid: "With an unpaid balance", women: "Active women", all: "Everyone" };
+  const payload = { segment, channel, title, body };
   return (
     <Modal title="Message a group" open={open} onClose={() => { setPreview(null); onClose(); }}
       footer={<>
-        <button className="btn" disabled={busy} onClick={async () => setPreview(await run(() => post("/api/messages/broadcast", { segment, body, preview: true })))}>Preview</button>
-        <button className="btn primary" disabled={busy || !preview} onClick={async () => { const r = await run(() => post("/api/messages/broadcast", { segment, body })); if (r) { toast(`${r.count} messages prepared`); onClose(); } }}>Prepare {preview?.count ?? ""} messages</button>
+        <button className="btn" disabled={busy} onClick={async () => setPreview(await run(() => post("/api/messages/broadcast", { ...payload, preview: true })))}>Preview</button>
+        <button className="btn primary" disabled={busy || !preview || !preview.count} onClick={async () => {
+          const r = await run(() => post("/api/messages/broadcast", payload));
+          if (r) { toast([r.sent + r.queued ? `${r.sent + r.queued} WhatsApp message(s) prepared` : "", r.pushed ? `${r.pushed} notification(s) sent` : ""].filter(Boolean).join(" · ") || "Nothing to send"); setPreview(null); onClose(); }
+        }}>Send to {preview?.count ?? ""} {preview?.count === 1 ? "person" : "people"}</button>
       </>}>
       <Field label="Who"><select className="input" value={segment} onChange={(e) => { setSegment(e.target.value); setPreview(null); }}>{Object.entries(segs).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
+      <Field label="Send by">
+        <Segmented label="Send by" value={channel} onChange={(c) => { setChannel(c); setPreview(null); }} options={[{ value: "whatsapp", label: "WhatsApp" }, { value: "push", label: "App notification" }, { value: "both", label: "Both" }]} />
+      </Field>
+      {channel !== "whatsapp" && <Field label="Notification title" hint="Leave empty to use the gym's name"><input className="input" value={title} maxLength={80} onChange={(e) => { setTitle(e.target.value); setPreview(null); }} placeholder="New Zumba class on Saturdays" dir="auto" /></Field>}
       <Field label="Message" hint="{name} is replaced by the member's first name."><textarea className="input" value={body} onChange={(e) => { setBody(e.target.value); setPreview(null); }} dir="auto" /></Field>
-      {preview && <p className="ink-2">{preview.count} people. Example: “{preview.sample[0]?.text ?? "—"}”</p>}
-      <p className="muted" style={{ fontSize: "0.85rem" }}>Only members who accept WhatsApp messages are included.</p>
+      {preview && (
+        <p className="ink-2">
+          {preview.count} {preview.count === 1 ? "person" : "people"}
+          {channel !== "push" && <> · {preview.whatsapp} by WhatsApp</>}
+          {channel !== "whatsapp" && <> · {preview.push} by app notification</>}
+          {preview.sample[0] && <>. Example: “{preview.sample[0].text}”</>}
+        </p>
+      )}
+      <p className="muted" style={{ fontSize: "0.85rem" }}>WhatsApp: only members who accept WhatsApp messages. App notification: only members who turned notifications on in the app; it waits for the end of quiet hours.</p>
     </Modal>
   );
 }

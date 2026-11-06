@@ -88,3 +88,28 @@ test("reminder texts in English and Lebanese Arabic", () => {
   assert.match(reminderText("ar", "after", v), /اشتقنالك/);
   assert.equal(reminderText("en", "before", v, "Yo {name}, {days}d"), "Yo Rita, 7d");
 });
+
+import cryptoNode from "node:crypto";
+import { quietDelayMinutes } from "../server/services/notify.ts";
+import { encryptPayload } from "../server/services/webpush.ts";
+import { decryptForTest } from "./push-receiver.ts";
+
+test("quiet hours: crossing midnight, same-day ranges, outside", () => {
+  assert.equal(quietDelayMinutes(23 * 60, "22:00", "08:00"), 9 * 60);
+  assert.equal(quietDelayMinutes(2 * 60 + 30, "22:00", "08:00"), 5 * 60 + 30);
+  assert.equal(quietDelayMinutes(12 * 60, "22:00", "08:00"), 0);
+  assert.equal(quietDelayMinutes(13 * 60, "12:00", "14:00"), 60);
+  assert.equal(quietDelayMinutes(14 * 60, "12:00", "14:00"), 0);
+  assert.equal(quietDelayMinutes(10, "08:00", "08:00"), 0);
+});
+
+test("web push encryption decrypts with the browser's keys (RFC 8291)", () => {
+  const ua = cryptoNode.createECDH("prime256v1");
+  ua.generateKeys();
+  const auth = cryptoNode.randomBytes(16);
+  const msg = Buffer.from(JSON.stringify({ title: "مرحبا 💪", body: "x".repeat(3000) }));
+  const body = encryptPayload(msg, ua.getPublicKey().toString("base64url"), auth.toString("base64url"));
+  assert.deepEqual(decryptForTest(body, ua, auth), msg);
+  const wrong = cryptoNode.randomBytes(16);
+  assert.throws(() => decryptForTest(body, ua, wrong));
+});

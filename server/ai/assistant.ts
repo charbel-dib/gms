@@ -32,7 +32,7 @@ function gymTools(gymId: string): Tool[] {
         const range = "(p.paid_at AT TIME ZONE g.timezone)::date BETWEEN $2 AND $3";
         const [byMethod, byKind, exp] = await Promise.all([
           many(db, `SELECT method, round(sum(amount_usd),2) AS usd, count(*)::int AS n FROM payments p JOIN gyms g ON g.id=p.gym_id WHERE p.gym_id=$1 AND voided_at IS NULL AND ${range} GROUP BY 1`, p),
-          many(db, `SELECT CASE WHEN membership_id IS NOT NULL THEN 'memberships' WHEN pt_package_id IS NOT NULL THEN 'personal_training' ELSE 'other' END AS kind, round(sum(amount_usd),2) AS usd FROM payments p JOIN gyms g ON g.id=p.gym_id WHERE p.gym_id=$1 AND voided_at IS NULL AND ${range} GROUP BY 1`, p),
+          many(db, `SELECT CASE WHEN membership_id IS NOT NULL THEN 'memberships' WHEN pt_package_id IS NOT NULL THEN 'personal_training' WHEN sale_id IS NOT NULL THEN 'shop' ELSE 'other' END AS kind, round(sum(amount_usd),2) AS usd FROM payments p JOIN gyms g ON g.id=p.gym_id WHERE p.gym_id=$1 AND voided_at IS NULL AND ${range} GROUP BY 1`, p),
           many(db, `SELECT category, round(sum(amount_usd),2) AS usd FROM expenses WHERE gym_id=$1 AND spent_on BETWEEN $2 AND $3 GROUP BY 1`, p),
         ]);
         const revenue = byMethod.reduce((s, x) => s + Number(x.usd), 0);

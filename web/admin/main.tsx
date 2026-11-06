@@ -15,6 +15,8 @@ import { InsightsPage } from "./pages/insights.tsx";
 import { LeadsPage } from "./pages/leads.tsx";
 import { SettingsPage } from "./pages/settings.tsx";
 import { PlatformPage } from "./pages/platform.tsx";
+import { ReceiptHost } from "./receipt.tsx";
+import { ShopPage } from "./pages/shop.tsx";
 
 function Login({ onDone }: { onDone: () => void }) {
   const [email, setEmail] = useState("");
@@ -152,6 +154,7 @@ function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
     { to: "/classes", label: t("Classes"), icon: "calendar", show: moduleOn(me, "classes") },
     { to: "/coaching", label: t("Personal training"), icon: "dumbbell", show: moduleOn(me, "pt") },
     { to: "/payments", label: t("Payments"), icon: "card", show: can(me, "owner", "manager", "reception") },
+    { to: "/shop", label: t("Shop"), icon: "bag", show: moduleOn(me, "shop") && can(me, "owner", "manager", "reception") },
     { to: "/messages", label: t("Messages"), icon: "message", show: moduleOn(me, "whatsapp") && can(me, "owner", "manager", "reception"), count: outbox },
     { to: "/insights", label: t("Insights"), icon: "spark", show: moduleOn(me, "ai") && can(me, "owner", "manager", "reception") },
     { to: "/reports", label: t("Reports"), icon: "chart", show: can(me, "owner", "manager") },
@@ -210,6 +213,7 @@ function Routes({ me }: { me: Me }) {
     case "/classes": return <ClassesPage />;
     case "/coaching": return <CoachingPage />;
     case "/payments": return <PaymentsPage />;
+    case "/shop": return <ShopPage />;
     case "/messages": return <MessagesPage />;
     case "/insights": return <InsightsPage />;
     case "/reports": return <ReportsPage />;
@@ -255,6 +259,7 @@ function Root() {
   return (
     <AppCtx.Provider value={{ me, reloadMe: load }}>
       <Shell me={me}><Routes me={me} /></Shell>
+      <ReceiptHost />
       {me.user.role === "superadmin" && getGymOverride() && (
         <button className="btn dark small" style={{ position: "fixed", bottom: 16, insetInlineStart: 252, zIndex: 50 }} onClick={() => { setGymOverride(null); location.href = "/platform"; }}>
           Leave {me.gym?.name}

@@ -6,7 +6,7 @@ export type Lang = "en" | "ar";
 const ar: Record<string, string> = {
   // navigation
   Today: "اليوم", "Check-in": "الدخول", Members: "المشتركين", Classes: "الحصص", "Personal training": "التدريب الخاص", Payments: "الدفعات",
-  Messages: "الرسائل", Insights: "الذكاء الاصطناعي", Reports: "التقارير", Leads: "العملاء المحتملين", Expenses: "المصاريف", Settings: "الإعدادات",
+  Messages: "الرسائل", Shop: "المتجر", Notifications: "الإشعارات", Insights: "الذكاء الاصطناعي", Reports: "التقارير", Leads: "العملاء المحتملين", Expenses: "المصاريف", Settings: "الإعدادات",
   Platform: "المنصة", "Sign out": "تسجيل الخروج", "Switch to English": "English", "Switch to Arabic": "العربية",
   // statuses
   active: "فعّال", expiring: "ينتهي قريباً", expired: "منتهي", frozen: "مجمّد", none: "بلا اشتراك", upcoming: "يبدأ قريباً",
@@ -26,7 +26,15 @@ const ar: Record<string, string> = {
   "Ask reception for your PIN": "اطلب رقمك السري من الاستقبال", "visits this month": "زيارات هذا الشهر", "week streak": "أسابيع متتالية", "visits left": "زيارات متبقية",
   "Membership": "الاشتراك", "Valid until": "صالح حتى", "Upcoming classes": "الحصص القادمة", "No classes this week": "لا حصص هذا الأسبوع",
   "Opening hours": "ساعات الدوام", "Ladies hours": "ساعات السيدات", Contact: "تواصل", "Change PIN": "تغيير الرقم السري",
-  "Install the app": "ثبّت التطبيق", "Add to home screen for one-tap access": "أضفه للشاشة الرئيسية للوصول السريع",
+  "Install the app": "ثبّت التطبيق",
+  "Turn on notifications": "فعّل الإشعارات", "Turn on": "فعّل", "Turn off": "أوقف",
+  "Class reminders, your membership and gym news.": "تذكير بالحصص، اشتراكك وأخبار النادي.",
+  "Notifications are on": "الإشعارات مفعّلة", "Notifications are off": "الإشعارات متوقفة",
+  "Notifications are blocked for this site. Allow them in your browser settings.": "الإشعارات محظورة لهذا الموقع. اسمح بها من إعدادات المتصفح.",
+  "On iPhone: add the app to your home screen first (Share → Add to Home Screen), then open it from there.": "على الآيفون: أضف التطبيق إلى الشاشة الرئيسية أولاً (مشاركة ← إضافة إلى الشاشة الرئيسية) ثم افتحه من هناك.",
+  "This browser can't receive notifications.": "هذا المتصفح لا يستقبل الإشعارات.",
+  "On this phone": "على هذا الهاتف", "What you receive": "ما تستلمه", Recent: "الأحدث", View: "عرض", "Nothing yet.": "لا شيء بعد.",
+  "Classes and training": "الحصص والتدريب", "My membership": "اشتراكي", "Payments and receipts": "الدفعات والإيصالات", "Gym news": "أخبار النادي", "Add to home screen for one-tap access": "أضفه للشاشة الرئيسية للوصول السريع",
   Sun: "أحد", Mon: "اثنين", Tue: "ثلاثاء", Wed: "أربعاء", Thu: "خميس", Fri: "جمعة", Sat: "سبت",
 };
 

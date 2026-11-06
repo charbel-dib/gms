@@ -6,6 +6,7 @@ process.env.JOBS_ENABLED = "false";
 process.env.SUPERADMIN_EMAIL = "root@gms.test";
 process.env.SUPERADMIN_PASSWORD = "rootpass123";
 process.env.PORT = "0";
+process.env.PUSH_ALLOW_ANY_ENDPOINT = "true"; // tests use a local fake push service
 
 export async function startTestServer() {
   const { db } = await import("../server/db/index.ts");

@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { get, post, put } from "../../shared/api.ts";
-import { Field, Icon, Loader, Modal, Segmented, Tabs, toast, useAction, useAsync } from "../../shared/ui.tsx";
+import { Empty, Field, Icon, Loader, Modal, Segmented, Tabs, toast, useAction, useAsync } from "../../shared/ui.tsx";
 import { WEEKDAYS, fmtDate, money, t } from "../../shared/i18n.ts";
 import { qrSvg } from "../../shared/qr.ts";
-import { can, useApp } from "../app.tsx";
+import { Link, can, useApp } from "../app.tsx";
 
-type Tab = "gym" | "plans" | "staff" | "rules" | "whatsapp" | "modules" | "app" | "audit";
+type Tab = "gym" | "plans" | "staff" | "rules" | "whatsapp" | "modules" | "app" | "notifications" | "audit";
 
 export function SettingsPage() {
   const { me } = useApp();
@@ -16,7 +16,7 @@ export function SettingsPage() {
       <Tabs value={tab} onChange={setTab} tabs={[
         { value: "gym", label: "Gym & branding" }, { value: "plans", label: "Plans & prices" }, { value: "staff", label: "Team" },
         { value: "rules", label: "Hours & rules" }, { value: "whatsapp", label: "WhatsApp" }, { value: "modules", label: "Features" },
-        { value: "app", label: "Member app" }, ...(can(me, "owner") ? [{ value: "audit" as Tab, label: "Activity log" }] : []),
+        { value: "app", label: "Member app" }, { value: "notifications", label: "Notifications" }, ...(can(me, "owner") ? [{ value: "audit" as Tab, label: "Activity log" }] : []),
       ]} />
       {tab === "gym" && <GymTab />}
       {tab === "plans" && <PlansTab />}
@@ -25,6 +25,7 @@ export function SettingsPage() {
       {tab === "whatsapp" && <WhatsAppTab />}
       {tab === "modules" && <ModulesTab />}
       {tab === "app" && <AppTab />}
+      {tab === "notifications" && <NotificationsTab />}
       {tab === "audit" && <AuditTab />}
     </div>
   );
@@ -304,6 +305,7 @@ function ModulesTab() {
     ["ai", "Insights & assistant", "Churn prediction, Ask your gym, member assistant"],
     ["leads", "Leads", "Follow-up of people who asked about the gym"],
     ["expenses", "Expenses", "Costs and profit in Reports"],
+    ["shop", "Shop", "Supplements, drinks and accessories: point of sale, stock, margins"],
   ];
   return (
     <section className="panel"><div className="list">
@@ -348,6 +350,88 @@ function AuditTab() {
             <tr key={a.id}><td>{fmtDate(a.at, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td><td>{a.user_name ?? "—"}</td><td>{a.action.replace(/[._]/g, " ")}{a.data?.reason ? ` · ${a.data.reason}` : ""}</td></tr>
           ))}</tbody>
         </table></div>
+      )}
+    </Loader>
+  );
+}
+
+function NotificationsTab() {
+  const { reloadMe } = useApp();
+  const state = useAsync(() => get("/api/notifications/overview"), []);
+  const [f, setF] = useState<any>(null);
+  const { busy, run } = useAction();
+  useEffect(() => { if (state.data) setF(state.data.settings); }, [state.data]);
+  const save = async (next: any) => {
+    setF(next);
+    const r = await run(() => put("/api/gym", { settings: { push: next } }), "Notification settings saved");
+    if (r) { await reloadMe(); state.reload(); }
+  };
+  const STATUS: Record<string, string> = { sent: "ok", queued: "warn", no_device: "frozen", failed: "denied" };
+  const STATUS_LABEL: Record<string, string> = { sent: "delivered", queued: "waiting", no_device: "no device", failed: "failed" };
+  return (
+    <Loader state={state}>
+      {(d: any) => !f ? null : (
+        <div className="stack">
+          {!d.memberAppOn && <p className="panel body" style={{ padding: 16 }}>Notifications are sent through the member app, which is not included in this gym's plan.</p>}
+          <div className="figures">
+            <div className="figure"><span className="label">Members with notifications on</span><span className="value num-display">{d.stats.members_with_push}</span><span className="delta">of {d.stats.members_with_app} with the app · {d.stats.devices} device(s)</span></div>
+            <div className="figure"><span className="label">Delivered, 30 days</span><span className="value num-display">{d.stats.sent_30d}</span></div>
+            <div className="figure"><span className="label">Opened, 30 days</span><span className="value num-display">{d.stats.opened_30d}</span></div>
+            <div className="figure"><span className="label">Waiting (quiet hours)</span><span className="value num-display">{d.stats.waiting}</span></div>
+          </div>
+          <div className="cols">
+            <section className="panel">
+              <header><h2>What members receive</h2>
+                <label className="check"><input type="checkbox" checked={f.enabled} disabled={busy} onChange={(e) => save({ ...f, enabled: e.target.checked })} /> <b>{f.enabled ? "On" : "Off"}</b></label>
+              </header>
+              <div className="list" style={{ opacity: f.enabled ? 1 : 0.5 }}>
+                {d.types.map((tp: any) => (
+                  <label key={tp.key} className="check" style={{ padding: "12px 18px", alignItems: "flex-start" }}>
+                    <input type="checkbox" disabled={busy || !f.enabled} checked={f.types?.[tp.key] !== false} onChange={(e) => save({ ...f, types: { ...f.types, [tp.key]: e.target.checked } })} />
+                    <span className="who"><b>{tp.label}</b><small>{tp.help}{tp.scheduled ? " · waits for the end of quiet hours" : " · sent right away"}</small></span>
+                  </label>
+                ))}
+              </div>
+            </section>
+            <div className="stack">
+              <section className="panel">
+                <header><h2>Timing</h2></header>
+                <div className="body stack">
+                  <Field label="Class reminder, hours before"><select className="input" value={f.classReminderHours} onChange={(e) => save({ ...f, classReminderHours: Number(e.target.value) })}>{[1, 2, 3, 4, 6, 12, 24].map((h) => <option key={h} value={h}>{h} h</option>)}</select></Field>
+                  <Field label="Personal training reminder, hours before"><select className="input" value={f.ptReminderHours} onChange={(e) => save({ ...f, ptReminderHours: Number(e.target.value) })}>{[1, 2, 3, 4, 6, 12, 24].map((h) => <option key={h} value={h}>{h} h</option>)}</select></Field>
+                  <Field label="Quiet hours" hint="Reminders and announcements wait until the end of quiet hours. Receipts and urgent changes still go out.">
+                    <div className="row">
+                      <input className="input" type="time" style={{ width: 130 }} value={f.quietFrom} onChange={(e) => setF({ ...f, quietFrom: e.target.value })} onBlur={() => save(f)} />–
+                      <input className="input" type="time" style={{ width: 130 }} value={f.quietTo} onChange={(e) => setF({ ...f, quietTo: e.target.value })} onBlur={() => save(f)} />
+                    </div>
+                  </Field>
+                </div>
+              </section>
+              <section className="panel">
+                <header><h2>How members turn them on</h2></header>
+                <div className="body stack-s ink-2">
+                  <p>In the member app, the member taps <b>Turn on notifications</b>. On iPhone, the app must first be added to the home screen (Share → Add to Home Screen, iOS 16.4 or later).</p>
+                  <p>Each member can choose what they receive. To check a phone, open the member's profile and use <b>Send a test notification</b>.</p>
+                </div>
+              </section>
+            </div>
+          </div>
+          <section className="panel">
+            <header><h2>Recent notifications</h2></header>
+            {d.recent.length ? (
+              <div className="table-wrap" style={{ border: 0 }}><table className="data"><tbody>
+                {d.recent.map((n: any) => (
+                  <tr key={n.id}>
+                    <td style={{ width: 150 }}>{fmtDate(n.created_at, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
+                    <td><Link to={`/members/${n.member_id}`}>{n.first_name} {n.last_name}</Link></td>
+                    <td><b>{n.title}</b><br /><small className="muted">{n.body}</small></td>
+                    <td><span className="status"><span className="plate" data-s={STATUS[n.status]} />{STATUS_LABEL[n.status]}{n.read_at ? " · opened" : ""}</span></td>
+                  </tr>
+                ))}
+              </tbody></table></div>
+            ) : <Empty title="No notification sent yet." />}
+          </section>
+        </div>
       )}
     </Loader>
   );

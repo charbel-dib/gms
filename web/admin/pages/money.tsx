@@ -4,6 +4,7 @@ import { Empty, Field, Icon, Loader, Modal, Segmented, useAction, useAsync } fro
 import { Bars } from "../../shared/charts.tsx";
 import { fmtDate, fmtTime, money, t } from "../../shared/i18n.ts";
 import { Link, can, useApp } from "../app.tsx";
+import { openReceipt } from "../receipt.tsx";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const monthStart = () => today().slice(0, 8) + "01";
@@ -41,7 +42,7 @@ export function PaymentsPage() {
                     <td>{t(p.method)}{p.reference ? <small className="muted"> · {p.reference}</small> : ""}</td>
                     <td className="ink-2">{p.received_by_name ?? "—"}</td>
                     <td className="r">{money(p.amount, p.currency)}{p.currency === "LBP" && <small className="muted"> ≈ {money(p.amount_usd)}</small>}</td>
-                    <td className="r"><a className="btn small ghost" href={`/api/payments/${p.id}/receipt`} target="_blank" rel="noreferrer" aria-label="Print receipt"><Icon name="print" /></a></td>
+                    <td className="r"><button className="btn small ghost" onClick={() => openReceipt(p.id)} aria-label="Receipt"><Icon name="receipt" /></button></td>
                   </tr>
                 ))}</tbody>
               </table></div>

@@ -71,7 +71,8 @@ export async function requireStaff(ctx: Ctx, roles?: Role[]): Promise<StaffUser 
     if (row.gym_status === "suspended") throw new HttpError(402, "gym_suspended", "This gym's GMS subscription is suspended. Contact GMS support.");
     ctx.user = { id: row.id, gym_id: row.gym_id, email: row.email, name: row.name, role: row.role };
     if (row.role === "superadmin") {
-      const h = ctx.req.headers["x-gym-id"];
+      // header from the app, or ?gym= on links opened in a new tab (downloads)
+      const h = ctx.req.headers["x-gym-id"] ?? (ctx.req.method === "GET" ? ctx.query.get("gym") : undefined);
       ctx.gymId = typeof h === "string" && /^[0-9a-f-]{36}$/.test(h) ? h : undefined;
     } else {
       ctx.gymId = row.gym_id!;

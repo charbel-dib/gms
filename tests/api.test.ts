@@ -166,7 +166,7 @@ test("unpaid balances: warning by default, blocked when the gym requires it; voi
   await owner.ok("POST", `/api/payments/${pay.id}/void`, { reason: "entered twice" });
   assert.equal(Number((await owner.ok("GET", `/api/members/${r.id}`)).balance_usd), 25);
   const receipt = await owner.get(`/api/payments/${pay.id}/receipt`);
-  assert.match(receipt.data, /VOID/);
+  assert.match(receipt.data.html, /VOIDED/);
 });
 
 test("classes: booking, capacity, waitlist promotion with WhatsApp notification", async () => {
@@ -358,4 +358,212 @@ test("suspended gyms are locked out", async () => {
   await admin.ok("PUT", `/api/admin/gyms/${gymB}`, { saas_status: "suspended" });
   assert.equal((await ownerB.get("/api/members")).status, 401);
   await admin.ok("PUT", `/api/admin/gyms/${gymB}`, { saas_status: "active" });
+  // suspension signed everyone out: sign the owner back in for the next tests
+  const reset = await admin.ok("POST", `/api/admin/gyms/${gymB}/reset-owner`);
+  await ownerB.ok("POST", "/api/auth/login", { email: reset.email, password: reset.temporaryPassword });
+});
+
+// ---------------------------------------------------------------- receipts
+
+test("receipts: in-app HTML, shareable public link, platform admin access", async () => {
+  const r = await reception.ok("POST", "/api/members", { first_name: "Receipt", last_name: "Test", phone: "70999111", membership: { plan_id: plans["1 Month"].id, payment: { amount: 45 * 89500, currency: "LBP", method: "omt", reference: "OMT-55" } } });
+  const pay = r.sale.payment;
+  const rc = await reception.ok("GET", `/api/payments/${pay.id}/receipt`);
+  assert.match(rc.html, /<!doctype html>/i);
+  assert.match(rc.html, new RegExp(`Receipt #${pay.receipt_no}`));
+  assert.match(rc.html, /OMT · OMT-55/);
+  assert.match(rc.url, /\/r\/[0-9a-f]{32}$/);
+  assert.match(rc.whatsappLink, /^https:\/\/wa\.me\/96170999111\?text=/);
+  // the member opens the link without signing in
+  const anon = new Client(ctx.base);
+  const page = await anon.get(new URL(rc.url).pathname);
+  assert.equal(page.status, 200);
+  assert.match(page.headers.get("content-type") ?? "", /text\/html/);
+  assert.match(page.data, /1 Month/);
+  assert.equal((await anon.get("/r/" + "0".repeat(32))).status, 404);
+  assert.equal((await anon.get("/r/not-a-token")).status, 404);
+  // another gym cannot read it through the API
+  assert.equal((await ownerB.get(`/api/payments/${pay.id}/receipt`)).status, 404);
+  // platform admin inside the gym (header) and in a new tab (?gym=)
+  admin.gymId = gymA;
+  assert.equal((await admin.get(`/api/payments/${pay.id}/receipt`)).status, 200);
+  admin.gymId = undefined;
+  assert.equal((await admin.get(`/api/members/export.csv?gym=${gymA}`)).status, 200);
+});
+
+// ---------------------------------------------------------------- shop
+
+let whey: any, water: any;
+
+test("shop: catalog, stock, sale paid in lira, sale on account, void restores stock", async () => {
+  assert.equal((await reception.post("/api/shop/products", { name: "X", price: 1 })).status, 403);
+  whey = await owner.ok("POST", "/api/shop/products", { name: "Whey 2 kg", category: "supplements", price: 75, cost_usd: 50, stock: 3, low_stock_at: 2, barcode: "6280001" });
+  water = await owner.ok("POST", "/api/shop/products", { name: "Water", category: "drinks", price: 45000, currency: "LBP", cost_usd: 0.2, stock: 100 });
+  assert.equal((await reception.ok("GET", "/api/shop/barcode/6280001")).id, whey.id);
+
+  // walk-in pays in lira: total $75 + 2 × 45,000 LBP = $76 → 6,802,000 LBP rounded to the nearest 1,000
+  const s1 = await reception.ok("POST", "/api/shop/sales", { items: [{ product_id: whey.id, qty: 1 }, { product_id: water.id, qty: 2 }], payment: { currency: "LBP", method: "cash" } });
+  assert.equal(Number(s1.sale.total_usd), 76);
+  assert.equal(Number(s1.payment.amount), 6802000);
+  assert.equal(Number(s1.payment.amount_usd), 76);
+  const rc = await reception.ok("GET", `/api/payments/${s1.payment.id}/receipt`);
+  assert.match(rc.html, /1 × Whey 2 kg/);
+  assert.equal(rc.whatsappLink, null); // walk-in: no phone
+
+  // stock is checked and decremented
+  const over = await reception.post("/api/shop/sales", { items: [{ product_id: whey.id, qty: 5 }], payment: { currency: "USD", method: "cash" } });
+  assert.equal(over.data.error, "out_of_stock");
+  let products = await reception.ok("GET", "/api/shop/products");
+  assert.equal(products.find((p: any) => p.id === whey.id).stock, 2);
+
+  // on the member's account: balance goes up, then a normal payment settles it
+  const before = Number((await reception.ok("GET", `/api/members/${m1.id}`)).balance_usd);
+  const s2 = await reception.ok("POST", "/api/shop/sales", { member_id: m1.id, items: [{ product_id: whey.id, qty: 1 }], discount_usd: 5, on_account: true });
+  assert.equal(s2.payment, null);
+  assert.equal(Number((await reception.ok("GET", `/api/members/${m1.id}`)).balance_usd), before + 70);
+  await reception.ok("POST", "/api/payments", { member_id: m1.id, amount: 70, currency: "USD", method: "whish" });
+  assert.equal(Number((await reception.ok("GET", `/api/members/${m1.id}`)).balance_usd), before);
+  const noMember = await reception.post("/api/shop/sales", { items: [{ product_id: water.id, qty: 1 }], on_account: true });
+  assert.equal(noMember.data.error, "member_required");
+
+  // low stock shows on the dashboard
+  const dash = await owner.ok("GET", "/api/dashboard");
+  assert.ok(dash.lowStock.some((p: any) => p.id === whey.id));
+
+  // restock with a new cost: weighted average cost
+  const rs = await owner.ok("POST", `/api/shop/products/${whey.id}/stock`, { kind: "restock", qty: 9, unit_cost_usd: 60 });
+  assert.equal(rs.stock, 10);
+  assert.equal(Number(rs.cost_usd), 59); // (1 × 50 + 9 × 60) / 10
+
+  // void: reception cannot, owner can; stock back, payment voided
+  assert.equal((await reception.post(`/api/shop/sales/${s1.sale.id}/void`, { reason: "mistake" })).status, 403);
+  await owner.ok("POST", `/api/shop/sales/${s1.sale.id}/void`, { reason: "customer returned it" });
+  products = await owner.ok("GET", "/api/shop/products");
+  assert.equal(products.find((p: any) => p.id === whey.id).stock, 11);
+  assert.equal(products.find((p: any) => p.id === water.id).stock, 100);
+  const voided = await owner.ok("GET", `/api/payments/${s1.payment.id}/receipt`);
+  assert.match(voided.html, /VOIDED/);
+
+  // reports: shop revenue and margin
+  const sum = await owner.ok("GET", "/api/shop/summary");
+  assert.equal(Number(sum.revenue), 70);
+  assert.equal(Number(sum.margin), 20); // 70 - cost 50 at the time of sale
+  await reception.ok("POST", "/api/shop/sales", { items: [{ product_id: water.id, qty: 1 }], payment: { currency: "USD", method: "cash" } });
+  const fin = await owner.ok("GET", "/api/reports/finance");
+  assert.ok(fin.byKind.some((k: any) => k.kind === "shop"));
+  // another gym sees nothing
+  assert.equal((await ownerB.ok("GET", "/api/shop/products")).length, 0);
+  assert.equal((await ownerB.post("/api/shop/sales", { items: [{ product_id: water.id, qty: 1 }], payment: { currency: "USD", method: "cash" } })).status, 404);
+});
+
+// ---------------------------------------------------------------- push notifications
+
+import http from "node:http";
+import crypto from "node:crypto";
+import { decryptForTest, verifyVapidForTest } from "./push-receiver.ts";
+
+test("push: member subscribes, receives an encrypted receipt notification, preferences and gym settings are respected", async () => {
+  // fake browser push service
+  const received: { path: string; headers: http.IncomingHttpHeaders; body: Buffer }[] = [];
+  let reply = 201;
+  const svc = http.createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (c) => chunks.push(c));
+    req.on("end", () => { received.push({ path: req.url!, headers: req.headers, body: Buffer.concat(chunks) }); res.writeHead(reply); res.end(); });
+  });
+  await new Promise<void>((r) => svc.listen(0, r));
+  const port = (svc.address() as any).port;
+
+  // a member with the app
+  const access = await reception.ok("POST", `/api/members/${m1.id}/app-access`);
+  const member = new Client(ctx.base);
+  await member.ok("POST", "/api/m/alpha/login", { phone: "03123456", pin: access.pin });
+  const { publicKey } = await member.ok("GET", "/api/m/push/key");
+  assert.equal(Buffer.from(publicKey, "base64url").length, 65);
+
+  // the "browser" keys
+  const ua = crypto.createECDH("prime256v1");
+  ua.generateKeys();
+  const authSecret = crypto.randomBytes(16);
+  const sub = { endpoint: `http://127.0.0.1:${port}/push/device-1`, keys: { p256dh: ua.getPublicKey().toString("base64url"), auth: authSecret.toString("base64url") } };
+  await member.ok("POST", "/api/m/push/subscribe", sub);
+
+  // a payment → receipt notification, delivered encrypted
+  await reception.ok("POST", "/api/payments", { member_id: m1.id, amount: 10, currency: "USD", method: "cash" });
+  for (let i = 0; i < 40 && !received.length; i++) await new Promise((r) => setTimeout(r, 50));
+  assert.equal(received.length, 1, "push service called");
+  const req = received[0];
+  assert.equal(req.headers["content-encoding"], "aes128gcm");
+  assert.ok(verifyVapidForTest(String(req.headers.authorization), publicKey, `http://127.0.0.1:${port}`), "valid VAPID signature");
+  const msg = JSON.parse(decryptForTest(req.body, ua, authSecret).toString("utf8"));
+  assert.equal(msg.title, "Payment received ✅");
+  assert.match(msg.body, /\$10\.00/);
+  assert.match(msg.url, /^\/r\/[0-9a-f]{32}$/);
+
+  // inbox
+  let inbox = await member.ok("GET", "/api/m/notifications");
+  assert.ok(inbox.unread >= 1);
+  assert.equal(inbox.rows[0].title, "Payment received ✅");
+  await member.ok("POST", "/api/m/notifications/read");
+  assert.equal((await member.ok("GET", "/api/m/me")).unread, 0);
+
+  // member turns off "payments": no new notification
+  await member.ok("PUT", "/api/m/notifications/prefs", { payments: false });
+  await reception.ok("POST", "/api/payments", { member_id: m1.id, amount: 5, currency: "USD", method: "cash" });
+  await new Promise((r) => setTimeout(r, 400));
+  assert.equal(received.length, 1);
+  await member.ok("PUT", "/api/m/notifications/prefs", { payments: true });
+
+  // staff test notification + overview
+  const testRes = await reception.ok("POST", "/api/notifications/test", { member_id: m1.id });
+  assert.equal(testRes.ok, true);
+  const ov = await owner.ok("GET", "/api/notifications/overview");
+  assert.equal(ov.stats.members_with_push, 1);
+  assert.ok(ov.types.length >= 8);
+
+  // announcement by push only, during quiet hours all day → waits
+  await owner.ok("PUT", "/api/gym", { settings: { push: { quietFrom: "00:00", quietTo: "23:59" } } });
+  const bc = await owner.ok("POST", "/api/messages/broadcast", { segment: "all", channel: "push", title: "New class", body: "Hi {name}, Zumba on Saturdays!" });
+  assert.equal(bc.pushed, 1);
+  const waiting = await owner.ok("GET", "/api/notifications/overview");
+  assert.equal(waiting.stats.waiting, 1);
+  await owner.ok("PUT", "/api/gym", { settings: { push: { quietFrom: "22:00", quietTo: "08:00" } } });
+
+  // gym turns the receipt type off
+  await owner.ok("PUT", "/api/gym", { settings: { push: { types: { receipt: false } } } });
+  const n0 = received.length;
+  await reception.ok("POST", "/api/payments", { member_id: m1.id, amount: 1, currency: "USD", method: "cash" });
+  await new Promise((r) => setTimeout(r, 400));
+  assert.equal(received.length, n0);
+  await owner.ok("PUT", "/api/gym", { settings: { push: { types: { receipt: true } } } });
+
+  // the browser unsubscribed (410): the device is removed
+  reply = 410;
+  await reception.ok("POST", "/api/payments", { member_id: m1.id, amount: 2, currency: "USD", method: "cash" });
+  for (let i = 0; i < 40 && received.length === n0; i++) await new Promise((r) => setTimeout(r, 50));
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal((await owner.ok("GET", "/api/notifications/overview")).stats.devices, 0);
+
+  // endpoints outside known push services are refused in production mode
+  process.env.PUSH_ALLOW_ANY_ENDPOINT = "false";
+  const evil = await member.post("/api/m/push/subscribe", { ...sub, endpoint: "https://169.254.169.254/latest" });
+  assert.equal(evil.data.error, "unsupported_browser");
+  process.env.PUSH_ALLOW_ANY_ENDPOINT = "true";
+  svc.close();
+});
+
+test("push: waitlist promotion and class cancellation notify members", async () => {
+  const sessions = await owner.ok("GET", `/api/classes/sessions?from=${day(2)}&to=${day(8)}`);
+  const s = sessions.find((x: any) => !x.cancelled);
+  await owner.ok("PUT", `/api/classes/sessions/${s.id}`, { capacity: 1 });
+  const a = await reception.ok("POST", "/api/members", { first_name: "Wa", phone: "76555001", gender: "female", membership: { plan_id: plans["1 Month"].id } });
+  const b = await reception.ok("POST", "/api/members", { first_name: "Wb", phone: "76555002", gender: "female", membership: { plan_id: plans["1 Month"].id } });
+  const bkA = await reception.ok("POST", `/api/classes/sessions/${s.id}/bookings`, { member_id: a.id });
+  await reception.ok("POST", `/api/classes/sessions/${s.id}/bookings`, { member_id: b.id });
+  await reception.ok("PUT", `/api/bookings/${bkA.booking.id}`, { status: "cancelled" });
+  let mb = await owner.ok("GET", `/api/members/${b.id}`);
+  assert.ok(mb.notifications.some((n: any) => n.title === "You're in ✅"));
+  await owner.ok("PUT", `/api/classes/sessions/${s.id}`, { cancelled: true });
+  mb = await owner.ok("GET", `/api/members/${b.id}`);
+  assert.ok(mb.notifications.some((n: any) => /is cancelled/.test(n.title)));
 });

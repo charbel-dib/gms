@@ -91,3 +91,7 @@ body.member {
 .m-program { white-space: pre-wrap; padding: 4px 16px 16px; color: var(--text-2); line-height: 1.55; }
 .install { display: flex; gap: 12px; align-items: center; background: var(--panel-2); border-radius: 14px; padding: 12px 14px; }
 body.member .toast { background: #f1f3f6; color: #121821; }
+.bell { position: relative; }
+.bell .dot { position: absolute; top: 2px; inset-inline-end: 2px; min-width: 17px; height: 17px; border-radius: 999px; background: var(--brand); color: var(--brand-ink); font-size: 0.68rem; font-weight: 800; display: grid; place-items: center; padding: 0 4px; }
+body.member .check { display: flex; align-items: center; gap: 10px; }
+body.member .check input { width: 20px; height: 20px; accent-color: var(--brand); }

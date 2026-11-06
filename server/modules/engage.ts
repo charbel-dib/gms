@@ -12,6 +12,7 @@ import { retrieve } from "../ai/rag.ts";
 import { llmEnabled, runWithTools } from "../ai/llm.ts";
 import { config } from "../config.ts";
 import { hasElite } from "../services/plans.ts";
+import { NOTIFICATION_TYPES, notify, pushSettings, processQueue } from "../services/notify.ts";
 
 const SEGMENTS = {
   active: "status IN ('active','expiring')",
@@ -54,17 +55,38 @@ export function registerEngage(r: Router) {
 
   r.post("/api/messages/broadcast", async (ctx) => {
     const u = await requireStaff(ctx, ["owner", "manager"]);
-    const b = await ctx.body(z.object({ segment: z.enum(Object.keys(SEGMENTS) as [Segment, ...Segment[]]), body: z.string().trim().min(1).max(1000), preview: z.boolean().default(false) }));
-    const people = await many(db, `SELECT id, first_name, phone FROM member_overview WHERE gym_id = $1 AND archived_at IS NULL AND phone IS NOT NULL AND whatsapp_opt_in AND ${SEGMENTS[b.segment]} LIMIT 1000`, [u.gymId]);
-    if (b.preview) return { count: people.length, sample: people.slice(0, 5).map((p) => ({ name: p.first_name, text: b.body.replace(/\{name\}/g, p.first_name) })) };
+    const b = await ctx.body(z.object({
+      segment: z.enum(Object.keys(SEGMENTS) as [Segment, ...Segment[]]),
+      channel: z.enum(["whatsapp", "push", "both"]).default("whatsapp"),
+      title: z.string().trim().max(80).default(""),
+      body: z.string().trim().min(1).max(1000),
+      preview: z.boolean().default(false),
+    }));
+    const wantWa = b.channel !== "push", wantPush = b.channel !== "whatsapp";
+    const people = await many(db, `
+      SELECT mo.id, mo.first_name, mo.phone, mo.whatsapp_opt_in,
+             EXISTS (SELECT 1 FROM push_subscriptions ps WHERE ps.member_id = mo.id) AS has_push
+        FROM member_overview mo WHERE mo.gym_id = $1 AND mo.archived_at IS NULL AND ${SEGMENTS[b.segment]} LIMIT 2000`, [u.gymId]);
+    const waList = wantWa ? people.filter((p) => p.phone && p.whatsapp_opt_in) : [];
+    const pushList = wantPush ? people.filter((p) => p.has_push) : [];
+    const text = (p: any) => b.body.replace(/\{name\}/g, p.first_name);
+    if (b.preview) {
+      const sample = (waList[0] ?? pushList[0]);
+      return { count: new Set([...waList, ...pushList].map((p) => p.id)).size, whatsapp: waList.length, push: pushList.length, sample: sample ? [{ name: sample.first_name, text: text(sample) }] : [] };
+    }
     const stamp = Date.now();
-    let sent = 0, queued = 0;
-    for (const p of people) {
-      const row = await sendWhatsApp(db, { gymId: u.gymId, memberId: p.id, phone: p.phone, kind: "broadcast", body: b.body.replace(/\{name\}/g, p.first_name), dedupeKey: `bc:${stamp}:${p.id}` });
+    let sent = 0, queued = 0, pushed = 0;
+    for (const p of waList) {
+      const row = await sendWhatsApp(db, { gymId: u.gymId, memberId: p.id, phone: p.phone, kind: "broadcast", body: text(p), dedupeKey: `bc:${stamp}:${p.id}` });
       if (row?.status === "sent") sent++; else queued++;
     }
-    await audit(db, u.gymId, u.id, "message.broadcast", undefined, undefined, { segment: b.segment, count: people.length });
-    return { count: people.length, sent, queued };
+    const gym = await one(db, "SELECT name FROM gyms WHERE id = $1", [u.gymId]);
+    for (const p of pushList) {
+      const n = await notify(db, { gymId: u.gymId, memberId: p.id, kind: "announcement", title: b.title || gym.name, body: text(p), tab: "inbox", dedupeKey: `ann:${stamp}:${p.id}`, createdBy: u.id });
+      if (n) pushed++;
+    }
+    await audit(db, u.gymId, u.id, "message.broadcast", undefined, undefined, { segment: b.segment, channel: b.channel, whatsapp: waList.length, push: pushed });
+    return { count: new Set([...waList, ...pushList].map((p) => p.id)).size, sent, queued, pushed };
   });
 
   r.post("/api/messages/:id/done", async (ctx) => {
@@ -77,6 +99,40 @@ export function registerEngage(r: Router) {
   r.post("/api/messages/reminders/run", async (ctx) => {
     const u = await requireStaff(ctx, ["owner", "manager"]);
     return runReminders(u.gymId);
+  });
+
+  // ---------- push notifications (staff side) ----------
+  r.get("/api/notifications/overview", async (ctx) => {
+    const u = await requireStaff(ctx, ["owner", "manager"]);
+    const [gym, stats, recent] = await Promise.all([
+      one(db, "SELECT settings, modules FROM gyms WHERE id = $1", [u.gymId]),
+      one(db, `SELECT (SELECT count(DISTINCT member_id) FROM push_subscriptions WHERE gym_id = $1)::int AS members_with_push,
+                      (SELECT count(*) FROM push_subscriptions WHERE gym_id = $1)::int AS devices,
+                      (SELECT count(*) FROM members WHERE gym_id = $1 AND pin_hash IS NOT NULL AND archived_at IS NULL)::int AS members_with_app,
+                      (SELECT count(*) FROM notifications WHERE gym_id = $1 AND status = 'sent' AND created_at > now() - interval '30 days')::int AS sent_30d,
+                      (SELECT count(*) FROM notifications WHERE gym_id = $1 AND read_at IS NOT NULL AND created_at > now() - interval '30 days')::int AS opened_30d,
+                      (SELECT count(*) FROM notifications WHERE gym_id = $1 AND status = 'queued')::int AS waiting`, [u.gymId]),
+      many(db, `SELECT n.id, n.kind, n.title, n.body, n.status, n.devices, n.created_at, n.read_at, m.id AS member_id, m.first_name, m.last_name
+                  FROM notifications n JOIN members m ON m.id = n.member_id WHERE n.gym_id = $1 ORDER BY n.created_at DESC LIMIT 100`, [u.gymId]),
+    ]);
+    return {
+      settings: pushSettings(gym.settings), memberAppOn: gym.modules?.memberApp !== false, stats, recent,
+      types: Object.entries(NOTIFICATION_TYPES).map(([key, t]) => ({ key, ...t })),
+    };
+  });
+
+  /** Sends a test notification to one member (to check their phone receives it). */
+  r.post("/api/notifications/test", async (ctx) => {
+    const u = await requireStaff(ctx, ["owner", "manager", "reception"]);
+    const b = await ctx.body(z.object({ member_id: zId }));
+    const m = await one(db, `SELECT m.id, m.first_name, (SELECT count(*) FROM push_subscriptions ps WHERE ps.member_id = m.id)::int AS devices
+                               FROM members m WHERE m.id = $1 AND m.gym_id = $2`, [b.member_id, u.gymId]);
+    if (!m) throw notFound("member");
+    if (!m.devices) throw bad("no_device", `${m.first_name} has not turned on notifications in the app yet`);
+    const n = await notify(db, { gymId: u.gymId, memberId: m.id, kind: "announcement", title: "Notifications are on 🔔", body: `Hi ${m.first_name}, you'll get class reminders and gym news here.`, tab: "inbox", createdBy: u.id, immediate: true });
+    if (!n) throw bad("disabled", "Notifications are turned off in Settings → Notifications");
+    const r2 = await processQueue();
+    return { ok: r2.sent > 0, ...r2 };
   });
 
   // ---------- AI ----------

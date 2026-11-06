@@ -28,7 +28,7 @@ export const TEMPLATES: GymTemplate[] = [
     key: "classic",
     label: "Classic gym",
     description: "Open gym floor + a few group classes. The most common format in Lebanon.",
-    modules: { classes: true, pt: true, whatsapp: true, ai: true, memberApp: true, expenses: true, leads: true },
+    modules: { classes: true, pt: true, whatsapp: true, ai: true, memberApp: true, expenses: true, leads: true, shop: true },
     settings: { ...baseSettings, hours: weekHours("06:00", "23:00") },
     plans: [
       { name: "1 Month", name_ar: "شهر", kind: "time", duration_days: 30, price: 45, includes_classes: true, freeze_days_allowed: 0 },
@@ -56,7 +56,7 @@ export const TEMPLATES: GymTemplate[] = [
     key: "ladies",
     label: "Ladies-only studio",
     description: "Women-only gym with many group classes and nutrition follow-up.",
-    modules: { classes: true, pt: true, whatsapp: true, ai: true, memberApp: true, expenses: true, leads: true },
+    modules: { classes: true, pt: true, whatsapp: true, ai: true, memberApp: true, expenses: true, leads: true, shop: true },
     settings: { ...baseSettings, hours: weekHours("07:00", "21:00", "13:00") },
     plans: [
       { name: "1 Month Unlimited", name_ar: "شهر غير محدود", kind: "time", duration_days: 30, price: 55, includes_classes: true, freeze_days_allowed: 0, gender_restriction: "female" },
@@ -77,7 +77,7 @@ export const TEMPLATES: GymTemplate[] = [
     key: "crossfit",
     label: "CrossFit / functional box",
     description: "Class-based box: every visit is a booked WOD with a coach.",
-    modules: { classes: true, pt: true, whatsapp: true, ai: true, memberApp: true, expenses: true, leads: true },
+    modules: { classes: true, pt: true, whatsapp: true, ai: true, memberApp: true, expenses: true, leads: true, shop: true },
     settings: { ...baseSettings, hours: weekHours("06:00", "21:30") },
     plans: [
       { name: "Unlimited Monthly", name_ar: "شهري غير محدود", kind: "time", duration_days: 30, price: 120, includes_classes: true, freeze_days_allowed: 7 },
@@ -98,7 +98,7 @@ export const TEMPLATES: GymTemplate[] = [
     key: "fightclub",
     label: "Boxing / MMA club",
     description: "Combat sports club with level-based classes and private coaching.",
-    modules: { classes: true, pt: true, whatsapp: true, ai: true, memberApp: true, expenses: true, leads: true },
+    modules: { classes: true, pt: true, whatsapp: true, ai: true, memberApp: true, expenses: true, leads: true, shop: true },
     settings: { ...baseSettings, hours: weekHours("09:00", "22:00") },
     plans: [
       { name: "Monthly", name_ar: "شهري", kind: "time", duration_days: 30, price: 70, includes_classes: true, freeze_days_allowed: 0 },

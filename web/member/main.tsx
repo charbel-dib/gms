@@ -5,6 +5,7 @@ import { get, post, put } from "../shared/api.ts";
 import { Icon, Spinner, Toasts, toast, toastError, useAsync } from "../shared/ui.tsx";
 import { WEEKDAYS, fmtDate, fmtTime, getLang, setLang, t, useLang } from "../shared/i18n.ts";
 import { qrSvg } from "../shared/qr.ts";
+import { currentSubscription, disablePush, enablePush, pushSupport } from "./push.ts";
 
 const slug = location.pathname.split("/")[2] ?? "";
 
@@ -15,13 +16,18 @@ function brandInk(hex: string) {
   return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b) > 0.45 ? "#121821" : "#ffffff";
 }
 
-function GymTop({ gym, onLogout }: { gym: any; onLogout?: () => void }) {
+function GymTop({ gym, onLogout, onBell, unread = 0 }: { gym: any; onLogout?: () => void; onBell?: () => void; unread?: number }) {
   const lang = useLang();
   return (
     <div className="m-top">
       <div className="logo">{gym.has_logo ? <img src={`/api/public/gyms/${gym.slug}/logo`} alt="" /> : gym.name[0]}</div>
       <div style={{ flex: 1 }}><b>{lang === "ar" && gym.name_ar ? gym.name_ar : gym.name}</b>{gym.tagline && <small>{gym.tagline}</small>}</div>
       <button className="m-btn ghost" style={{ padding: "8px 12px" }} onClick={() => setLang(getLang() === "ar" ? "en" : "ar")}>{getLang() === "ar" ? "EN" : "ع"}</button>
+      {onBell && (
+        <button className="m-btn ghost bell" style={{ padding: "8px 10px" }} onClick={onBell} aria-label={`${t("Notifications")}${unread ? ` (${unread})` : ""}`}>
+          <Icon name="bell" width={18} height={18} />{unread > 0 && <span className="dot">{unread > 9 ? "9+" : unread}</span>}
+        </button>
+      )}
       {onLogout && <button className="m-btn ghost" style={{ padding: "8px 10px" }} onClick={onLogout} aria-label="Sign out"><Icon name="logout" width={18} height={18} /></button>}
     </div>
   );
@@ -97,6 +103,7 @@ function PassTab({ me }: { me: any }) {
         <div className="m-stat"><span className="num-display">{me.stats.week_streak}</span><small>{t("week streak")}</small></div>
         <div className="m-stat"><span className="num-display">{me.stats.visits_year}</span><small>visits this year</small></div>
       </div>
+      {me.gym.pushEnabled && <NotifyPrompt />}
       {!standalone && (
         <div className="install">
           <Icon name="download" width={22} height={22} />
@@ -105,6 +112,120 @@ function PassTab({ me }: { me: any }) {
         </div>
       )}
       <GymInfo gym={me.gym} />
+    </div>
+  );
+}
+
+/** Shown on the pass until notifications are on (or the member dismissed it). */
+function NotifyPrompt() {
+  const [state, setState] = useState<"hidden" | "offer" | "ios" | "denied">("hidden");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let dismissed = false;
+    try { dismissed = localStorage.getItem("gms.push.dismissed") === "1"; } catch { /* ignore */ }
+    if (dismissed) return;
+    const support = pushSupport();
+    if (support === "ios_install") return setState("ios");
+    if (support !== "ok") return;
+    if (Notification.permission === "denied") return setState("denied");
+    currentSubscription().then((s) => setState(s && Notification.permission === "granted" ? "hidden" : "offer"), () => setState("offer"));
+  }, []);
+  if (state === "hidden") return null;
+  const dismiss = () => { try { localStorage.setItem("gms.push.dismissed", "1"); } catch { /* ignore */ } setState("hidden"); };
+  return (
+    <div className="install">
+      <Icon name="bell" width={22} height={22} />
+      <div style={{ flex: 1 }}>
+        <b>{t("Turn on notifications")}</b>
+        <div className="m-muted" style={{ fontSize: "0.85rem" }}>
+          {state === "ios" ? t("On iPhone: add the app to your home screen first (Share → Add to Home Screen), then open it from there.")
+            : state === "denied" ? t("Notifications are blocked for this site. Allow them in your browser settings.")
+            : t("Class reminders, your membership and gym news.")}
+        </div>
+      </div>
+      {state === "offer" && <button className="m-btn" disabled={busy} onClick={async () => {
+        setBusy(true);
+        try {
+          const r = await enablePush();
+          if (r === "on") { toast(t("Notifications are on")); setState("hidden"); }
+          else if (r === "denied") setState("denied");
+        } catch (e) { toastError(e); } finally { setBusy(false); }
+      }}>{t("Turn on")}</button>}
+      <button className="m-btn ghost" style={{ padding: "8px 10px" }} onClick={dismiss} aria-label={t("Close")}><Icon name="x" width={16} height={16} /></button>
+    </div>
+  );
+}
+
+const CATEGORY_LABEL: Record<string, string> = { classes: "Classes and training", membership: "My membership", payments: "Payments and receipts", news: "Gym news" };
+
+function InboxTab({ onRead }: { onRead: () => void }) {
+  const state = useAsync(() => get("/api/m/notifications"), []);
+  const [device, setDevice] = useState<"on" | "off" | "na">("na");
+  const [busy, setBusy] = useState(false);
+  const refreshDevice = () => {
+    if (pushSupport() !== "ok") return setDevice("na");
+    currentSubscription().then((s) => setDevice(s && Notification.permission === "granted" ? "on" : "off"), () => setDevice("off"));
+  };
+  useEffect(() => {
+    refreshDevice();
+    post("/api/m/notifications/read").then(onRead, () => {});
+  }, []);
+  if (!state.data) return <div className="m-body"><Spinner /></div>;
+  const d = state.data;
+  return (
+    <div className="m-body">
+      <h1 className="m-hello">{t("Notifications")}</h1>
+      {d.enabled && (
+        <section className="m-card">
+          <header><h2>{t("On this phone")}</h2></header>
+          <div className="rows">
+            <div>
+              <span style={{ flex: 1 }}>{device === "on" ? t("Notifications are on") : device === "na" ? (pushSupport() === "ios_install" ? t("On iPhone: add the app to your home screen first (Share → Add to Home Screen), then open it from there.") : t("This browser can't receive notifications.")) : t("Notifications are off")}</span>
+              {device !== "na" && <button className={`m-btn ${device === "on" ? "ghost" : ""}`} disabled={busy} onClick={async () => {
+                setBusy(true);
+                try {
+                  if (device === "on") { await disablePush(); toast(t("Notifications are off")); }
+                  else { const r = await enablePush(); if (r === "denied") toast(t("Notifications are blocked for this site. Allow them in your browser settings."), "error"); else if (r === "on") toast(t("Notifications are on")); }
+                } catch (e) { toastError(e); } finally { setBusy(false); refreshDevice(); }
+              }}>{device === "on" ? t("Turn off") : t("Turn on")}</button>}
+            </div>
+          </div>
+        </section>
+      )}
+      {d.enabled && d.categories.length > 0 && (
+        <section className="m-card">
+          <header><h2>{t("What you receive")}</h2></header>
+          <div className="rows">
+            {d.categories.map((c: any) => (
+              <div key={c.key}>
+                <label className="check" style={{ flex: 1 }}>
+                  <input type="checkbox" checked={c.on} onChange={async (e) => {
+                    try { await put("/api/m/notifications/prefs", { [c.key]: e.target.checked }); state.reload(); } catch (err) { toastError(err); }
+                  }} />
+                  {t(CATEGORY_LABEL[c.key] ?? c.key)}
+                </label>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      <section className="m-card">
+        <header><h2>{t("Recent")}</h2></header>
+        <div className="rows">
+          {d.rows.map((n: any) => (
+            <div key={n.id} style={{ alignItems: "flex-start" }}>
+              <span className="plate" data-s={n.read_at ? "frozen" : "ok"} style={{ marginTop: 6 }} />
+              <div style={{ flex: 1 }} dir="auto">
+                <b>{n.title}</b>
+                <div className="m-muted">{n.body}</div>
+                <small className="m-muted">{fmtDate(n.created_at, { weekday: "short", day: "numeric", month: "short" })} {fmtTime(n.created_at)}</small>
+              </div>
+              {n.url?.startsWith("/r/") && <a className="m-btn ghost" href={n.url}>{t("View")}</a>}
+            </div>
+          ))}
+          {!d.rows.length && <div className="m-muted">{t("Nothing yet.")}</div>}
+        </div>
+      </section>
     </div>
   );
 }
@@ -252,7 +373,16 @@ function App() {
   const [gym, setGym] = useState<any>(null);
   const [gymErr, setGymErr] = useState(false);
   const [me, setMe] = useState<any>(undefined);
-  const [tab, setTab] = useState<"pass" | "classes" | "history" | "ask">("pass");
+  const initialTab = (() => {
+    const q = new URLSearchParams(location.search).get("tab");
+    return (["classes", "history", "ask", "inbox"] as const).find((x) => x === q) ?? "pass";
+  })();
+  const [tab, setTab] = useState<"pass" | "classes" | "history" | "ask" | "inbox">(initialTab);
+  const go = (x: typeof tab) => {
+    setTab(x);
+    window.scrollTo(0, 0);
+    history.replaceState(null, "", `/m/${slug}${x === "pass" ? "" : `?tab=${x}`}`);
+  };
   const loadMe = () => get("/api/m/me").then((r) => (r.gym.slug === slug ? setMe(r) : setMe(null)), () => setMe(null));
   useEffect(() => {
     get(`/api/public/gyms/${slug}`).then((g) => {
@@ -280,14 +410,15 @@ function App() {
   ];
   return (
     <div className="m-app">
-      <GymTop gym={gym} onLogout={async () => { await post("/api/m/logout"); setMe(null); }} />
+      <GymTop gym={gym} unread={me.unread} onBell={() => go("inbox")} onLogout={async () => { await disablePush().catch(() => {}); await post("/api/m/logout"); setMe(null); }} />
       {tab === "pass" && <PassTab me={me} />}
       {tab === "classes" && <ClassesTab />}
       {tab === "history" && <HistoryTab />}
       {tab === "ask" && <AskTab gym={gym} />}
+      {tab === "inbox" && <InboxTab onRead={() => setMe((m: any) => ({ ...m, unread: 0 }))} />}
       <nav className="m-nav"><div style={{ gridTemplateColumns: `repeat(${tabs.filter((x) => x.show).length}, 1fr)` }}>
         {tabs.filter((x) => x.show).map((x) => (
-          <button key={x.key} aria-current={tab === x.key ? "page" : undefined} onClick={() => { setTab(x.key); window.scrollTo(0, 0); if (x.key === "pass") loadMe(); }}>
+          <button key={x.key} aria-current={tab === x.key ? "page" : undefined} onClick={() => { go(x.key); if (x.key === "pass") loadMe(); }}>
             <Icon name={x.icon} /><span>{x.label}</span>
           </button>
         ))}

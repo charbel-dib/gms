@@ -89,7 +89,7 @@ export function CheckinPage() {
         <div><h1>{t("Check-in")}</h1><p>Scan the member's QR code or type their number, then press Enter.</p></div>
       </div>
       <div className="gate">
-        <section className="gate-card" data-s={state} aria-live="assertive">
+        <section className="gate-card" data-s={state} aria-live="assertive" onClick={(e) => { if (!last && !(e.target as HTMLElement).closest("input,button,a")) inputRef.current?.focus(); }}>
           {!last ? (
             <div className="gate-idle">
               <div className="big-plate" />

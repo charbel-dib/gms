@@ -3,6 +3,7 @@ import { db, one, many, audit } from "../db/index.ts";
 import { requireStaff } from "../auth.ts";
 import { notFound, zCurrency, zDate, zId, zMoney, zPhone, type Router } from "../http.ts";
 import { gymRate, gymToday, toUsd } from "../services/money.ts";
+import { lowStock } from "./shop.ts";
 
 export async function dashboard(gymId: string) {
   const q = db;
@@ -69,7 +70,12 @@ export async function dashboard(gymId: string) {
         FROM g, generate_series(date_trunc('month', g.today::timestamp) - interval '5 months', date_trunc('month', g.today::timestamp), interval '1 month') m
        ORDER BY m`, [gymId]),
   ]);
-  return { kpi, revenueMonths, heat, daily, expiring, birthdays, todayClasses, newMembers };
+  const [lowStockList, shopToday] = await Promise.all([
+    lowStock(db, gymId),
+    one(db, `SELECT count(*)::int AS sales, coalesce(sum(total_usd), 0) AS revenue FROM sales s JOIN gyms g ON g.id = s.gym_id
+              WHERE s.gym_id = $1 AND s.status <> 'void' AND (s.sold_at AT TIME ZONE g.timezone)::date = (now() AT TIME ZONE g.timezone)::date`, [gymId]),
+  ]);
+  return { kpi, revenueMonths, heat, daily, expiring, birthdays, todayClasses, newMembers, lowStock: lowStockList, shopToday };
 }
 
 const EXPENSE_CATEGORIES = ["rent", "salaries", "generator", "electricity", "equipment", "maintenance", "marketing", "supplies", "other"] as const;
@@ -96,7 +102,7 @@ export function registerBusiness(r: Router) {
     const [byMethod, byCurrency, byKind, expenses, daily, cashDrawer] = await Promise.all([
       many(db, `SELECT method, round(sum(amount_usd), 2) AS usd, count(*)::int AS n FROM payments p JOIN gyms g ON g.id = p.gym_id WHERE p.gym_id = $1 AND p.voided_at IS NULL AND ${range} GROUP BY method ORDER BY usd DESC`, params),
       many(db, `SELECT currency, sum(amount) AS amount, round(sum(amount_usd), 2) AS usd FROM payments p JOIN gyms g ON g.id = p.gym_id WHERE p.gym_id = $1 AND p.voided_at IS NULL AND ${range} GROUP BY currency`, params),
-      many(db, `SELECT CASE WHEN membership_id IS NOT NULL THEN 'memberships' WHEN pt_package_id IS NOT NULL THEN 'personal_training' ELSE 'other' END AS kind,
+      many(db, `SELECT CASE WHEN membership_id IS NOT NULL THEN 'memberships' WHEN pt_package_id IS NOT NULL THEN 'personal_training' WHEN sale_id IS NOT NULL THEN 'shop' ELSE 'other' END AS kind,
                        round(sum(amount_usd), 2) AS usd FROM payments p JOIN gyms g ON g.id = p.gym_id WHERE p.gym_id = $1 AND p.voided_at IS NULL AND ${range} GROUP BY 1 ORDER BY usd DESC`, params),
       many(db, `SELECT category, round(sum(amount_usd), 2) AS usd FROM expenses WHERE gym_id = $1 AND spent_on BETWEEN $2 AND $3 GROUP BY category ORDER BY usd DESC`, params),
       many(db, `SELECT (p.paid_at AT TIME ZONE g.timezone)::date::text AS day, round(sum(amount_usd), 2) AS usd FROM payments p JOIN gyms g ON g.id = p.gym_id WHERE p.gym_id = $1 AND p.voided_at IS NULL AND ${range} GROUP BY 1 ORDER BY 1`, params),

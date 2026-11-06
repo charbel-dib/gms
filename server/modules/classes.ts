@@ -5,6 +5,7 @@ import { bad, forbidden, notFound, zCurrency, zDate, zId, zMethod, zMoney, type 
 import { gymRate, toUsd } from "../services/money.ts";
 import { getOverview, recordPayment } from "./members.ts";
 import { sendWhatsApp } from "../services/whatsapp.ts";
+import { notify } from "../services/notify.ts";
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:00)?$/);
 const zColor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
@@ -90,8 +91,12 @@ export async function cancelBooking(q: Queryable, gymId: string, bookingId: stri
     );
     if (next) {
       const m = await one(q, "SELECT first_name, phone, whatsapp_opt_in FROM members WHERE id = $1", [next.member_id]);
+      const when = new Date(b.starts_at).toLocaleString("en-GB", { timeZone: "Asia/Beirut", weekday: "short", hour: "2-digit", minute: "2-digit" });
+      await notify(q, {
+        gymId, memberId: next.member_id, kind: "waitlist", tab: "classes", dedupeKey: `waitlist:${b.session_id}:${next.member_id}`,
+        title: "You're in ✅", body: `A spot opened in ${b.class_name} (${when}). See you there!`,
+      });
       if (m?.phone && m.whatsapp_opt_in) {
-        const when = new Date(b.starts_at).toLocaleString("en-GB", { timeZone: "Asia/Beirut", weekday: "short", hour: "2-digit", minute: "2-digit" });
         await sendWhatsApp(q, {
           gymId, memberId: next.member_id, phone: m.phone, kind: "waitlist_promoted",
           body: `Good news ${m.first_name}! A spot opened in ${b.class_name} (${when}). You're in ✅`,
@@ -234,9 +239,14 @@ export function registerClasses(r: Router) {
       const row = await one(q, `UPDATE class_sessions SET cancelled = coalesce($2, cancelled), coach_id = CASE WHEN $3::boolean THEN $4 ELSE coach_id END, capacity = coalesce($5, capacity) WHERE id = $1 RETURNING *`,
         [s.id, b.cancelled ?? null, b.coach_id !== undefined, b.coach_id ?? null, b.capacity ?? null]);
       if (b.cancelled && !s.cancelled && b.notify) {
-        const people = await many(q, `SELECT m.id, m.first_name, m.phone FROM bookings bk JOIN members m ON m.id = bk.member_id WHERE bk.session_id = $1 AND bk.status IN ('booked','waitlist') AND m.phone IS NOT NULL AND m.whatsapp_opt_in`, [s.id]);
+        const people = await many(q, `SELECT m.id, m.first_name, m.phone, m.whatsapp_opt_in FROM bookings bk JOIN members m ON m.id = bk.member_id WHERE bk.session_id = $1 AND bk.status IN ('booked','waitlist')`, [s.id]);
         const when = new Date(s.starts_at).toLocaleString("en-GB", { timeZone: "Asia/Beirut", weekday: "long", hour: "2-digit", minute: "2-digit" });
         for (const p of people) {
+          await notify(q, {
+            gymId: u.gymId, memberId: p.id, kind: "class_cancelled", tab: "classes", dedupeKey: `cancel:${s.id}:${p.id}`,
+            title: `${s.name} is cancelled`, body: `Sorry, ${s.name} on ${when} won't take place. Book another class in the app.`,
+          });
+          if (!p.phone || !p.whatsapp_opt_in) continue;
           await sendWhatsApp(q, { gymId: u.gymId, memberId: p.id, phone: p.phone, kind: "class_cancelled", body: `Hi ${p.first_name}, sorry: ${s.name} on ${when} is cancelled. Check the app for other classes 🙏`, dedupeKey: `cancel:${s.id}:${p.id}` });
         }
         await q.query("UPDATE bookings SET status = 'cancelled' WHERE session_id = $1 AND status IN ('booked','waitlist')", [s.id]);
