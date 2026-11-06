@@ -8,6 +8,7 @@ import { disablePush } from "./push.ts";
 import { HomeView, ProductSheet } from "./home.tsx";
 import { AskView, ClassesView, CoachView, InboxView, MeView, ProgressView, SettingsView, ShopView } from "./screens.tsx";
 import type { View } from "./ui.tsx";
+import { InstallPage, InstallSheet, isInstalled } from "./install.tsx";
 
 const slug = location.pathname.split("/")[2] ?? "";
 const MAIN: View[] = ["home", "classes", "coach", "shop", "me"];
@@ -39,6 +40,7 @@ function GymTop({ gym, onBell, unread = 0 }: { gym: any; onBell?: () => void; un
 }
 
 function Login({ gym, onDone, onJoin }: { gym: any; onDone: () => void; onJoin?: () => void }) {
+  const [install, setInstall] = useState(false);
   const [phone, setPhone] = useState("");
   const [pin, setPin] = useState("");
   const [err, setErr] = useState("");
@@ -59,7 +61,9 @@ function Login({ gym, onDone, onJoin }: { gym: any; onDone: () => void; onJoin?:
         <button className="m-btn block" disabled={busy} style={{ minHeight: 52 }}>{busy ? "…" : t("Sign in")}</button>
         <p className="m-muted" style={{ fontSize: "0.9rem" }}>{t("Ask reception for your PIN")}{gym.whatsapp ? <> · <a href={`https://wa.me/${gym.whatsapp.replace(/\D/g, "")}`}>WhatsApp</a></> : null}</p>
         {onJoin && <button type="button" className="m-link" onClick={onJoin}>{t("Not a member yet? Leave your number")}</button>}
+        {!isInstalled() && <button type="button" className="m-btn ghost block" onClick={() => setInstall(true)}><Icon name="phone" width={18} height={18} style={{ marginInlineEnd: 8 }} />{t("Install the app on this phone")}</button>}
       </form>
+      <InstallSheet gym={gym} open={install} onClose={() => setInstall(false)} />
     </div>
   );
 }
@@ -109,6 +113,7 @@ function App() {
   const [gymErr, setGymErr] = useState(false);
   const [me, setMe] = useState<any>(undefined);
   const [joining, setJoining] = useState(!!refCode);
+  const [installPage, setInstallPage] = useState(location.pathname.split("/")[3] === "install");
   const initial = (() => {
     const q = params.get("tab") ?? "";
     return LEGACY[q] ?? ([...MAIN, ...SUB] as string[]).find((x) => x === q) as View ?? "home";
@@ -135,16 +140,13 @@ function App() {
       document.documentElement.style.setProperty("--brand-ink", brandInk(g.brand_color));
       document.title = g.name;
       document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#121821");
-      const link = document.createElement("link");
-      link.rel = "manifest";
-      link.href = `/m/${slug}/manifest.webmanifest`;
-      document.head.appendChild(link);
     }, () => setGymErr(true));
     loadMe();
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js", { scope: "/m/" }).catch(() => {});
   }, []);
   if (gymErr) return <div className="m-login"><h1>{t("Gym not found.")}</h1><p className="m-muted">{t("Check the link your gym sent you.")}</p></div>;
   if (!gym || me === undefined) return <div className="m-login" style={{ minHeight: "100vh", justifyItems: "center" }}><Spinner /></div>;
+  if (installPage) return <InstallPage gym={gym} onContinue={() => { setInstallPage(false); history.replaceState(null, "", `/m/${slug}`); }} />;
   if (!me) {
     if (joining) return <Join gym={gym} refCode={refCode} onSignIn={() => { setJoining(false); history.replaceState(null, "", `/m/${slug}`); }} />;
     return <Login gym={gym} onDone={loadMe} onJoin={() => setJoining(true)} />;

@@ -5,19 +5,20 @@
  */
 import React, { useState } from "react";
 import { del, get, post, put } from "../../shared/api.ts";
-import { Empty, Field, Icon, Loader, Modal, Segmented, Tabs, toastError, useAction, useAsync } from "../../shared/ui.tsx";
+import { Empty, Field, Icon, Loader, Modal, Segmented, Tabs, toast, toastError, useAction, useAsync } from "../../shared/ui.tsx";
 import { fmtDate, money, t } from "../../shared/i18n.ts";
 import { shrinkImage } from "../../shared/image.ts";
+import { qrSvg } from "../../shared/qr.ts";
 import { Link, useApp } from "../app.tsx";
 
-type Tab = "offers" | "challenges" | "referrals" | "settings";
+type Tab = "install" | "offers" | "challenges" | "referrals" | "settings";
 const today = () => new Date().toISOString().slice(0, 10);
 const monthEnd = () => { const d = new Date(); return new Date(Date.UTC(d.getFullYear(), d.getMonth() + 1, 0)).toISOString().slice(0, 10); };
 const monthName = () => new Date().toLocaleDateString("en-GB", { month: "long" });
 
 export function MemberAppPage() {
   const { me } = useApp();
-  const [tab, setTab] = useState<Tab>("offers");
+  const [tab, setTab] = useState<Tab>("install");
   return (
     <div className="page">
       <div className="page-head">
@@ -25,11 +26,13 @@ export function MemberAppPage() {
         {me.gym && <a className="btn" href={`/m/${me.gym.slug}`} target="_blank" rel="noreferrer"><Icon name="phone" />Open the app</a>}
       </div>
       <Tabs value={tab} onChange={setTab} tabs={[
+        { value: "install", label: "Get the app" },
         { value: "offers", label: "Offers" },
         { value: "challenges", label: "Challenges" },
         { value: "referrals", label: "Referrals" },
         { value: "settings", label: t("Settings") },
       ]} />
+      {tab === "install" && <GetTheApp />}
       {tab === "offers" && <Offers />}
       {tab === "challenges" && <Challenges />}
       {tab === "referrals" && <Referrals />}
@@ -318,6 +321,127 @@ function EngageSettings() {
           </section>
         );
       }}
+    </Loader>
+  );
+}
+
+// ---------------- getting the app on members' phones ----------------
+
+/** Draws the square app icon: the logo on white (or the initial on the brand colour), with room for round masks. */
+async function drawIcon(gym: any, size: number): Promise<string> {
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const ctx = c.getContext("2d")!;
+  const brand = /^#[0-9a-f]{6}$/i.test(gym.brand_color ?? "") ? gym.brand_color : "#e4572e";
+  if (gym.has_logo) {
+    const img = await new Promise<HTMLImageElement>((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("The logo can't be read")); i.src = `/api/public/gyms/${gym.slug}/logo?${Date.now()}`; });
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, size, size);
+    // Android cuts icons into circles: keep the logo inside the middle 70%
+    const box = size * 0.7;
+    const scale = Math.min(box / img.naturalWidth, box / img.naturalHeight);
+    const w = img.naturalWidth * scale, h = img.naturalHeight * scale;
+    ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+  } else {
+    ctx.fillStyle = brand;
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `800 ${Math.round(size * 0.5)}px Archivo, system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText((gym.name ?? "G").trim()[0].toUpperCase(), size / 2, size / 2 + size * 0.03);
+  }
+  return c.toDataURL("image/png");
+}
+
+function posterHtml(gym: any, link: string) {
+  const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const brand = /^#[0-9a-f]{6}$/i.test(gym.brand_color ?? "") ? gym.brand_color : "#e4572e";
+  const icon = gym.has_app_icon ? `/api/public/gyms/${gym.slug}/app-icon/512` : gym.has_logo ? `/api/public/gyms/${gym.slug}/logo` : "";
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(gym.name)} app poster</title><style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; } body { margin: 0; font-family: "Segoe UI", Inter, system-ui, Arial, sans-serif; color: #1a2230; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .p { width: 210mm; height: 297mm; padding: 18mm 18mm 14mm; display: flex; flex-direction: column; align-items: center; text-align: center; border-top: 14mm solid ${brand}; }
+  .icon { width: 30mm; height: 30mm; border-radius: 7mm; overflow: hidden; background: ${brand}; color: #fff; font: 800 18mm/30mm system-ui; box-shadow: 0 2mm 6mm rgba(0,0,0,.15); }
+  .icon img { width: 100%; height: 100%; object-fit: cover; background: #fff; }
+  h1 { font-size: 30pt; margin: 9mm 0 2mm; line-height: 1.05; } .ar { font-size: 20pt; margin: 0 0 3mm; direction: rtl; font-weight: 700; }
+  .sub { font-size: 13pt; color: #4b5566; margin: 0; max-width: 140mm; }
+  .qr { width: 92mm; height: 92mm; margin: 9mm 0 4mm; padding: 4mm; border: 1.2mm solid #1a2230; border-radius: 6mm; } .qr svg { width: 100%; height: 100%; }
+  .scan { font-size: 15pt; font-weight: 700; margin: 0; } .url { font-size: 11pt; color: #4b5566; margin: 2mm 0 0; }
+  .how { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; width: 100%; margin-top: auto; text-align: left; }
+  .how div { border: 0.4mm solid #dde1e6; border-radius: 4mm; padding: 5mm 6mm; } .how b { font-size: 12pt; } .how ol { margin: 2mm 0 0; padding-left: 5mm; font-size: 10.5pt; line-height: 1.55; color: #4b5566; }
+  </style></head><body><div class="p">
+  <div class="icon">${icon ? `<img src="${icon}" alt="">` : esc(gym.name[0] ?? "G")}</div>
+  <h1>Get the ${esc(gym.name)} app</h1>
+  <p class="ar">حمّل تطبيق النادي</p>
+  <p class="sub">Your entry QR code, classes, personal training and offers. Free, no App Store needed.</p>
+  <div class="qr">${qrSvg(link)}</div>
+  <p class="scan">Scan with your phone camera</p><p class="url">${esc(link)}</p>
+  <div class="how">
+    <div><b>iPhone</b><ol><li>Open the link in Safari</li><li>Tap Share, then “Add to Home Screen”</li><li>Open the app and sign in with the PIN from reception</li></ol></div>
+    <div><b>Android</b><ol><li>Open the link in Chrome</li><li>Tap “Install the app”</li><li>Open the app and sign in with the PIN from reception</li></ol></div>
+  </div></div></body></html>`;
+}
+
+function GetTheApp() {
+  const { me, reloadMe } = useApp();
+  const gym = useAsync(() => get("/api/public/gyms/" + me.gym!.slug), [me.gym?.slug]);
+  const [poster, setPoster] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  const { busy, run } = useAction();
+  const frame = React.useRef<HTMLIFrameElement>(null);
+  const link = `${location.origin}/m/${me.gym!.slug}/install`;
+  return (
+    <Loader state={gym}>
+      {(g: any) => (
+        <div className="cols">
+          <section className="panel">
+            <header><h2>Members install the app from a link</h2></header>
+            <div className="body stack">
+              <p className="ink-2" style={{ margin: 0 }}>No App Store or Play Store: the link opens a page that shows each member the right steps for their phone. On Android it's one tap on “Install”; on iPhone it's Share, then “Add to Home Screen”. The app then opens from their home screen with your name and icon.</p>
+              <div className="row" style={{ alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+                <div className="install-qr" dangerouslySetInnerHTML={{ __html: qrSvg(link) }} />
+                <div className="stack-s" style={{ flex: 1, minWidth: 220 }}>
+                  <code className="install-link">{link}</code>
+                  <div className="row" style={{ flexWrap: "wrap" }}>
+                    <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(link); toast("Link copied"); } catch { prompt("Copy this link", link); } }}>Copy link</button>
+                    <button className="btn primary" onClick={() => setPoster(true)}><Icon name="print" />Print the poster</button>
+                    <a className="btn ghost" href={link} target="_blank" rel="noreferrer">Open</a>
+                  </div>
+                  <small className="muted">The link is also in the WhatsApp message sent with each member's PIN (Members → App access).</small>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section className="panel">
+            <header><h2>App icon</h2></header>
+            <div className="body stack">
+              <p className="ink-2" style={{ margin: 0 }}>What members see on their home screen. Made from your logo{g.has_logo ? "" : " (none yet: your initial on your colour is used)"}.</p>
+              <div className="row" style={{ alignItems: "center", gap: 16 }}>
+                <img className="app-icon-preview" src={preview ?? (g.has_app_icon ? `/api/public/gyms/${g.slug}/app-icon/512?v=${g.icon_version}` : "/icon-192.png")} alt="App icon" />
+                <div className="stack-s">
+                  <b>{g.name}</b>
+                  <small className="muted">{g.has_app_icon || preview ? "Your gym's icon" : "Default GMS icon for now"}</small>
+                </div>
+              </div>
+              <div className="row">
+                <button className="btn primary" disabled={busy} onClick={async () => {
+                  try {
+                    const [icon512, icon192] = [await drawIcon(g, 512), await drawIcon(g, 192)];
+                    setPreview(icon512);
+                    if (await run(() => put("/api/gym/app-icon", { icon512, icon192 }), "App icon saved")) { gym.reload(); reloadMe?.(); }
+                  } catch (e) { toastError(e); }
+                }}>{g.has_app_icon ? "Make it again" : "Make the app icon"}</button>
+              </div>
+              <small className="muted">Change the logo in Settings → Gym, then make the icon again. Members who already installed the app get the new icon after a while.</small>
+            </div>
+          </section>
+          <Modal title="Poster for reception" open={poster} onClose={() => setPoster(false)} wide
+            footer={<button className="btn primary" onClick={() => frame.current?.contentWindow?.print()}><Icon name="print" />Print</button>}>
+            {poster && <iframe ref={frame} title="Poster" srcDoc={posterHtml(g, link)} className="report-frame" />}
+          </Modal>
+        </div>
+      )}
     </Loader>
   );
 }

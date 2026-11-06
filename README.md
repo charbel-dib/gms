@@ -60,6 +60,12 @@ Tests : `npm test` (crée et vide une base `gms_test`, voir `tests/helpers.ts`).
 - **App membre** : Home (pass, prochain cours/PT, objectif de la semaine, série, défi, offres, produits), Classes (avec durée), Coach (réservation PT), Shop (catalogue, « I want it »), Me (historique, progrès, invitations, paramètres).
 - **Côté gym** : menu Member app (offres, défis, parrainage, interrupteurs), Shop → App orders et bundles, Personal training → Coach hours (disponibilités, congés, règles de réservation).
 
+## Site web et installation de l'app (v4)
+
+- **Site de GMS** : servi sur `/` aux visiteurs (`web/site/`). Les équipes des salles se connectent sur **`/login`**. Le super-admin voit le site avec `/?site=1` et les demandes de démo dans la page Platform.
+- **Installer l'app membre sans store** : le lien `/m/<salle>/install` (dans le message WhatsApp du PIN et sur l'affiche) montre les bonnes étapes selon le téléphone. Android : bouton « Installer » (Chrome crée une vraie app). iPhone : Partager puis « Sur l'écran d'accueil ». Instagram/Facebook : ouvrir d'abord dans le navigateur. Ordinateur : QR code.
+- **Côté salle** : Member app → Get the app (lien, QR, affiche A4 à imprimer, icône de l'app générée depuis le logo).
+
 ## Mettre en production
 
 Voir **[infra/README.md](infra/README.md)** : environ 45 minutes la première fois, environ 85 $/mois au départ, puis

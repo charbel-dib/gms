@@ -364,3 +364,7 @@ img.thumb { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; b
 .range { display: inline-flex; gap: 6px; align-items: center; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: var(--radius-m); padding: 4px 4px 4px 8px; }
 .range .input { width: 128px; min-height: 34px; padding: 0 6px; }
 @media (max-width: 760px) { .day-row { grid-template-columns: 1fr; } }
+.install-qr { width: 150px; height: 150px; padding: 8px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-m); flex: none; }
+.install-qr svg { width: 100%; height: 100%; display: block; }
+.install-link { display: block; padding: 8px 10px; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: var(--radius-s); font-size: var(--step--1); overflow-wrap: anywhere; }
+.app-icon-preview { width: 84px; height: 84px; border-radius: 20px; object-fit: cover; box-shadow: 0 6px 18px rgba(26, 34, 48, 0.18); background: #fff; }

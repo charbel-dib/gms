@@ -10,6 +10,7 @@ import { fmtDate, getLang, money, t } from "../shared/i18n.ts";
 import { qrSvg } from "../shared/qr.ts";
 import { Bar, Ring, Section, Sheet, Thumb, View, greeting, minutes, when } from "./ui.tsx";
 import { currentSubscription, enablePush, pushSupport } from "./push.ts";
+import { InstallCard } from "./install.tsx";
 
 export function PassSheet({ me, open, onClose }: { me: any; open: boolean; onClose: () => void }) {
   const m = me.member;
@@ -188,6 +189,7 @@ export function HomeView({ me, go, openProduct }: { me: any; go: (v: View) => vo
             </Section>
           )}
 
+          <InstallCard gym={me.gym} />
           {me.gym.pushEnabled && <NotifyCard />}
 
           <div className="m-tiles">

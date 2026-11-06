@@ -423,8 +423,9 @@ export function registerMembers(r: Router) {
     await db.query("UPDATE members SET pin_hash = $2 WHERE id = $1", [id, await hashPassword(pin)]);
     await db.query("DELETE FROM sessions WHERE member_id = $1", [id]);
     const gym = await one(db, "SELECT slug, name FROM gyms WHERE id = $1", [u.gymId]);
-    const url = `${config.publicUrl}/m/${gym.slug}`;
-    const text = `Hi ${m.first_name}! Your ${gym.name} app is ready 💪\n${url}\nPhone: ${m.phone}\nPIN: ${pin}\n\nAdd it to your home screen to get your entry QR code, book classes and track your membership.`;
+    // the link opens a guide that installs the app on the member's phone (iPhone or Android), then sign-in
+    const url = `${config.publicUrl}/m/${gym.slug}/install`;
+    const text = `Hi ${m.first_name}! Your ${gym.name} app is ready 💪\n${url}\nPhone: ${m.phone}\nPIN: ${pin}\n\nOpen the link, add the app to your home screen, then sign in: your entry QR code, classes and membership in one tap.`;
     await audit(db, u.gymId, u.id, "member.app_access", "member", id);
     return { pin, url, whatsappLink: waLink(m.phone, text), text };
   });

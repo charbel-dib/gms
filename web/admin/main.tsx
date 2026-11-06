@@ -191,7 +191,7 @@ function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
         <div className="side-foot">
           {can(me, "owner") && <Link to="/developers" className="side-link" aria-current={path === "/developers" ? "page" : undefined}><Icon name="code" width={16} height={16} style={{ display: "inline", verticalAlign: -3, marginInlineEnd: 6 }} />{t("API reference")}</Link>}
           <button onClick={() => setLang(getLang() === "ar" ? "en" : "ar")}><Icon name="globe" width={16} height={16} style={{ display: "inline", verticalAlign: -3, marginInlineEnd: 6 }} />{getLang() === "ar" ? t("Switch to English") : t("Switch to Arabic")}</button>
-          <button onClick={async () => { await post("/api/auth/logout"); setGymOverride(null); location.href = "/"; }}><Icon name="logout" width={16} height={16} style={{ display: "inline", verticalAlign: -3, marginInlineEnd: 6 }} />{t("Sign out")}</button>
+          <button onClick={async () => { await post("/api/auth/logout"); setGymOverride(null); location.href = "/login"; }}><Icon name="logout" width={16} height={16} style={{ display: "inline", verticalAlign: -3, marginInlineEnd: 6 }} />{t("Sign out")}</button>
         </div>
       </aside>
       <div className="main">
@@ -238,6 +238,8 @@ function Root() {
   const load = useCallback(async () => {
     try {
       const r = await get<Me>("/api/auth/me");
+      // signed in on the login address: go to the dashboard
+      if (location.pathname === "/login") history.replaceState(null, "", "/");
       setMe(r);
     } catch (e: any) {
       if (e.status === 401) setMe(null);

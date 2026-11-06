@@ -10,11 +10,35 @@ import { allowedEndpoint, vapidKeys } from "../services/webpush.ts";
 import { NOTIFICATION_CATEGORIES, NOTIFICATION_TYPES, pushSettings } from "../services/notify.ts";
 
 async function gymBySlug(slug: string) {
-  const g = await one(db, `SELECT id, slug, name, name_ar, tagline, brand_color, phone, whatsapp, instagram, address, city, locale, modules, settings, saas_status, (logo IS NOT NULL) AS has_logo
+  const g = await one(db, `SELECT id, slug, name, name_ar, tagline, brand_color, phone, whatsapp, instagram, address, city, locale, modules, settings, saas_status, (logo IS NOT NULL) AS has_logo,
+                                  (app_icon_512 IS NOT NULL) AS has_app_icon, extract(epoch FROM app_icon_updated_at)::bigint AS icon_version
                              FROM gyms WHERE slug = $1`, [slug]);
   if (!g || g.saas_status === "suspended") throw notFound("gym");
   const { settings, saas_status, ...rest } = g;
   return { ...rest, hours: settings?.hours ?? [], ladiesHours: settings?.ladiesHours ?? [], pushEnabled: pushSettings(settings).enabled };
+}
+
+/**
+ * Head tags of the member app page for one gym, so the installed app gets the gym's name and icon
+ * (iPhone reads them when the member taps "Add to Home Screen").
+ */
+export async function memberPageHead(slug: string) {
+  const g = await one(db, `SELECT slug, name, tagline, (app_icon_512 IS NOT NULL) AS has_app_icon, extract(epoch FROM app_icon_updated_at)::bigint AS v
+                             FROM gyms WHERE slug = $1 AND saas_status <> 'suspended'`, [slug]).catch(() => null);
+  if (!g) return null;
+  const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+  const name = esc(g.name);
+  const icon = g.has_app_icon ? `/api/public/gyms/${g.slug}/app-icon/192?v=${g.v}` : "/icon-192.png";
+  return {
+    title: name,
+    tags: [
+      `<meta name="apple-mobile-web-app-title" content="${name}">`,
+      `<meta name="application-name" content="${name}">`,
+      `<meta name="description" content="${esc(g.tagline ?? `${g.name}: your pass, classes and membership`)}">`,
+      `<link rel="manifest" href="/m/${g.slug}/manifest.webmanifest">`,
+      `<link rel="apple-touch-icon" href="${icon}">`,
+    ].join("\n  "),
+  };
 }
 
 export function registerPortal(r: Router) {
@@ -29,16 +53,40 @@ export function registerPortal(r: Router) {
     return undefined;
   });
 
-  /** Per-gym PWA manifest: members install "their gym's" app with its name and colour. */
+  /** The gym's app icon (square PNG made from its logo); falls back to the GMS icon. */
+  r.get("/api/public/gyms/:slug/app-icon/:size", async (ctx) => {
+    const big = ctx.params.size !== "192";
+    const g = await one(db, `SELECT ${big ? "app_icon_512" : "app_icon_192"} AS icon FROM gyms WHERE slug = $1`, [ctx.params.slug]);
+    if (!g?.icon) {
+      ctx.res.writeHead(302, { Location: big ? "/icon-512.png" : "/icon-192.png", "Cache-Control": "no-cache" });
+      ctx.res.end();
+      return undefined;
+    }
+    ctx.res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "public, max-age=3600", "Content-Security-Policy": "default-src 'none'" });
+    ctx.res.end(g.icon);
+    return undefined;
+  });
+
+  /**
+   * Per-gym web app manifest: members install "their gym's" app, with its name, colour and icon.
+   * On Android, Chrome turns it into a real installed app (WebAPK); on iPhone it's "Add to Home Screen".
+   */
   r.get("/m/:slug/manifest.webmanifest", async (ctx) => {
     const g = await gymBySlug(ctx.params.slug);
-    const icons = g.has_logo
-      ? [{ src: `/api/public/gyms/${g.slug}/logo`, sizes: "512x512", purpose: "any" }]
-      : [{ src: "/icon-512.png", sizes: "512x512", type: "image/png" }, { src: "/icon-192.png", sizes: "192x192", type: "image/png" }];
-    ctx.res.writeHead(200, { "Content-Type": "application/manifest+json" });
+    const v = g.icon_version ? `?v=${g.icon_version}` : "";
+    const icons = g.has_app_icon
+      ? [
+          { src: `/api/public/gyms/${g.slug}/app-icon/192${v}`, sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: `/api/public/gyms/${g.slug}/app-icon/512${v}`, sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: `/api/public/gyms/${g.slug}/app-icon/512${v}`, sizes: "512x512", type: "image/png", purpose: "maskable" },
+        ]
+      : [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }, { src: "/icon-512.png", sizes: "512x512", type: "image/png" }];
+    ctx.res.writeHead(200, { "Content-Type": "application/manifest+json", "Cache-Control": "no-cache" });
     ctx.res.end(JSON.stringify({
-      name: g.name, short_name: g.name.slice(0, 12), start_url: `/m/${g.slug}`, scope: `/m/${g.slug}`, display: "standalone",
-      background_color: "#0F1115", theme_color: g.brand_color, icons,
+      id: `/m/${g.slug}`, name: g.name, short_name: g.name.length > 14 ? g.name.split(/\s+/)[0].slice(0, 14) : g.name,
+      description: g.tagline ?? `${g.name}: your pass, classes and membership`,
+      start_url: `/m/${g.slug}?source=app`, scope: `/m/${g.slug}`, display: "standalone", orientation: "portrait",
+      background_color: "#121821", theme_color: "#121821", categories: ["health", "fitness", "sports"], icons,
     }));
     return undefined;
   });

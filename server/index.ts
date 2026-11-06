@@ -8,7 +8,8 @@ import { config } from "./config.ts";
 import { db, one } from "./db/index.ts";
 import { migrate } from "./db/migrate.ts";
 import { HttpError, Router, clientIp, makeBodyReader, parseCookies, sendJson, type Ctx } from "./http.ts";
-import { hashPassword, requireStaff } from "./auth.ts";
+import { STAFF_COOKIE, hashPassword, requireStaff } from "./auth.ts";
+import { memberPageHead } from "./modules/portal.ts";
 import { registerGym } from "./modules/gym.ts";
 import { registerMembers } from "./modules/members.ts";
 import { registerClasses } from "./modules/classes.ts";
@@ -61,7 +62,7 @@ router.get("/api/docs.json", async (ctx) => {
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json",
-  ".png": "image/png", ".svg": "image/svg+xml", ".ico": "image/x-icon", ".webmanifest": "application/manifest+json", ".woff2": "font/woff2", ".txt": "text/plain",
+  ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".ico": "image/x-icon", ".webmanifest": "application/manifest+json", ".woff2": "font/woff2", ".txt": "text/plain",
 };
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -94,13 +95,37 @@ function serveFile(req: http.IncomingMessage, res: http.ServerResponse, file: st
   res.end(gzip ? entry.gz : entry.buf);
 }
 
+/** Member app with the gym's name and icon in <head>; the website for visitors on "/". */
+const memberTemplate = { html: "" };
+async function serveDynamicPage(req: http.IncomingMessage, res: http.ServerResponse, pathname: string, forceSite = false): Promise<boolean> {
+  const mm = /^\/m\/([a-z0-9][a-z0-9-]{1,40})(\/[a-z]*)?\/?$/.exec(pathname);
+  if (mm) {
+    const head = await memberPageHead(mm[1]);
+    if (!head) return false;
+    if (!memberTemplate.html || !config.isProd) memberTemplate.html = fs.readFileSync(path.join(PUBLIC_DIR, "member.html"), "utf8");
+    const html = memberTemplate.html
+      .replace(/<title>[^<]*<\/title>/, `<title>${head.title}</title>`)
+      .replace(/<link rel="apple-touch-icon"[^>]*>/, "")
+      .replace("</head>", `  ${head.tags}\n</head>`);
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
+    res.end(html);
+    return true;
+  }
+  // the GMS website for visitors; staff who are signed in land on their dashboard
+  if (pathname === "/" && (forceSite || !parseCookies(req.headers.cookie)[STAFF_COOKIE]) && fs.existsSync(path.join(PUBLIC_DIR, "site.html"))) {
+    serveFile(req, res, path.join(PUBLIC_DIR, "site.html"), "no-cache");
+    return true;
+  }
+  return false;
+}
+
 function serveStatic(req: http.IncomingMessage, res: http.ServerResponse, pathname: string): boolean {
   if (req.method !== "GET" && req.method !== "HEAD") return false;
   const rel = path.normalize(decodeURIComponent(pathname)).replace(/^([/\\])+/, "");
   if (rel.includes("..")) return false;
   const file = path.join(PUBLIC_DIR, rel);
   if (rel && fs.existsSync(file) && fs.statSync(file).isFile()) {
-    const immutable = /\.(js|css|png|svg|woff2)$/.test(rel) && !rel.endsWith("sw.js");
+    const immutable = /\.(js|css|png|svg|woff2)$/.test(rel) && !rel.endsWith("sw.js") && !rel.startsWith("site/");
     serveFile(req, res, file, immutable ? "public, max-age=31536000, immutable" : "no-cache");
     return true;
   }
@@ -133,6 +158,7 @@ export async function handle(req: http.IncomingMessage, res: http.ServerResponse
     }
     const m = router.match(req.method ?? "GET", url.pathname);
     if (m === null || m === "method") {
+      if (m === null && req.method === "GET" && (await serveDynamicPage(req, res, url.pathname, url.searchParams.has("site")))) return;
       if (m === null && serveStatic(req, res, url.pathname)) return;
       throw new HttpError(m === "method" ? 405 : 404, m === "method" ? "method_not_allowed" : "not_found", "Not found");
     }

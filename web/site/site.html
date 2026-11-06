@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>GMS · Gym software made for Lebanon</title>
+  <meta name="description" content="Check members in by QR, take payments in dollars and lira, send WhatsApp reminders and give members an app with your gym's name. Set up in a day from your Excel file.">
+  <meta name="theme-color" content="#1a2230">
+  <meta property="og:title" content="GMS · Gym software made for Lebanon">
+  <meta property="og:description" content="Know who's in, who paid and who's about to leave. QR check-in, USD and LBP, WhatsApp, member app, AI.">
+  <meta property="og:image" content="/site/img/today.webp">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Sans+Arabic:wght@500;700&display=swap">
+  <link rel="stylesheet" href="/site/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="nav" id="top">
+  <div class="wrap nav-in">
+    <a class="logo" href="/" aria-label="GMS home"><span class="logo-mark" aria-hidden="true"><i></i><i></i><i></i></span>GMS</a>
+    <nav aria-label="Main">
+      <a href="#product">Product</a>
+      <a href="#app">Member app</a>
+      <a href="#lebanon">Made for Lebanon</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="nav-cta">
+      <a class="link" href="/login">Log in</a>
+      <a class="btn" href="#demo">Book a demo</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+<!-- hero: the reception desk, which is where the software earns its money -->
+<section class="hero">
+  <div class="wrap hero-in">
+    <div class="hero-copy">
+      <h1>Know who’s in, who paid and who’s about to leave.</h1>
+      <p class="lede">GMS is gym software made for Lebanon. Members check in with a QR code, you take payments in dollars or lira, reminders go out on WhatsApp, and members get an app with your gym’s name.</p>
+      <div class="hero-cta">
+        <a class="btn big" href="#demo">Book a demo</a>
+        <a class="btn ghost big" href="#product">Explore the product</a>
+      </div>
+      <p class="hero-note">30 days free with your own data. We import your Excel file for you.</p>
+    </div>
+
+    <div class="desk" aria-label="Example: three members checking in at reception">
+      <div class="desk-head">
+        <span class="desk-title">Reception</span>
+        <span class="desk-clock" id="clock">18:42</span>
+      </div>
+      <div class="desk-scan" aria-hidden="true">
+        <span class="scan-frame"><i></i></span>
+        <span class="scan-text" id="scanText">Scan a QR code, or type a name</span>
+      </div>
+      <ol class="desk-list" id="deskList">
+        <li data-s="ok">
+          <span class="who"><span class="av">RH</span><span><b>Rita Haddad</b><small>3 Months · 23 days left</small></span></span>
+          <span class="verdict"><span class="plate"></span>Welcome in</span>
+        </li>
+        <li data-s="warn">
+          <span class="who"><span class="av">KS</span><span><b>Karim Saab</b><small>1 Month · ends Friday</small></span></span>
+          <span class="verdict"><span class="plate"></span>Renewal reminder sent on WhatsApp</span>
+        </li>
+        <li data-s="bad">
+          <span class="who"><span class="av">JK</span><span><b>Joe Khoury</b><small>1 Year · owes $45</small></span></span>
+          <span class="verdict"><span class="plate"></span>Collect $45 or 4,028,000 LBP</span>
+        </li>
+      </ol>
+      <div class="desk-foot"><span><b id="inCount">41</b> in today</span><span><b>$1,180</b> taken today</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- what it replaces -->
+<section class="replaces">
+  <div class="wrap">
+    <h2>One screen instead of the notebook, Excel and your WhatsApp.</h2>
+    <div class="swap">
+      <div><s>The notebook at the desk</s><p>Check-in by QR in a second. Expired, frozen or unpaid shows in colour before they’re through the door.</p></div>
+      <div><s>The Excel file</s><p>Members, plans, payments and numbered receipts in one place, with the profit after rent, salaries and the generator.</p></div>
+      <div><s>Messages from your own phone</s><p>Renewal reminders, class changes and receipts go out by WhatsApp and app notification, without you typing them.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- product tour -->
+<section class="tour" id="product">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Explore the product</h2>
+      <p>Real screens from a demo gym. Everything works on a laptop at the desk or a phone on 4G.</p>
+    </div>
+    <div class="tour-in">
+      <div class="tour-tabs" role="tablist" aria-label="Product areas">
+        <button role="tab" id="t-desk" aria-controls="p-desk" aria-selected="true">Reception</button>
+        <button role="tab" id="t-money" aria-controls="p-money" aria-selected="false" tabindex="-1">Money</button>
+        <button role="tab" id="t-classes" aria-controls="p-classes" aria-selected="false" tabindex="-1">Classes and coaching</button>
+        <button role="tab" id="t-shop" aria-controls="p-shop" aria-selected="false" tabindex="-1">Shop</button>
+        <button role="tab" id="t-kpis" aria-controls="p-kpis" aria-selected="false" tabindex="-1">Key numbers</button>
+      </div>
+      <div class="tour-panels">
+        <div class="panel" role="tabpanel" id="p-desk" aria-labelledby="t-desk">
+          <figure class="browser"><img src="/site/img/today.webp" alt="The Today screen: check-ins, money taken, expiring memberships and today's classes" width="1440" height="900" loading="lazy"></figure>
+          <ul><li>Today at a glance: who came, who expires this week, birthdays, today’s classes.</li><li>Check-in by QR from the member’s phone, or by name and number.</li><li>Freeze, renew and sell a plan in three taps.</li></ul>
+        </div>
+        <div class="panel" role="tabpanel" id="p-money" aria-labelledby="t-money" hidden>
+          <figure class="browser"><img src="/site/img/report.webp" alt="Financial report with revenue, expenses and profit for the month" width="1440" height="900" loading="lazy"></figure>
+          <ul><li>Dollars and lira at your rate; lira cash rounded to the nearest 1,000.</li><li>Every payment gets a numbered receipt the member receives on WhatsApp.</li><li>A monthly financial report for your accountant: PDF and Excel.</li></ul>
+        </div>
+        <div class="panel" role="tabpanel" id="p-classes" aria-labelledby="t-classes" hidden>
+          <figure class="browser"><img src="/site/img/coach.webp" alt="A coach's weekly hours for personal training" width="1440" height="900" loading="lazy"></figure>
+          <ul><li>Weekly timetable, booking and waitlist. Spots free up and the next member is told.</li><li>Personal training packages; members book their coach’s free times from the app.</li><li>Coach commissions calculated for you.</li></ul>
+        </div>
+        <div class="panel" role="tabpanel" id="p-shop" aria-labelledby="t-shop" hidden>
+          <figure class="browser"><img src="/site/img/pos.webp" alt="The shop till with supplements, a cart and payment in dollars or lira" width="1440" height="900" loading="lazy"></figure>
+          <ul><li>Sell supplements, drinks and bundles at the desk, with a barcode scanner if you have one.</li><li>Stock, margins and expiry dates, with an alert before you run out.</li><li>Members order from the app and pick up at reception.</li></ul>
+        </div>
+        <div class="panel" role="tabpanel" id="p-kpis" aria-labelledby="t-kpis" hidden>
+          <figure class="browser"><img src="/site/img/kpis.webp" alt="Key numbers: what to do now, ranked by money at stake" width="1440" height="900" loading="lazy"></figure>
+          <ul><li>Churn, renewals, revenue per member, class fill rate: compared with last month.</li><li>“Focus now” lists what to do first, with the money at stake and the names.</li><li>Rated against what healthy gyms reach, so you know what’s good.</li></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- member app -->
+<section class="app" id="app">
+  <div class="wrap app-in">
+    <div class="app-copy">
+      <h2>Your gym’s app on every member’s phone. No App Store.</h2>
+      <p>Members open a link from WhatsApp or the poster at reception and add the app to their home screen: one tap on Android, Share then “Add to Home Screen” on iPhone. It opens with your name and your logo.</p>
+      <ul class="ticks">
+        <li>The entry QR code, always one tap away</li>
+        <li>Classes with their duration, personal training with their own coach</li>
+        <li>Your offers and your shop, with “I want it” to pick up at the desk</li>
+        <li>Weekly goal, streaks, badges and monthly challenges</li>
+        <li>An invite link: friends leave their number and you get the lead</li>
+      </ul>
+    </div>
+    <div class="phones" aria-label="Screens of the member app">
+      <figure class="phone p1"><img src="/site/img/m-home.webp" alt="Member app home: pass, next session, weekly goal and challenge" width="780" height="1688" loading="lazy"></figure>
+      <figure class="phone p2"><img src="/site/img/m-coach.webp" alt="Booking two personal training sessions with the coach" width="780" height="1688" loading="lazy"></figure>
+      <figure class="phone p3"><img src="/site/img/m-progress.webp" alt="Progress: streaks, challenge leaderboard and badges" width="780" height="1688" loading="lazy"></figure>
+    </div>
+  </div>
+</section>
+
+<!-- AI -->
+<section class="ai">
+  <div class="wrap ai-in">
+    <div>
+      <h2>See who’s about to leave, while there’s still time.</h2>
+      <p>GMS learns from your own gym’s history which members are drifting away: fewer visits, a membership ending, an unpaid balance. Each week you get a short list of people to call, with the reason and what they’re worth.</p>
+      <p>Members can ask the gym’s assistant in English, Arabic or Arabizi, day and night.</p>
+    </div>
+    <div class="chat" aria-label="Example conversation with the gym's assistant">
+      <p class="me" dir="auto">adesh l ishtirak 3 ashhor? w fi ladies hours?</p>
+      <p class="bot">3 Months is $120. Ladies hours are Monday, Wednesday and Friday from 10:00 to 13:00. Want me to ask reception to call you?</p>
+      <p class="me" dir="rtl">إيه، بعد الضهر إذا بتريد</p>
+      <p class="bot" dir="rtl">تمام! رح يتصلوا فيك بعد الضهر 🙏</p>
+    </div>
+  </div>
+</section>
+
+<!-- Lebanon -->
+<section class="lebanon" id="lebanon">
+  <div class="wrap">
+    <div class="sec-head"><h2>Made for how gyms work in Lebanon</h2></div>
+    <dl class="facts">
+      <div><dt>Dollars and lira</dt><dd>Price in either, take either, at your daily rate. Reports in dollars, without losing track of the lira in the drawer.</dd></div>
+      <div><dt>Whish, OMT, cash, card</dt><dd>Every method on the receipt and in the end-of-day cash count.</dd></div>
+      <div><dt>English and عربي</dt><dd>The whole software in both, right to left included. The assistant understands Arabizi.</dd></div>
+      <div><dt>Ladies hours and women-only gyms</dt><dd>The check-in knows the schedule; a template is ready for ladies-only studios.</dd></div>
+      <div><dt>The generator counts too</dt><dd>Rent, salaries, diesel and electricity in expenses, so the profit you see is real.</dd></div>
+      <div><dt>Power cut at the gym</dt><dd>It runs in the cloud: reception keeps working from a phone on 4G.</dd></div>
+    </dl>
+    <p class="types">Ready-made setups for a <b>classic gym</b>, a <b>ladies-only studio</b>, a <b>CrossFit or functional box</b> and a <b>boxing or MMA club</b>. Plans, classes and rules are filled in; you adjust them.</p>
+  </div>
+</section>
+
+<!-- getting started: a real sequence -->
+<section class="start">
+  <div class="wrap">
+    <div class="sec-head"><h2>Live the same week</h2></div>
+    <ol class="steps">
+      <li><b>A 20-minute demo</b><p>At your gym or on a call, with your questions and your numbers.</p></li>
+      <li><b>We import your Excel</b><p>Members, end dates, balances. Nothing to retype.</p></li>
+      <li><b>One hour with your team</b><p>Reception learns check-in and payments; you get the reports.</p></li>
+      <li><b>30 days free</b><p>Use it for real. Keep it only if it pays for itself.</p></li>
+    </ol>
+  </div>
+</section>
+
+<!-- pricing -->
+<section class="pricing" id="pricing">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Simple monthly pricing, per gym</h2>
+      <p>In US dollars, paid by Whish, OMT or transfer. Pay yearly and get two months free.</p>
+    </div>
+    <div class="plans">
+      <article class="plan">
+        <h3>Starter</h3>
+        <p class="price"><b>$29</b> a month</p>
+        <p class="for">For a gym that wants out of the notebook.</p>
+        <ul>
+          <li>Members, plans, payments in USD and LBP, receipts</li>
+          <li>QR check-in, ladies hours, freezes</li>
+          <li>WhatsApp reminders (tap to send)</li>
+          <li>Shop and stock, expenses, leads, reports</li>
+          <li>Excel import</li>
+        </ul>
+        <a class="btn ghost" href="#demo" data-plan="Starter">Book a demo</a>
+      </article>
+      <article class="plan main">
+        <h3>Pro</h3>
+        <p class="price"><b>$59</b> a month</p>
+        <p class="for">For gyms with classes and coaches. What most gyms need.</p>
+        <ul>
+          <li>Everything in Starter</li>
+          <li>Classes, bookings and waitlists</li>
+          <li>Personal training, coach hours, commissions</li>
+          <li>The member app with your name, offers and challenges</li>
+          <li>Churn prediction and key numbers</li>
+        </ul>
+        <a class="btn" href="#demo" data-plan="Pro">Book a demo</a>
+      </article>
+      <article class="plan">
+        <h3>Elite</h3>
+        <p class="price"><b>$99</b> a month</p>
+        <p class="for">For busy gyms that want messages to run themselves.</p>
+        <ul>
+          <li>Everything in Pro</li>
+          <li>Automatic WhatsApp (Business Platform)</li>
+          <li>AI assistant that answers members 24/7, in Arabic and Arabizi</li>
+          <li>Priority support</li>
+        </ul>
+        <a class="btn ghost" href="#demo" data-plan="Elite">Book a demo</a>
+      </article>
+    </div>
+    <p class="setup">Setup and data import: $100 once, free for our first five gyms.</p>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq" id="faq">
+  <div class="wrap faq-in">
+    <h2>Questions gym owners ask</h2>
+    <div class="qa">
+      <details><summary>Do my members need to download something from the App Store?</summary><p>No. They open a link and add the app to their home screen: on Android it installs like any app, on iPhone it’s Share then “Add to Home Screen”. Members who don’t want an app can still check in by name or member number at the desk.</p></details>
+      <details><summary>We have hundreds of members in Excel. Do we start from zero?</summary><p>No. Send us your file; we import names, phones, plans, end dates and balances before you start.</p></details>
+      <details><summary>What if the internet goes down at the gym?</summary><p>GMS runs in the cloud. Reception can carry on from any phone on 4G, and members’ QR codes stay on their phones.</p></details>
+      <details><summary>Can my receptionist see the gym’s money?</summary><p>Only what reception needs: check-in, payments they take and the cash of the day. Profit, reports and settings stay with you and your manager.</p></details>
+      <details><summary>How do members get reminders?</summary><p>On WhatsApp and as app notifications: before their membership ends, before a booked class, when a waitlist spot opens. On Starter and Pro, reception sends prepared WhatsApp messages in one tap; on Elite they go out on their own.</p></details>
+      <details><summary>Is our data safe?</summary><p>Each gym’s data is separate, every change is logged, connections are encrypted and the database is backed up daily on Amazon Web Services.</p></details>
+      <details><summary>Can we stop anytime?</summary><p>Yes. It’s monthly, and you can export your members to Excel whenever you want.</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- book a demo -->
+<section class="demo" id="demo">
+  <div class="wrap demo-in">
+    <div class="demo-copy">
+      <h2>See GMS with your own gym in mind</h2>
+      <p>Twenty minutes, at your gym or on a call. We show the desk, the money and the member app, and answer your questions. No commitment.</p>
+      <p class="or">Prefer WhatsApp? <a href="https://wa.me/96170141207?text=Hi%2C%20I%27d%20like%20a%20demo%20of%20GMS%20for%20my%20gym." rel="noopener">Message us</a> and we’ll reply the same day.</p>
+    </div>
+    <form class="demo-form" id="demoForm" novalidate>
+      <div class="f2">
+        <label>Your name<input name="name" autocomplete="name" required minlength="2" maxlength="80"></label>
+        <label>Gym<input name="gym_name" autocomplete="organization" required minlength="2" maxlength="100"></label>
+      </div>
+      <div class="f2">
+        <label>Phone (WhatsApp)<input name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="03 123 456"></label>
+        <label>City<input name="city" autocomplete="address-level2" maxlength="60" placeholder="Beirut, Jounieh, Tripoli…"></label>
+      </div>
+      <fieldset>
+        <legend>Members today</legend>
+        <label class="pill"><input type="radio" name="members" value="<100">Under 100</label>
+        <label class="pill"><input type="radio" name="members" value="100-300">100 to 300</label>
+        <label class="pill"><input type="radio" name="members" value="300+">Over 300</label>
+      </fieldset>
+      <label><span>Anything we should know? <span class="opt">Optional</span></span><textarea name="message" rows="3" maxlength="1000"></textarea></label>
+      <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
+      <button class="btn big" type="submit">Book my demo</button>
+      <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
+    </form>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <a class="logo" href="#top"><span class="logo-mark" aria-hidden="true"><i></i><i></i><i></i></span>GMS</a>
+    <p>Gym software made in Lebanon, for Lebanese gyms.</p>
+    <nav aria-label="Footer"><a href="#product">Product</a><a href="#pricing">Pricing</a><a href="#demo">Book a demo</a><a href="/login">Log in</a></nav>
+  </div>
+</footer>
+<script src="/site/site.js" defer></script>
+</body>
+</html>

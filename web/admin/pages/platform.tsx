@@ -20,11 +20,13 @@ export function PlatformPage() {
       <div className="page-head">
         <div><h1>GMS platform</h1><p>Your clients: onboard a gym in two minutes from a template, then adapt it with them.</p></div>
         <div className="row">
+          <a className="btn" href="/?site=1" target="_blank" rel="noreferrer"><Icon name="globe" />Website</a>
           <button className="btn" onClick={() => navigate("/developers")}><Icon name="code" />API reference</button>
-          <button className="btn" onClick={async () => { await post("/api/auth/logout"); location.href = "/"; }}><Icon name="logout" />Sign out</button>
+          <button className="btn" onClick={async () => { await post("/api/auth/logout"); location.href = "/login"; }}><Icon name="logout" />Sign out</button>
           <button className="btn primary" onClick={() => setCreating(true)}><Icon name="plus" />New gym</button>
         </div>
       </div>
+      <DemoRequests />
       <Loader state={state}>
         {(d: any) => (
           <>
@@ -105,5 +107,45 @@ export function PlatformPage() {
         </Modal>
       )}
     </div>
+  );
+}
+
+const DEMO_STATUS: Record<string, { label: string; plate: string }> = {
+  new: { label: "New", plate: "warn" }, contacted: { label: "Contacted", plate: "frozen" }, demo_booked: { label: "Demo booked", plate: "ok" },
+  won: { label: "Signed", plate: "ok" }, lost: { label: "Lost", plate: "expired" },
+};
+
+/** Requests sent from the "Book a demo" form of the GMS website. */
+function DemoRequests() {
+  const state = useAsync(() => get("/api/admin/demo-requests"), []);
+  const { run } = useAction();
+  return (
+    <Loader state={state}>
+      {(rows: any[]) => (
+        <section className="panel">
+          <header><h2>Demo requests from the website</h2><span className="muted">{rows.filter((r) => r.status === "new").length} new</span></header>
+          {rows.length ? (
+            <div className="table-wrap" style={{ border: 0 }}><table className="data">
+              <thead><tr><th>Received</th><th>Gym</th><th>Contact</th><th>Size</th><th>Message</th><th>Status</th><th /></tr></thead>
+              <tbody>{rows.map((r) => (
+                <tr key={r.id}>
+                  <td>{fmtDate(r.created_at, { day: "numeric", month: "short" })}<br /><small className="muted">{relDays(r.created_at)}</small></td>
+                  <td><b>{r.gym_name}</b>{r.city && <><br /><small className="muted">{r.city}</small></>}</td>
+                  <td>{r.name}<br /><small className="muted">{r.phone}{r.email ? ` · ${r.email}` : ""}</small></td>
+                  <td>{r.members ?? "—"}</td>
+                  <td style={{ maxWidth: 280 }}><small>{r.message ?? ""}</small></td>
+                  <td>
+                    <select className="input" value={r.status} aria-label="Status" onChange={async (e) => { if (await run(() => put(`/api/admin/demo-requests/${r.id}`, { status: e.target.value }), "Updated")) state.reload(); }}>
+                      {Object.entries(DEMO_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                    </select>
+                  </td>
+                  <td className="r"><a className="btn small" href={`https://wa.me/${r.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Hi ${r.name.split(" ")[0]}, it's GMS — thanks for your request! When would suit you for a 20-minute demo at ${r.gym_name}?`)}`} target="_blank" rel="noreferrer"><Icon name="whatsapp" />WhatsApp</a></td>
+                </tr>
+              ))}</tbody>
+            </table></div>
+          ) : <div className="body muted">No requests yet. They arrive here from the “Book a demo” form on the website.</div>}
+        </section>
+      )}
+    </Loader>
   );
 }

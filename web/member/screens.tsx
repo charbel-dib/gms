@@ -5,6 +5,7 @@ import { Icon, Spinner, toast, toastError, useAsync } from "../shared/ui.tsx";
 import { WEEKDAYS, fmtDate, fmtTime, getLang, money, setLang, t } from "../shared/i18n.ts";
 import { Bar, Section, Sheet, SubHeader, Thumb, View, minutes, when } from "./ui.tsx";
 import { currentSubscription, disablePush, enablePush, pushSupport } from "./push.ts";
+import { InstallSheet, isInstalled } from "./install.tsx";
 
 const nameOf = (x: any) => (getLang() === "ar" && x.name_ar ? x.name_ar : x.name);
 const dayKey = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
@@ -447,25 +448,21 @@ export function SettingsView({ me, onBack, onPrefs, onLogout }: { me: any; onBac
         </form>
       </Section>
 
-      <InstallRow />
+      <InstallRow gym={me.gym} />
       <button className="m-btn ghost block" onClick={onLogout}><Icon name="logout" width={18} height={18} style={{ marginInlineEnd: 8 }} />{t("Sign out")}</button>
     </div>
   );
 }
 
-function InstallRow() {
-  const [deferred, setDeferred] = useState<any>(null);
-  useEffect(() => {
-    const h = (e: any) => { e.preventDefault(); setDeferred(e); };
-    window.addEventListener("beforeinstallprompt", h);
-    return () => window.removeEventListener("beforeinstallprompt", h);
-  }, []);
-  if (window.matchMedia("(display-mode: standalone)").matches) return null;
+function InstallRow({ gym }: { gym: any }) {
+  const [open, setOpen] = useState(false);
+  if (isInstalled()) return null;
   return (
     <div className="install">
-      <Icon name="download" width={22} height={22} />
-      <div style={{ flex: 1 }}><b>{t("Install the app")}</b><div className="m-muted" style={{ fontSize: "0.85rem" }}>{t("Add to home screen for one-tap access")}{!deferred && " (Share → Add to Home Screen)"}</div></div>
-      {deferred && <button className="m-btn" onClick={() => { deferred.prompt(); setDeferred(null); }}>{t("Install")}</button>}
+      <Icon name="phone" width={22} height={22} />
+      <div style={{ flex: 1 }}><b>{t("Install the app")}</b><div className="m-muted" style={{ fontSize: "0.85rem" }}>{t("Add to home screen for one-tap access")}</div></div>
+      <button className="m-btn" onClick={() => setOpen(true)}>{t("How?")}</button>
+      <InstallSheet gym={gym} open={open} onClose={() => setOpen(false)} />
     </div>
   );
 }

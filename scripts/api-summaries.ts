@@ -183,4 +183,11 @@ export const SUMMARIES: Record<string, string | [string, string]> = {
   "GET /api/m/shop": "The gym's catalogue, offers and my orders",
   "POST /api/m/shop/requests": "Ask for a product to pick up at reception",
   "POST /api/m/shop/requests/{id}/cancel": "Cancel my order (while it's not prepared yet)",
+
+  // installing the member app, GMS website
+  "PUT /api/gym/app-icon": ["Set the icon of the installed member app", "Square PNGs (512 and 192 px) drawn in the browser from the gym's logo. `null` goes back to the GMS icon."],
+  "GET /api/public/gyms/{slug}/app-icon/{size}": "The gym's app icon (192 or 512 px PNG), or the GMS icon when none is set",
+  "POST /api/public/demo-requests": ["Request a demo from the GMS website", "Stored for the GMS team (Platform page). Limited to 5 per hour per visitor."],
+  "GET /api/admin/demo-requests": "Demo requests received from the website",
+  "PUT /api/admin/demo-requests/{id}": "Update a demo request's status or notes",
 };

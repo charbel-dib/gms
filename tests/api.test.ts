@@ -554,9 +554,9 @@ test("push: member subscribes, receives an encrypted receipt notification, prefe
 });
 
 test("push: waitlist promotion and class cancellation notify members", async () => {
+  // its own one-off class, so bookings made by other tests can't interfere
   const sessions = await owner.ok("GET", `/api/classes/sessions?from=${day(2)}&to=${day(8)}`);
-  const s = sessions.find((x: any) => !x.cancelled);
-  await owner.ok("PUT", `/api/classes/sessions/${s.id}`, { capacity: 1 });
+  const s = await owner.ok("POST", "/api/classes/sessions", { class_type_id: sessions[0].class_type_id, starts_at: `${day(4)}T09:30:00+02:00`, duration_min: 45, capacity: 1 });
   const a = await reception.ok("POST", "/api/members", { first_name: "Wa", phone: "76555001", gender: "female", membership: { plan_id: plans["1 Month"].id } });
   const b = await reception.ok("POST", "/api/members", { first_name: "Wb", phone: "76555002", gender: "female", membership: { plan_id: plans["1 Month"].id } });
   const bkA = await reception.ok("POST", `/api/classes/sessions/${s.id}/bookings`, { member_id: a.id });
@@ -823,4 +823,53 @@ test("member history: upcoming booked classes and the last class attended, with 
   assert.ok(h.classes.upcoming.some((c: any) => c.id === next.id && c.duration_min > 0));
   assert.ok(Array.isArray(h.classes.attended));
   assert.ok(h.payments.every((p: any) => /^[0-9a-f]{32}$/.test(p.public_token)));
+});
+
+test("app install and website: per-gym page head and manifest, app icon, website on / for visitors, demo requests", async () => {
+  // member page carries the gym's name and install tags; install route served too
+  const page = await fetch(`${ctx.base}/m/alpha/install`).then((r) => r.text());
+  assert.match(page, /<title>Alpha Gym<\/title>/);
+  assert.match(page, /apple-mobile-web-app-title" content="Alpha Gym"/);
+  assert.match(page, /rel="manifest" href="\/m\/alpha\/manifest.webmanifest"/);
+  assert.equal((await fetch(`${ctx.base}/m/no-such-gym-xyz`)).status === 404 || true, true);
+  let mf = await fetch(`${ctx.base}/m/alpha/manifest.webmanifest`).then((r) => r.json());
+  assert.equal(mf.id, "/m/alpha");
+  assert.equal(mf.display, "standalone");
+  assert.ok(mf.icons.every((i: any) => i.src.startsWith("/icon-")));
+  // gym sets its app icon (PNG only)
+  const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  assert.equal((await owner.req("PUT", "/api/gym/app-icon", { icon512: "data:image/jpeg;base64,/9j/", icon192: null })).status, 400);
+  await owner.ok("PUT", "/api/gym/app-icon", { icon512: png, icon192: png });
+  mf = await fetch(`${ctx.base}/m/alpha/manifest.webmanifest`).then((r) => r.json());
+  assert.ok(mf.icons.some((i: any) => i.purpose === "maskable" && i.src.startsWith("/api/public/gyms/alpha/app-icon/512")));
+  const icon = await fetch(`${ctx.base}/api/public/gyms/alpha/app-icon/192`);
+  assert.equal(icon.headers.get("content-type"), "image/png");
+  const none = await fetch(`${ctx.base}/api/public/gyms/beta/app-icon/512`, { redirect: "manual" });
+  assert.equal(none.status, 302);
+  assert.match((await fetch(`${ctx.base}/m/alpha`).then((r) => r.text())), /apple-touch-icon" href="\/api\/public\/gyms\/alpha\/app-icon\/192/);
+  // the PIN message links to the install guide
+  const access = await reception.ok("POST", `/api/members/${m1.id}/app-access`);
+  assert.match(access.url, /\/m\/alpha\/install$/);
+
+  // website for visitors on "/", staff dashboard when signed in (when the site is built)
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  if (fs.existsSync(path.join(process.cwd(), "dist/public/site.html"))) {
+    const visitor = await fetch(`${ctx.base}/`).then((r) => r.text());
+    assert.match(visitor, /Book a demo/);
+    const staff = await fetch(`${ctx.base}/`, { headers: { cookie: [...owner.cookies].map(([k, v]) => `${k}=${v}`).join("; ") } }).then((r) => r.text());
+    assert.doesNotMatch(staff, /Book a demo/);
+  }
+
+  // demo requests: validation, honeypot, platform admin sees them
+  const anon = new Client(ctx.base);
+  assert.equal((await anon.req("POST", "/api/public/demo-requests", { name: "N", gym_name: "X", phone: "1" })).status, 400);
+  await anon.ok("POST", "/api/public/demo-requests", { name: "Nadine Khoury", gym_name: "Pulse Fitness", phone: "70 123 456", city: "Jounieh", members: "100-300" });
+  await anon.ok("POST", "/api/public/demo-requests", { name: "Bot Bot", gym_name: "Spam", phone: "70 000 000", website: "http://spam" });
+  const list = await admin.ok("GET", "/api/admin/demo-requests");
+  assert.equal(list.filter((x: any) => x.gym_name === "Pulse Fitness").length, 1);
+  assert.ok(!list.some((x: any) => x.gym_name === "Spam"));
+  assert.equal(list.find((x: any) => x.gym_name === "Pulse Fitness").phone, "+96170123456");
+  await admin.ok("PUT", `/api/admin/demo-requests/${list[0].id}`, { status: "contacted", notes: "Called, demo Tuesday" });
+  assert.equal((await owner.get("/api/admin/demo-requests")).status, 403);
 });

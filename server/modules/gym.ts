@@ -218,6 +218,23 @@ export function registerGym(r: Router) {
     return { ok: true };
   });
 
+  /** Square icons of the installed member app, drawn in the browser from the logo (or the gym's initial). */
+  r.put("/api/gym/app-icon", async (ctx) => {
+    const u = await requireStaff(ctx, ["owner", "manager"]);
+    const b = await ctx.body(z.object({ icon512: z.string().max(700_000).nullable(), icon192: z.string().max(200_000).nullable() }));
+    const png = (s: string | null) => {
+      if (s === null) return null;
+      const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(s);
+      if (!m) throw bad("invalid_image", "The app icon must be a PNG image");
+      const buf = Buffer.from(m[1], "base64");
+      if (buf.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") throw bad("invalid_image", "The app icon must be a PNG image");
+      return buf;
+    };
+    const big = png(b.icon512), small = png(b.icon192);
+    await db.query("UPDATE gyms SET app_icon_512 = $2, app_icon_192 = $3, app_icon_updated_at = now() WHERE id = $1", [u.gymId, big, small]);
+    return { ok: true };
+  });
+
   r.get("/api/templates", async (ctx) => {
     await requireStaff(ctx).catch(() => null);
     return TEMPLATES.map((t) => ({ key: t.key, label: t.label, description: t.description, plans: t.plans.length, classes: t.classTypes.length }));

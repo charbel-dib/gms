@@ -1,15 +1,51 @@
 /** GMS platform console (super-admin): onboard gyms, plans, billing status, demo data. */
 import { z } from "zod";
 import { db, one, many, audit } from "../db/index.ts";
-import { randomPassword, requireSuperadmin } from "../auth.ts";
-import { bad, notFound, zDate, zId, type Router } from "../http.ts";
+import { checkRateLimit, randomPassword, requireSuperadmin } from "../auth.ts";
+import { bad, notFound, zDate, zId, zPhone, type Router } from "../http.ts";
 import { provisionGym } from "../services/provision.ts";
 import { TEMPLATES } from "../templates.ts";
 import { seedDemoActivity } from "../services/demo.ts";
 import { clampModules, PLAN_PRICES, type SaasPlan } from "../services/plans.ts";
 import { getTemplate } from "../templates.ts";
 
+const DEMO_STATUSES = ["new", "contacted", "demo_booked", "won", "lost"] as const;
+
 export function registerAdmin(r: Router) {
+  // ---------- demo requests from the GMS website ----------
+  r.post("/api/public/demo-requests", async (ctx) => {
+    const b = await ctx.body(z.object({
+      name: z.string().trim().min(2).max(80),
+      gym_name: z.string().trim().min(2).max(100),
+      city: z.string().trim().max(60).nullable().optional(),
+      phone: zPhone,
+      email: z.string().trim().email().max(120).nullable().optional().or(z.literal("").transform(() => null)),
+      members: z.enum(["<100", "100-300", "300+"]).nullable().optional(),
+      message: z.string().trim().max(1000).nullable().optional(),
+      website: z.string().max(200).optional(), // honeypot: people never fill it, bots do
+    }));
+    await checkRateLimit(`demo:${ctx.ip}`, 5, 60);
+    if (b.website) return { ok: true };
+    await db.query(`INSERT INTO demo_requests (name, gym_name, city, phone, email, members, message, ip) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [b.name, b.gym_name, b.city ?? null, b.phone, b.email ?? null, b.members ?? null, b.message ?? null, ctx.ip]);
+    return { ok: true };
+  });
+
+  r.get("/api/admin/demo-requests", async (ctx) => {
+    await requireSuperadmin(ctx);
+    return many(db, "SELECT id, name, gym_name, city, phone, email, members, message, status, notes, created_at FROM demo_requests ORDER BY (status = 'new') DESC, created_at DESC LIMIT 300");
+  });
+
+  r.put("/api/admin/demo-requests/:id", async (ctx) => {
+    const su = await requireSuperadmin(ctx);
+    const b = await ctx.body(z.object({ status: z.enum(DEMO_STATUSES).optional(), notes: z.string().max(1000).nullable().optional() }));
+    const row = await one(db, "UPDATE demo_requests SET status = coalesce($2, status), notes = CASE WHEN $4 THEN $3 ELSE notes END WHERE id = $1 RETURNING id, status",
+      [zId.parse(ctx.params.id), b.status ?? null, b.notes ?? null, b.notes !== undefined]);
+    if (!row) throw notFound("demo request");
+    await audit(db, null, su.id, "demo_request.update", "demo_request", row.id, b);
+    return row;
+  });
+
   r.get("/api/admin/gyms", async (ctx) => {
     await requireSuperadmin(ctx);
     const rows = await many(db, `

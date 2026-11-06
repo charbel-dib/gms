@@ -295,6 +295,7 @@ const RESPONSE_TYPES: Record<string, any> = {
   "GET /api/reports/finance/report.xlsx": { description: "Excel workbook", content: { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {} } },
   "GET /api/public/offers/{id}/image": { description: "Image", content: { "image/png": {}, "image/jpeg": {}, "image/webp": {} } },
   "GET /api/public/products/{id}/image": { description: "Image", content: { "image/png": {}, "image/jpeg": {}, "image/webp": {} } },
+  "GET /api/public/gyms/{slug}/app-icon/{size}": { description: "PNG icon (or a redirect to the GMS icon)", content: { "image/png": {} } },
 };
 
 function authText(a: Auth): string {
