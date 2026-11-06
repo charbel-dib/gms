@@ -298,16 +298,16 @@ export function registerClasses(r: Router) {
     const u = await requireStaff(ctx, ["owner", "manager", "reception"]);
     const b = await ctx.body(z.object({
       member_id: zId, coach_id: zId.nullable().optional(), title: z.string().trim().min(1).max(80).default("Personal training"),
-      sessions_total: z.coerce.number().int().min(1).max(500), price: zMoney, currency: zCurrency, expires_on: zDate.nullable().optional(), notes: z.string().max(500).nullable().optional(),
+      sessions_total: z.coerce.number().int().min(1).max(500), session_min: z.coerce.number().int().min(15).max(240).default(60), price: zMoney, currency: zCurrency, expires_on: zDate.nullable().optional(), notes: z.string().max(500).nullable().optional(),
       payment: z.object({ amount: zMoney.refine((n) => n > 0), currency: zCurrency, method: zMethod, reference: z.string().max(80).nullable().optional() }).nullable().optional(),
     }));
     return db.tx(async (q) => {
       await getOverview(q, u.gymId, b.member_id);
       if (b.coach_id && !(await one(q, "SELECT 1 FROM users WHERE id = $1 AND gym_id = $2", [b.coach_id, u.gymId]))) throw notFound("coach");
       const rate = await gymRate(q, u.gymId);
-      const pkg = await one(q, `INSERT INTO pt_packages (gym_id, member_id, coach_id, title, sessions_total, price, currency, price_usd, expires_on, notes)
-                                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-        [u.gymId, b.member_id, b.coach_id ?? null, b.title, b.sessions_total, b.price, b.currency, toUsd(b.price, b.currency, rate), b.expires_on ?? null, b.notes ?? null]);
+      const pkg = await one(q, `INSERT INTO pt_packages (gym_id, member_id, coach_id, title, sessions_total, price, currency, price_usd, expires_on, notes, session_min)
+                                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+        [u.gymId, b.member_id, b.coach_id ?? null, b.title, b.sessions_total, b.price, b.currency, toUsd(b.price, b.currency, rate), b.expires_on ?? null, b.notes ?? null, b.session_min]);
       let payment = null;
       if (b.payment) payment = await recordPayment(q, u.gymId, u.id, { member_id: b.member_id, pt_package_id: pkg!.id, ...b.payment });
       await audit(q, u.gymId, u.id, "pt.package.create", "pt_package", pkg!.id);
@@ -332,8 +332,8 @@ export function registerClasses(r: Router) {
     if (u.role === "coach" && p.coach_id !== u.id) throw forbidden();
     const planned = await one(db, "SELECT count(*)::int AS n FROM pt_sessions WHERE package_id = $1 AND status = 'scheduled'", [p.id]);
     if (p.sessions_used + planned.n >= p.sessions_total) throw bad("package_full", "No sessions left on this package");
-    return one(db, "INSERT INTO pt_sessions (gym_id, package_id, member_id, coach_id, starts_at, notes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *",
-      [u.gymId, p.id, p.member_id, p.coach_id, b.starts_at, b.notes ?? null]);
+    return one(db, "INSERT INTO pt_sessions (gym_id, package_id, member_id, coach_id, starts_at, notes, duration_min) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *",
+      [u.gymId, p.id, p.member_id, p.coach_id, b.starts_at, b.notes ?? null, p.session_min]);
   });
   r.put("/api/pt/sessions/:id", async (ctx) => {
     const u = await requireStaff(ctx);

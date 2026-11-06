@@ -85,7 +85,22 @@ export function registerPortal(r: Router) {
                                   SELECT count(*)::int AS weeks FROM (SELECT wk, row_number() OVER (ORDER BY wk DESC) AS rn FROM w) x
                                    WHERE wk = date_trunc('week', now())::date - ((rn::int - 1) * 7)`, [me.id]);
     const unread = await one(db, "SELECT count(*)::int AS n FROM notifications WHERE member_id = $1 AND read_at IS NULL AND send_after <= now()", [me.id]);
-    return { member: m, gym: await gymBySlug(gym.slug), stats: { ...stats, week_streak: streak.weeks }, unread: unread.n };
+    const extra = await one(db, `SELECT (SELECT count(*) FROM pt_packages p WHERE p.member_id = $1 AND p.sessions_used < p.sessions_total AND (p.expires_on IS NULL OR p.expires_on >= current_date))::int AS pt_packages,
+                                        (SELECT count(*) FROM pt_sessions s WHERE s.member_id = $1 AND s.status = 'scheduled' AND s.starts_at > now())::int AS pt_upcoming,
+                                        (SELECT count(*) FROM products WHERE gym_id = $2 AND active AND in_app)::int AS products,
+                                        m.created_at, m.app_prefs, g.settings, g.modules
+                                   FROM members m JOIN gyms g ON g.id = m.gym_id WHERE m.id = $1`, [me.id, me.gymId]);
+    const es = { badges: true, challenges: true, leaderboard: true, referrals: true, ...(extra.settings?.engage ?? {}) };
+    const pts = { memberBooking: true, ...(extra.settings?.pt ?? {}) };
+    return {
+      member: { ...m, member_since: extra.created_at }, gym: await gymBySlug(gym.slug), stats: { ...stats, week_streak: streak.weeks }, unread: unread.n,
+      prefs: { weeklyGoal: Number(extra.app_prefs?.weeklyGoal ?? 2), hideOnLeaderboard: !!extra.app_prefs?.hideOnLeaderboard },
+      features: {
+        pt: extra.modules?.pt !== false && (extra.pt_packages > 0 || extra.pt_upcoming > 0), ptBooking: pts.memberBooking !== false,
+        shop: extra.modules?.shop !== false && extra.products > 0, classes: extra.modules?.classes !== false, ai: extra.modules?.ai !== false,
+        badges: es.badges !== false, challenges: es.challenges !== false, leaderboard: es.leaderboard !== false, referrals: es.referrals !== false,
+      },
+    };
   });
 
   r.put("/api/m/pin", async (ctx) => {
@@ -101,7 +116,8 @@ export function registerPortal(r: Router) {
     const me = await requireMember(ctx);
     await ensureSessions(db, me.gymId);
     return many(db, `
-      SELECT s.id, s.starts_at, s.ends_at, s.capacity, s.room, ct.name, ct.name_ar, ct.color, ct.women_only, us.name AS coach_name,
+      SELECT s.id, s.starts_at, s.ends_at, s.capacity, s.room, ct.name, ct.name_ar, ct.color, ct.women_only, ct.description, us.name AS coach_name,
+             (extract(epoch FROM s.ends_at - s.starts_at) / 60)::int AS duration_min,
              (SELECT count(*) FROM bookings b WHERE b.session_id = s.id AND b.status IN ('booked','attended'))::int AS booked,
              mb.id AS my_booking_id, mb.status AS my_status
         FROM class_sessions s JOIN class_types ct ON ct.id = s.class_type_id LEFT JOIN users us ON us.id = s.coach_id
@@ -122,14 +138,18 @@ export function registerPortal(r: Router) {
 
   r.get("/api/m/history", async (ctx) => {
     const me = await requireMember(ctx);
-    const [checkins, payments, memberships, pt, programs] = await Promise.all([
+    const classCols = `s.id, s.starts_at, s.ends_at, (extract(epoch FROM s.ends_at - s.starts_at) / 60)::int AS duration_min, ct.name, ct.name_ar, ct.color, us.name AS coach_name, b.status, b.id AS booking_id`;
+    const classFrom = `FROM bookings b JOIN class_sessions s ON s.id = b.session_id JOIN class_types ct ON ct.id = s.class_type_id LEFT JOIN users us ON us.id = s.coach_id`;
+    const [checkins, payments, memberships, pt, programs, upcoming, attended] = await Promise.all([
       many(db, "SELECT at, result, reason FROM checkins WHERE member_id = $1 ORDER BY at DESC LIMIT 60", [me.id]),
-      many(db, "SELECT receipt_no, amount, currency, method, paid_at FROM payments WHERE member_id = $1 AND voided_at IS NULL ORDER BY paid_at DESC LIMIT 30", [me.id]),
+      many(db, "SELECT receipt_no, amount, currency, method, paid_at, public_token FROM payments WHERE member_id = $1 AND voided_at IS NULL ORDER BY paid_at DESC LIMIT 30", [me.id]),
       many(db, "SELECT plan_name, start_date, end_date, status FROM memberships WHERE member_id = $1 ORDER BY start_date DESC LIMIT 20", [me.id]),
       many(db, `SELECT p.title, p.sessions_total, p.sessions_used, p.expires_on, us.name AS coach_name FROM pt_packages p LEFT JOIN users us ON us.id = p.coach_id WHERE p.member_id = $1 ORDER BY p.created_at DESC`, [me.id]),
       many(db, `SELECT p.id, p.title, p.content, p.created_at, us.name AS coach_name FROM programs p LEFT JOIN users us ON us.id = p.coach_id WHERE p.member_id = $1 ORDER BY p.created_at DESC`, [me.id]),
+      many(db, `SELECT ${classCols} ${classFrom} WHERE b.member_id = $1 AND b.status IN ('booked','waitlist') AND NOT s.cancelled AND s.ends_at > now() ORDER BY s.starts_at LIMIT 20`, [me.id]),
+      many(db, `SELECT ${classCols} ${classFrom} WHERE b.member_id = $1 AND b.status = 'attended' ORDER BY s.starts_at DESC LIMIT 20`, [me.id]),
     ]);
-    return { checkins, payments, memberships, pt, programs };
+    return { checkins, payments, memberships, pt, programs, classes: { upcoming, attended } };
   });
 
   // ---- push notifications & inbox ----

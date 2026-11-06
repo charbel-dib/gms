@@ -9,7 +9,8 @@
   },
   "scripts": {
     "dev": "node scripts/build.mjs --watch & tsx watch server/index.ts",
-    "build": "node scripts/build.mjs",
+    "build": "node scripts/build.mjs && tsx scripts/gen-api-docs.ts",
+    "docs:api": "tsx scripts/gen-api-docs.ts",
     "start": "node dist/server.js",
     "migrate": "tsx scripts/migrate.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",

@@ -60,6 +60,19 @@ const settingsSchema = z.object({
     quietTo: hhmm,
     types: z.record(z.string(), z.boolean()),
   }).partial().optional(),
+  pt: z.object({
+    memberBooking: z.boolean(),
+    cancelHours: z.number().int().min(0).max(72),
+    bookAheadDays: z.number().int().min(1).max(60),
+    minNoticeHours: z.number().int().min(0).max(72),
+  }).partial().optional(),
+  engage: z.object({
+    badges: z.boolean(),
+    challenges: z.boolean(),
+    leaderboard: z.boolean(),
+    referrals: z.boolean(),
+    referralReward: z.string().max(120),
+  }).partial().optional(),
 });
 
 const gymUpdateSchema = z.object({

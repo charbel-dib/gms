@@ -82,6 +82,7 @@ img, svg { display: block; max-width: 100%; }
 .plate[data-s="expiring"], .plate[data-s="warn"], .plate[data-s="upcoming"] { --c: var(--plate-yellow); }
 .plate[data-s="expired"], .plate[data-s="denied"] { --c: var(--plate-red); }
 .plate[data-s="frozen"] { --c: var(--plate-blue); }
+.plate[data-s="info"] { --c: var(--plate-grey); }
 .status {
   display: inline-flex;
   align-items: center;

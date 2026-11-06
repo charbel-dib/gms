@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { get, post, put, setGymOverride } from "../../shared/api.ts";
 import { Field, Icon, Loader, Modal, toast, useAction, useAsync } from "../../shared/ui.tsx";
 import { fmtDate, money, relDays } from "../../shared/i18n.ts";
+import { navigate } from "../app.tsx";
 
 const STATUS_PLATE: Record<string, string> = { active: "ok", trial: "warn", past_due: "denied", suspended: "frozen" };
 
@@ -19,6 +20,7 @@ export function PlatformPage() {
       <div className="page-head">
         <div><h1>GMS platform</h1><p>Your clients: onboard a gym in two minutes from a template, then adapt it with them.</p></div>
         <div className="row">
+          <button className="btn" onClick={() => navigate("/developers")}><Icon name="code" />API reference</button>
           <button className="btn" onClick={async () => { await post("/api/auth/logout"); location.href = "/"; }}><Icon name="logout" />Sign out</button>
           <button className="btn primary" onClick={() => setCreating(true)}><Icon name="plus" />New gym</button>
         </div>

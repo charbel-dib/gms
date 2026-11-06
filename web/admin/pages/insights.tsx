@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { del, get, post, put } from "../../shared/api.ts";
 import { Empty, Icon, Loader, Status, Tabs, toast, useAction, useAsync } from "../../shared/ui.tsx";
 import { fmtDate, relDays, t } from "../../shared/i18n.ts";
-import { Link, can, useApp } from "../app.tsx";
+import { Link, can, moduleOn, useApp, usePath } from "../app.tsx";
+import { KpisView } from "./kpis.tsx";
 
 const PROMPTS = [
   "How is the gym doing this month?",
@@ -165,17 +166,23 @@ function BotTest() {
 export function InsightsPage() {
   const { me } = useApp();
   const status = useAsync(() => get("/api/ai/status"), []);
-  const [tab, setTab] = useState<"risk" | "ask" | "bot">(can(me, "owner", "manager") ? "ask" : "risk");
+  const path = usePath();
+  const wanted = new URLSearchParams(path.split("?")[1] ?? "").get("tab");
+  const boss = can(me, "owner", "manager");
+  const ai = moduleOn(me, "ai");
+  const [tab, setTab] = useState<"kpis" | "risk" | "ask" | "bot">(
+    (["kpis", "risk", "ask", "bot"] as const).find((x) => x === wanted && (boss || (x !== "kpis" && x !== "ask"))) ?? (boss ? "kpis" : "risk"));
   return (
     <div className="page">
       <div className="page-head">
         <div><h1>{t("Insights")}</h1><p>Predictions and answers computed from your own gym's data.{status.data && !status.data.llm ? " Running in offline mode." : ""}</p></div>
       </div>
       <Tabs value={tab} onChange={setTab} tabs={[
-        ...(can(me, "owner", "manager") ? [{ value: "ask" as const, label: "Ask" }] : []),
-        { value: "risk", label: "Members at risk" },
-        { value: "bot", label: "Member assistant" },
+        ...(boss ? [{ value: "kpis" as const, label: "Key numbers" }] : []),
+        ...(ai && boss ? [{ value: "ask" as const, label: "Ask" }] : []),
+        ...(ai ? [{ value: "risk" as const, label: "Members at risk" }, { value: "bot" as const, label: "Member assistant" }] : []),
       ]} />
+      {tab === "kpis" && <KpisView />}
       {tab === "ask" && <Ask />}
       {tab === "risk" && <Churn />}
       {tab === "bot" && <BotTest />}

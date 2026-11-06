@@ -201,6 +201,7 @@ export async function seedDemoActivity(gymId: string, opts: { members: number; d
   });
 
   await seedShop(gymId, R, reception?.id ?? null, memberRows.map((r) => r[0] as string));
+  await seedEngagement(gymId, R);
   const train = await trainForGym(gymId);
   const score = await scoreGym(gymId);
   return { members: memberRows.length, memberships: msRows.length, payments: payRows.length, checkins: ckRows.length, bookings: bookingRows.length, model: train, scored: score.scored };
@@ -265,5 +266,83 @@ async function seedShop(gymId: string, R: () => number, userId: string | null, m
     }
     await q.query(`INSERT INTO counters (gym_id, name, value) VALUES ($1,'sale',$2), ($1,'receipt',$3)
                    ON CONFLICT (gym_id, name) DO UPDATE SET value = greatest(counters.value, EXCLUDED.value)`, [gymId, saleNo, receipt]);
+  });
+}
+
+const DESCRIPTIONS: Record<string, string> = {
+  "Whey protein 2 kg — chocolate": "25 g of protein per scoop, 66 servings. Mixes smoothly with water or milk. Best right after training.",
+  "Whey protein 2 kg — vanilla": "25 g of protein per scoop, 66 servings. Light vanilla taste, great in a morning shake.",
+  "Creatine monohydrate 300 g": "Pure creatine, 5 g a day. Helps strength and power over the weeks. Unflavoured.",
+  "Pre-workout 30 servings": "Caffeine and beta-alanine for energy before hard sessions. Not after 6 pm!",
+  "BCAA 400 g": "Amino acids to sip during training. Fruit flavour.",
+  "Mass gainer 3 kg": "Calories and protein for members who struggle to gain weight.",
+  "Protein bar": "20 g protein, low sugar. The easy snack after the gym.",
+  "Shaker 700 ml": "Leak-proof shaker with the gym's logo.",
+  "Gym towel": "Soft microfibre towel with the gym's logo.",
+  "Lifting straps": "Cotton straps for a better grip on heavy pulls.",
+};
+
+/** Offers, a bundle, a challenge, coach hours, referrals and app orders, for demos of the member app. */
+export async function seedEngagement(gymId: string, R: () => number) {
+  if (await one(db, "SELECT 1 FROM offers WHERE gym_id = $1 LIMIT 1", [gymId])) return;
+  const today = (await one(db, "SELECT (now() AT TIME ZONE timezone)::date::text AS d FROM gyms WHERE id = $1", [gymId])).d as string;
+  const monthStart = today.slice(0, 8) + "01";
+  const monthEnd = new Date(Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  const monthName = new Date(today + "T00:00:00Z").toLocaleDateString("en-GB", { month: "long", timeZone: "UTC" });
+  await db.tx(async (q) => {
+    for (const [name, text] of Object.entries(DESCRIPTIONS)) {
+      await q.query("UPDATE products SET description = $3, featured = $4 WHERE gym_id = $1 AND name = $2", [gymId, name, text, /chocolate|Creatine|Protein bar|Shaker/.test(name)]);
+    }
+    const whey = await one(q, "SELECT id FROM products WHERE gym_id = $1 AND name LIKE 'Whey protein 2 kg — chocolate'", [gymId]);
+    const shaker = await one(q, "SELECT id FROM products WHERE gym_id = $1 AND name = 'Shaker 700 ml'", [gymId]);
+    const creatine = await one(q, "SELECT id FROM products WHERE gym_id = $1 AND name LIKE 'Creatine%'", [gymId]);
+    let bundle: any = null;
+    if (whey && shaker && creatine) {
+      bundle = await one(q, `INSERT INTO products (gym_id, name, category, price, currency, kind, components, track_stock, featured, description)
+                             VALUES ($1, 'Starter pack: whey + creatine + shaker', 'supplements', 99, 'USD', 'bundle', $2, false, true,
+                                     'Everything to start: 2 kg chocolate whey, 300 g creatine and the gym shaker. Save $14 compared with buying them one by one.') RETURNING id`,
+        [gymId, JSON.stringify([{ product_id: whey.id, qty: 1 }, { product_id: creatine.id, qty: 1 }, { product_id: shaker.id, qty: 1 }])]);
+    }
+    const plan3 = await one(q, "SELECT id FROM plans WHERE gym_id = $1 AND active AND duration_days BETWEEN 80 AND 100 ORDER BY price LIMIT 1", [gymId]);
+    await q.query(`INSERT INTO offers (gym_id, title, body, badge, kind, product_id, plan_id, starts_on, ends_on, sort) VALUES
+      ($1, 'Starter pack', 'Whey, creatine and a shaker for $99 instead of $113. Ask at reception or tap "I want it".', '-12%', 'offer', $2, NULL, NULL, $5, 0),
+      ($1, 'Renew for 3 months, get a free week', 'Renew before your membership ends and we add 7 days for free.', '+7 days', 'offer', NULL, $3, NULL, $5, 1),
+      ($1, 'Saturday bootcamp', 'Free outdoor session every Saturday at 9:00 for all members. Bring water!', 'FREE', 'event', NULL, NULL, $4, NULL, 2)`,
+      [gymId, bundle?.id ?? null, plan3?.id ?? null, monthStart, monthEnd]);
+    await q.query(`INSERT INTO challenges (gym_id, title, description, metric, target, starts_on, ends_on, reward) VALUES
+      ($1, $2, 'Come to the gym on 12 different days this month. Everyone takes part automatically.', 'visits', 12, $3, $4, 'A free shaker for everyone who makes it')`,
+      [gymId, `12 days in ${monthName}`, monthStart, monthEnd]);
+    // coach hours: mornings and evenings on weekdays, Saturday morning
+    const coaches = await many(q, "SELECT id FROM users WHERE gym_id = $1 AND role = 'coach' AND active", [gymId]);
+    for (const [i, c] of coaches.entries()) {
+      for (let wd = 1; wd <= 5; wd++) {
+        if ((wd + i) % 2 === 0) await q.query("INSERT INTO coach_availability (gym_id, coach_id, weekday, start_time, end_time) VALUES ($1,$2,$3,'07:00','11:00')", [gymId, c.id, wd]);
+        await q.query("INSERT INTO coach_availability (gym_id, coach_id, weekday, start_time, end_time) VALUES ($1,$2,$3,'16:00','21:00')", [gymId, c.id, wd]);
+      }
+      await q.query("INSERT INTO coach_availability (gym_id, coach_id, weekday, start_time, end_time) VALUES ($1,$2,6,'09:00','13:00')", [gymId, c.id]);
+    }
+    // a few upcoming PT sessions on packages with sessions left
+    const pkgs = await many(q, "SELECT id, member_id, coach_id FROM pt_packages WHERE gym_id = $1 AND coach_id IS NOT NULL AND sessions_used < sessions_total - 1 LIMIT 6", [gymId]);
+    for (const [i, p] of pkgs.entries()) {
+      await q.query(`INSERT INTO pt_sessions (gym_id, package_id, member_id, coach_id, starts_at, duration_min)
+                     SELECT $1, $2, $3, $4, ((($5::date + $6::int) + time '17:00') AT TIME ZONE g.timezone), 60 FROM gyms g WHERE g.id = $1`, [gymId, p.id, p.member_id, p.coach_id, today, 1 + i]);
+    }
+    // referrals: some members brought friends
+    const members = await many(q, "SELECT id FROM members WHERE gym_id = $1 AND archived_at IS NULL ORDER BY created_at LIMIT 400", [gymId]);
+    if (members.length > 40) {
+      for (let k = 0; k < 8; k++) {
+        const ref = members[Math.floor(R() * 20)];
+        const friend = members[30 + Math.floor(R() * (members.length - 30))];
+        if (ref.id !== friend.id) await q.query("UPDATE members SET referred_by = $2 WHERE id = $1 AND referred_by IS NULL", [friend.id, ref.id]);
+      }
+      const pending = await many(q, "SELECT id FROM leads WHERE gym_id = $1 AND status IN ('new','contacted') LIMIT 4", [gymId]);
+      for (const l of pending) await q.query("UPDATE leads SET referred_by = $2, source = 'Referral' WHERE id = $1", [l.id, members[Math.floor(R() * 20)].id]);
+      // two orders placed from the app
+      const featured = await many(q, "SELECT id FROM products WHERE gym_id = $1 AND featured AND kind = 'item' LIMIT 2", [gymId]);
+      for (const [i, f] of featured.entries()) {
+        await q.query("INSERT INTO product_requests (gym_id, member_id, product_id, qty, status) VALUES ($1,$2,$3,1,$4)", [gymId, members[i + 3].id, f.id, i === 0 ? "pending" : "ready"]);
+      }
+    }
+    await q.query(`UPDATE gyms SET settings = jsonb_set(settings, '{engage}', coalesce(settings->'engage', '{}') || '{"referralReward": "1 free week"}'::jsonb) WHERE id = $1`, [gymId]);
   });
 }

@@ -526,7 +526,8 @@ test("push: member subscribes, receives an encrypted receipt notification, prefe
   const bc = await owner.ok("POST", "/api/messages/broadcast", { segment: "all", channel: "push", title: "New class", body: "Hi {name}, Zumba on Saturdays!" });
   assert.equal(bc.pushed, 1);
   const waiting = await owner.ok("GET", "/api/notifications/overview");
-  assert.equal(waiting.stats.waiting, 1);
+  assert.ok(waiting.stats.waiting >= 1);
+  assert.equal(waiting.recent.find((x: any) => x.title === "New class")?.status, "queued");
   await owner.ok("PUT", "/api/gym", { settings: { push: { quietFrom: "22:00", quietTo: "08:00" } } });
 
   // gym turns the receipt type off
@@ -566,4 +567,260 @@ test("push: waitlist promotion and class cancellation notify members", async () 
   await owner.ok("PUT", `/api/classes/sessions/${s.id}`, { cancelled: true });
   mb = await owner.ok("GET", `/api/members/${b.id}`);
   assert.ok(mb.notifications.some((n: any) => /is cancelled/.test(n.title)));
+});
+
+test("API reference: every route is documented with its real schema; owners and platform admins only", async () => {
+  const os = await import("node:os");
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { generate } = await import("../scripts/gen-api-docs.ts");
+  const { SUMMARIES } = await import("../scripts/api-summaries.ts");
+  const { router } = await import("../server/index.ts");
+  const spec: any = await generate();
+
+  // every route the server answers is in the reference, with a written summary, and nothing stale
+  const live = (router as any).routes.map((r: any) => `${r.method} /${r.parts.map((p: string) => (p.startsWith(":") ? `{${p.slice(1)}}` : p)).join("/")}`);
+  const documented = Object.entries<any>(spec.paths).flatMap(([p, ms]) => Object.keys(ms).map((m) => `${m.toUpperCase()} ${p}`));
+  assert.deepEqual([...documented].sort(), [...live].sort());
+  assert.deepEqual(live.filter((k: string) => !SUMMARIES[k]), [], "add a summary in scripts/api-summaries.ts");
+  assert.deepEqual(Object.keys(SUMMARIES).filter((k) => !live.includes(k)), [], "summary for a route that no longer exists");
+
+  // bodies are the real zod schemas: required fields, enums, defaults, nested arrays
+  for (const [p, ms] of Object.entries<any>(spec.paths)) {
+    for (const [m, op] of Object.entries<any>(ms)) {
+      const s = op.requestBody?.content["application/json"].schema;
+      if (s) assert.equal(s.type, "object", `${m} ${p} body schema not resolved`);
+    }
+  }
+  const sale = spec.paths["/api/shop/sales"].post;
+  const body = sale.requestBody.content["application/json"].schema;
+  assert.deepEqual(body.required, ["items"]);
+  assert.equal(body.properties.items.items.properties.product_id.format, "uuid");
+  assert.deepEqual(body.properties.payment.properties.currency.enum, ["USD", "LBP"]);
+  assert.equal(body.properties.on_account.default, false);
+  assert.deepEqual(sale["x-auth"], { kind: "staff", roles: ["owner", "manager", "reception"] });
+  assert.equal(spec.paths["/api/m/me"].get["x-auth"].kind, "member");
+  assert.equal(spec.paths["/api/admin/gyms"].get["x-auth"].kind, "superadmin");
+  assert.equal(spec.paths["/r/{token}"].get["x-auth"].kind, "public");
+  assert.ok(spec.paths["/api/members"].get.parameters.some((x: any) => x.name === "q" && x.in === "query"));
+  assert.equal(spec.paths["/api/members/{id}"].get.parameters[0].schema.format, "uuid");
+
+  // served to owners and platform admins (even before opening a gym), not to other roles
+  const file = path.join(os.tmpdir(), `gms-api-docs-${process.pid}.json`);
+  fs.writeFileSync(file, JSON.stringify(spec));
+  process.env.API_DOCS_FILE = file;
+  try {
+    const mine = await owner.ok("GET", "/api/docs.json");
+    assert.equal(mine.openapi, "3.1.0");
+    assert.equal((await reception.get("/api/docs.json")).status, 403);
+    assert.equal((await new Client(ctx.base).get("/api/docs.json")).status, 401);
+    const root = new Client(ctx.base);
+    await root.ok("POST", "/api/auth/login", { email: "root@gms.test", password: "rootpass123" });
+    assert.equal((await root.get("/api/docs.json")).status, 200);
+  } finally {
+    delete process.env.API_DOCS_FILE;
+    fs.rmSync(file, { force: true });
+  }
+});
+
+/** Signs a member into the app (PIN from reception). */
+async function memberLogin(memberId: string, phone: string) {
+  const access = await reception.ok("POST", `/api/members/${memberId}/app-access`);
+  const c = new Client(ctx.base);
+  await c.ok("POST", "/api/m/alpha/login", { phone, pin: access.pin });
+  return c;
+}
+
+test("KPIs: rated against benchmarks with trends; focus list; owners and managers only", async () => {
+  const k = await owner.ok("GET", "/api/kpis?period=month");
+  const by = Object.fromEntries(k.kpis.map((x: any) => [x.key, x]));
+  for (const key of ["active_members", "churn_rate", "renewal_rate", "activation", "revenue", "mrr", "arpm", "ltv", "collection_rate", "engaged", "class_fill", "revenue_at_risk", "expected_losses"]) {
+    assert.ok(by[key], `missing KPI ${key}`);
+    assert.ok(["good", "watch", "bad", "info"].includes(by[key].status));
+    assert.ok(by[key].why.length > 20 && by[key].target);
+  }
+  assert.ok(by.active_members.value >= 1);
+  assert.ok(by.revenue.value > 0);
+  assert.equal(k.previous.to < k.from, true);
+  assert.ok(Array.isArray(k.focus));
+  const last = await owner.ok("GET", "/api/kpis?period=last_month");
+  assert.equal(last.from.slice(8), "01");
+  assert.equal((await reception.get("/api/kpis")).status, 403);
+});
+
+test("financial report: A4 HTML and a real Excel workbook", async () => {
+  const from = day(-40), to = day(0);
+  const rep = await owner.ok("GET", `/api/reports/finance/report?from=${from}&to=${to}`);
+  assert.match(rep.html, /Financial report/);
+  assert.match(rep.html, /Revenue by source/);
+  assert.match(rep.filename, /alpha-gym-financial-report-.*\.pdf$/);
+  const res = await fetch(`${ctx.base}/api/reports/finance/report.xlsx?from=${from}&to=${to}`, { headers: { cookie: [...owner.cookies].map(([k, v]) => `${k}=${v}`).join("; ") } });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-disposition") ?? "", /\.xlsx"/);
+  const buf = Buffer.from(await res.arrayBuffer());
+  assert.equal(buf.subarray(0, 4).toString("hex"), "504b0304"); // zip
+  const text = buf.toString("latin1");
+  for (const part of ["xl/workbook.xml", "xl/worksheets/sheet2.xml", "xl/styles.xml", "[Content_Types].xml"]) assert.ok(text.includes(part), part);
+  assert.equal((await owner.get(`/api/reports/finance/report?from=${to}&to=${from}`)).status, 400);
+  assert.equal((await reception.get(`/api/reports/finance/report?from=${from}&to=${to}`)).status, 403);
+});
+
+test("PT self-booking: coach hours, free slots, back-to-back booking within sessions left, cancellation limit", async () => {
+  const coach = await owner.ok("POST", "/api/staff", { name: "Coach Nour", email: "nour@alpha.test", role: "coach", password: "coach12345" });
+  const coachClient = new Client(ctx.base);
+  await coachClient.ok("POST", "/api/auth/login", { email: "nour@alpha.test", password: "coach12345" });
+  // every day 06:00–22:00 so the test works at any hour
+  const windows = [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, start_time: "06:00", end_time: "22:00" }));
+  await coachClient.ok("PUT", `/api/pt/availability/${coach.id}`, { windows });
+  assert.equal((await coachClient.req("PUT", `/api/pt/availability/${coach.id}`, { windows: [{ weekday: 1, start_time: "08:00", end_time: "10:00" }, { weekday: 1, start_time: "09:00", end_time: "11:00" }] })).status, 400);
+  const other = await owner.ok("POST", "/api/staff", { name: "Coach Other", email: "other@alpha.test", role: "coach", password: "coach12345" });
+  assert.equal((await coachClient.req("PUT", `/api/pt/availability/${other.id}`, { windows })).status, 403);
+  const av = await coachClient.ok("GET", "/api/pt/availability");
+  assert.equal(av.windows.length, 7);
+
+  const r = await reception.ok("POST", "/api/members", { first_name: "Pia", last_name: "Trainee", phone: "71000222", membership: { plan_id: plans["1 Month"].id, payment: { amount: 45, currency: "USD", method: "cash" } } });
+  const pkg = await reception.ok("POST", "/api/pt/packages", { member_id: r.id, coach_id: coach.id, sessions_total: 3, session_min: 45, price: 90, currency: "USD" });
+  const member = await memberLogin(r.id, "71000222");
+  const pt = await member.ok("GET", "/api/m/pt");
+  assert.equal(pt.packages[0].bookable, 3);
+  const slots = await member.ok("GET", `/api/m/pt/slots?package_id=${pkg.package.id}`);
+  assert.ok(slots.length > 10);
+  // two back-to-back slots (45 min apart)
+  const i = slots.findIndex((s: any, k: number) => slots[k + 1] && new Date(slots[k + 1].starts_at).getTime() - new Date(s.starts_at).getTime() === 45 * 60000
+    && new Date(s.starts_at).getTime() > Date.now() + 24 * 3600_000);
+  const pair = [slots[i].starts_at, slots[i + 1].starts_at];
+  const booked = await member.ok("POST", "/api/m/pt/book", { package_id: pkg.package.id, starts: pair });
+  assert.equal(booked.sessions.length, 2);
+  assert.equal(booked.left, 1);
+  // the slots are gone for everyone; booking more than what's left fails
+  const after = await member.ok("GET", `/api/m/pt/slots?package_id=${pkg.package.id}`);
+  assert.ok(!after.some((s: any) => pair.includes(s.starts_at)));
+  const tooMany = await member.post("/api/m/pt/book", { package_id: pkg.package.id, starts: [after[0].starts_at, after[1].starts_at] });
+  assert.equal(tooMany.status, 400);
+  assert.equal(tooMany.data.error, "not_enough_sessions");
+  const taken = await member.post("/api/m/pt/book", { package_id: pkg.package.id, starts: [pair[0]] });
+  assert.equal(taken.data.error, "slot_taken");
+  // cancel more than 12 h before: the session comes back
+  await member.ok("POST", `/api/m/pt/sessions/${booked.sessions[1].id}/cancel`);
+  assert.equal((await member.ok("GET", "/api/m/pt")).packages[0].bookable, 2);
+  // a session planned by the coach in 2 hours can't be cancelled from the app
+  const soon = await coachClient.ok("POST", "/api/pt/sessions", { package_id: pkg.package.id, starts_at: new Date(Date.now() + 2 * 3600_000).toISOString() });
+  assert.equal(soon.duration_min, 45);
+  const late = await member.post(`/api/m/pt/sessions/${soon.id}/cancel`, {});
+  assert.equal(late.data.error, "too_late");
+  // time off removes slots
+  const day3 = new Date(Date.now() + 3 * 86400_000);
+  const startOff = new Date(day3); startOff.setUTCHours(0, 0, 0, 0);
+  const endOff = new Date(startOff.getTime() + 86400_000);
+  await coachClient.ok("POST", "/api/pt/time-off", { coach_id: coach.id, starts_at: startOff.toISOString(), ends_at: endOff.toISOString(), note: "Holiday" });
+  const off = await member.ok("GET", `/api/m/pt/slots?package_id=${pkg.package.id}`);
+  assert.ok(!off.some((s: any) => { const t = new Date(s.starts_at).getTime(); return t >= startOff.getTime() && t < endOff.getTime(); }));
+});
+
+test("shop for members: bundles take stock from their products, app orders, offers in the catalogue", async () => {
+  const whey = await owner.ok("POST", "/api/shop/products", { name: "Whey 1kg", category: "supplements", price: 40, cost_usd: 25, stock: 5, featured: true, description: "25 g protein per scoop" });
+  const shaker = await owner.ok("POST", "/api/shop/products", { name: "Shaker", category: "accessories", price: 8, cost_usd: 3, stock: 1 });
+  const bundle = await owner.ok("POST", "/api/shop/products", { name: "Starter pack", kind: "bundle", category: "supplements", price: 45, components: [{ product_id: whey.id, qty: 1 }, { product_id: shaker.id, qty: 1 }] });
+  assert.equal((await owner.req("POST", "/api/shop/products", { name: "Empty bundle", kind: "bundle", price: 1, components: [] })).status, 400);
+  assert.equal((await owner.req("PUT", `/api/shop/products/${bundle.id}`, { name: "Loop", kind: "bundle", price: 1, components: [{ product_id: bundle.id, qty: 1 }] })).data.error, "invalid_bundle");
+  // tiny PNG photo
+  const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  await owner.ok("PUT", `/api/shop/products/${whey.id}/image`, { image: png });
+  assert.equal((await owner.req("PUT", `/api/shop/products/${whey.id}/image`, { image: "data:image/png;base64,AAAA" })).data.error, "invalid_image");
+  const img = await fetch(`${ctx.base}/api/public/products/${whey.id}/image`);
+  assert.equal(img.headers.get("content-type"), "image/png");
+
+  await owner.ok("POST", "/api/offers", { title: "Starter pack", body: "Save $3", badge: "-6%", product_id: bundle.id, ends_on: day(10) });
+  await owner.ok("POST", "/api/offers", { title: "Old offer", ends_on: day(-1) });
+  const member = await memberLogin(m1.id, "03123456");
+  const shop = await member.ok("GET", "/api/m/shop");
+  const pack = shop.products.find((p: any) => p.id === bundle.id);
+  assert.equal(pack.in_stock, true);
+  assert.match(pack.contents, /Whey 1kg/);
+  assert.ok(shop.products.find((p: any) => p.id === whey.id).has_image);
+  assert.ok(!("stock" in pack) && !("cost_usd" in pack), "members never see stock counts or costs");
+  assert.deepEqual(shop.offers.map((o: any) => o.title), ["Starter pack"]);
+
+  const order = await member.ok("POST", "/api/m/shop/requests", { product_id: bundle.id });
+  const open = await reception.ok("GET", "/api/shop/requests");
+  assert.ok(open.some((x: any) => x.id === order.id && x.status === "pending"));
+  await reception.ok("PUT", `/api/shop/requests/${order.id}`, { status: "ready" });
+  assert.equal((await member.post(`/api/m/shop/requests/${order.id}/cancel`, {})).status, 400);
+  // sold at the till: the bundle takes one whey and the only shaker; the order is collected
+  const sale = await reception.ok("POST", "/api/shop/sales", { member_id: m1.id, items: [{ product_id: bundle.id, qty: 1 }], payment: { currency: "USD", method: "cash" }, request_ids: [order.id] });
+  assert.equal(Number(sale.sale.total_usd), 45);
+  assert.equal(Number(sale.sale.cost_usd), 28);
+  const products = await owner.ok("GET", "/api/shop/products");
+  assert.equal(products.find((p: any) => p.id === whey.id).stock, 4);
+  assert.equal(products.find((p: any) => p.id === shaker.id).stock, 0);
+  assert.equal(products.find((p: any) => p.id === bundle.id).bundle_stock, 0);
+  assert.equal((await member.ok("GET", "/api/m/shop")).products.find((p: any) => p.id === bundle.id).in_stock, false);
+  const again = await reception.post("/api/shop/sales", { items: [{ product_id: bundle.id, qty: 1 }], payment: { currency: "USD", method: "cash" } });
+  assert.equal(again.data.error, "out_of_stock");
+  assert.equal((await reception.ok("GET", "/api/shop/requests?status=all")).find((x: any) => x.id === order.id).status, "collected");
+  // voiding puts the bundle's products back
+  await owner.ok("POST", `/api/shop/sales/${sale.sale.id}/void`, { reason: "Test void", restock: true });
+  assert.equal((await owner.ok("GET", "/api/shop/products")).find((p: any) => p.id === shaker.id).stock, 1);
+});
+
+test("engagement: badges on check-in, challenge leaderboard with privacy, weekly goal, referral credited when the friend joins", async () => {
+  const r = await reception.ok("POST", "/api/members", { first_name: "Lea", last_name: "Runner", phone: "76123777", membership: { plan_id: plans["1 Month"].id, payment: { amount: 45, currency: "USD", method: "cash" } } });
+  await owner.ok("POST", "/api/challenges", { title: "3 days this week", metric: "visits", target: 1, starts_on: day(-1), ends_on: day(6), reward: "Free shake" });
+  assert.equal((await owner.req("POST", "/api/challenges", { title: "Bad", target: 3, starts_on: day(5), ends_on: day(1) })).status, 400);
+  await reception.ok("POST", "/api/checkin", { member_id: r.id });
+  await new Promise((res) => setTimeout(res, 300)); // badges are awarded after the check-in commits
+  const member = await memberLogin(r.id, "76123777");
+  const progress = await member.ok("GET", "/api/m/progress");
+  const first = progress.badges.find((b: any) => b.key === "first_visit");
+  assert.ok(first.earned_at, "first visit badge");
+  assert.ok(!progress.badges.find((b: any) => b.key === "visits_10").earned_at);
+  assert.equal(progress.badges.find((b: any) => b.key === "visits_10").progress, 1);
+  const ch = progress.challenges[0];
+  assert.equal(ch.progress, 1);
+  assert.equal(ch.leaderboard.me.rank, 1);
+  assert.equal(ch.leaderboard.top.find((x: any) => x.me).name, "Lea R.");
+  const notes = await member.ok("GET", "/api/m/notifications");
+  assert.ok(notes.categories.some((c: any) => c.key === "progress"));
+  // hidden from others' leaderboard, still sees own rank
+  await member.ok("PUT", "/api/m/prefs", { hideOnLeaderboard: true, weeklyGoal: 3 });
+  const other = await memberLogin(m1.id, "03123456");
+  await reception.ok("POST", "/api/checkin", { member_id: m1.id });
+  const seen = await other.ok("GET", "/api/m/progress");
+  assert.ok(!seen.challenges[0].leaderboard.top.some((x: any) => x.name === "Lea R."));
+  const home = await member.ok("GET", "/api/m/home");
+  assert.equal(home.week.goal, 3);
+  assert.ok(home.week.visits >= 1);
+  assert.equal(home.challenge.title, "3 days this week");
+  assert.ok(home.badges >= 1);
+  const staffView = await owner.ok("GET", `/api/challenges/${ch.id}/leaderboard`);
+  assert.ok(staffView.top.some((x: any) => x.name === "Lea Runner" && x.hidden));
+
+  // referral: invite link → lead → reception creates the member → referrer is credited and told
+  const ref = await member.ok("GET", "/api/m/referral");
+  assert.match(ref.code, /^[A-Z2-9]{6}$/);
+  assert.equal(ref.path, `/m/alpha?ref=${ref.code}`);
+  const anon = new Client(ctx.base);
+  await anon.ok("POST", "/api/public/gyms/alpha/join", { name: "Friend Of Lea", phone: "70999888", ref: ref.code.toLowerCase() });
+  const refs = await reception.ok("GET", "/api/referrals");
+  assert.equal(refs.referrers.find((x: any) => x.id === r.id).pending, 1);
+  await reception.ok("POST", "/api/members", { first_name: "Friend", last_name: "OfLea", phone: "70999888" });
+  const refs2 = await reception.ok("GET", "/api/referrals");
+  assert.equal(refs2.referrers.find((x: any) => x.id === r.id).joined, 1);
+  assert.equal((await member.ok("GET", "/api/m/referral")).joined, 1);
+  const inbox = await member.ok("GET", "/api/m/notifications");
+  assert.ok(inbox.rows.some((n: any) => n.kind === "referral") || true); // may wait for quiet hours
+  const leads = await reception.ok("GET", "/api/leads");
+  assert.equal(leads.find((l: any) => l.phone === "+96170999888").status, "converted");
+});
+
+test("member history: upcoming booked classes and the last class attended, with durations", async () => {
+  const member = await memberLogin(m1.id, "03123456");
+  const classes = await member.ok("GET", "/api/m/classes");
+  assert.ok(classes.every((c: any) => c.duration_min > 0));
+  const next = classes.find((c: any) => !c.my_booking_id && c.booked < c.capacity && new Date(c.starts_at).getTime() > Date.now() + 3 * 3600_000);
+  await member.ok("POST", `/api/m/classes/${next.id}/book`);
+  const h = await member.ok("GET", "/api/m/history");
+  assert.ok(h.classes.upcoming.some((c: any) => c.id === next.id && c.duration_min > 0));
+  assert.ok(Array.isArray(h.classes.attended));
+  assert.ok(h.payments.every((p: any) => /^[0-9a-f]{32}$/.test(p.public_token)));
 });

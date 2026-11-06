@@ -3,19 +3,27 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { get, post, put } from "../../shared/api.ts";
 import { Empty, Field, Icon, Loader, Modal, Segmented, Tabs, toast, toastError, useAction, useAsync, useDebounced } from "../../shared/ui.tsx";
 import { fmtDate, fmtTime, money, t } from "../../shared/i18n.ts";
-import { Link, can, useApp } from "../app.tsx";
+import { Link, can, useApp, usePath } from "../app.tsx";
+import { shrinkImage } from "../../shared/image.ts";
 import { openReceipt } from "../receipt.tsx";
 
 const CATEGORIES = ["supplements", "drinks", "snacks", "accessories", "apparel", "other"] as const;
 const CAT_LABEL: Record<string, string> = { supplements: "Supplements", drinks: "Drinks", snacks: "Snacks", accessories: "Accessories", apparel: "Apparel", other: "Other" };
 const today = () => new Date().toISOString().slice(0, 10);
 
-type Tab = "sell" | "products" | "sales" | "overview";
+type Tab = "sell" | "orders" | "products" | "sales" | "overview";
+
+/** What a product can still be sold as: bundles depend on the products inside them. */
+const avail = (p: any) => (p.kind === "bundle" ? Number(p.bundle_stock ?? 99) : p.track_stock ? Number(p.stock) : Infinity);
 
 export function ShopPage() {
   const { me } = useApp();
   const manager = can(me, "owner", "manager");
-  const [tab, setTab] = useState<Tab>("sell");
+  const wanted = new URLSearchParams(usePath().split("?")[1] ?? "").get("tab");
+  const [tab, setTab] = useState<Tab>((["sell", "orders", "products", "sales", "overview"] as const).find((x) => x === wanted) ?? "sell");
+  const [pickup, setPickup] = useState<any>(null);
+  const orders = useAsync(() => get("/api/shop/requests"), [tab]);
+  const pending = (orders.data ?? []).filter((o: any) => o.status === "pending").length;
   return (
     <div className="page">
       <div className="page-head">
@@ -23,11 +31,13 @@ export function ShopPage() {
       </div>
       <Tabs value={tab} onChange={setTab} tabs={[
         { value: "sell", label: "Sell" },
+        { value: "orders", label: `App orders${pending ? ` (${pending})` : ""}` },
         { value: "products", label: "Products & stock" },
         { value: "sales", label: "Sales" },
         ...(manager ? [{ value: "overview" as Tab, label: "Overview" }] : []),
       ]} />
-      {tab === "sell" && <Pos />}
+      {tab === "sell" && <Pos preset={pickup} onPresetUsed={() => setPickup(null)} />}
+      {tab === "orders" && <Orders state={orders} onSell={(p) => { setPickup(p); setTab("sell"); }} />}
       {tab === "products" && <Products />}
       {tab === "sales" && <Sales />}
       {tab === "overview" && <Overview />}
@@ -39,7 +49,7 @@ export function ShopPage() {
 
 interface Line { p: any; qty: number }
 
-function Pos() {
+function Pos({ preset, onPresetUsed }: { preset?: any; onPresetUsed?: () => void }) {
   const { me } = useApp();
   const rate = Number(me.gym?.lbp_rate ?? 89500);
   const products = useAsync(() => get("/api/shop/products"), []);
@@ -55,7 +65,17 @@ function Pos() {
   const [method, setMethod] = useState("cash");
   const [reference, setReference] = useState("");
   const [onAccount, setOnAccount] = useState(false);
+  const [requestIds, setRequestIds] = useState<string[]>([]);
   const { busy, run } = useAction();
+  // an app order being collected: its member and products go straight into the cart
+  useEffect(() => {
+    if (!preset || !products.data) return;
+    const lines = preset.items.map((it: any) => ({ p: products.data.find((p: any) => p.id === it.product_id), qty: it.qty })).filter((l: any) => l.p);
+    setCart(lines);
+    setMember(preset.member);
+    setRequestIds(preset.request_ids);
+    onPresetUsed?.();
+  }, [preset, products.data]);
   const search = useRef<HTMLInputElement>(null);
   useEffect(() => { search.current?.focus(); }, []);
 
@@ -69,17 +89,18 @@ function Pos() {
   const inCart = (id: string) => cart.find((l) => l.p.id === id)?.qty ?? 0;
 
   const add = (p: any) => {
-    if (p.track_stock && inCart(p.id) >= p.stock) { toast(`Only ${p.stock} × ${p.name} in stock`, "error"); return; }
+    if (inCart(p.id) >= avail(p)) { toast(`Only ${avail(p)} × ${p.name} in stock`, "error"); return; }
     setCart((c) => (c.some((l) => l.p.id === p.id) ? c.map((l) => (l.p.id === p.id ? { ...l, qty: l.qty + 1 } : l)) : [...c, { p, qty: 1 }]));
   };
-  const setQty = (id: string, qty: number) => setCart((c) => c.flatMap((l) => (l.p.id !== id ? [l] : qty <= 0 ? [] : [{ ...l, qty: l.p.track_stock ? Math.min(qty, l.p.stock) : qty }])));
-  const reset = () => { setCart([]); setMember(null); setMemberQ(""); setDiscount(""); setReference(""); setOnAccount(false); setQ(""); products.reload(); search.current?.focus(); };
+  const setQty = (id: string, qty: number) => setCart((c) => c.flatMap((l) => (l.p.id !== id ? [l] : qty <= 0 ? [] : [{ ...l, qty: Math.min(qty, avail(l.p)) }])));
+  const reset = () => { setCart([]); setMember(null); setMemberQ(""); setDiscount(""); setReference(""); setOnAccount(false); setQ(""); setRequestIds([]); products.reload(); search.current?.focus(); };
 
   const checkout = async () => {
     const r = await run(() => post("/api/shop/sales", {
       member_id: member?.id ?? null, items: cart.map((l) => ({ product_id: l.p.id, qty: l.qty })),
       discount_usd: Number(discount || 0), on_account: onAccount,
       payment: onAccount ? null : { currency, method, reference: reference || null },
+      request_ids: requestIds.length ? requestIds : undefined,
     }));
     if (!r) return;
     if (r.payment) openReceipt(r.payment.id);
@@ -110,14 +131,15 @@ function Pos() {
           {() => list.length ? (
             <div className="tiles">
               {list.map((p: any) => {
-                const out = p.track_stock && p.stock - inCart(p.id) <= 0;
+                const left = avail(p) - inCart(p.id);
+                const out = left <= 0;
                 return (
                   <button key={p.id} className="tile" disabled={out} onClick={() => add(p)}>
                     <span className="tile-name">{p.name}</span>
-                    <span className="tile-meta">{p.brand ?? CAT_LABEL[p.category]}</span>
+                    <span className="tile-meta">{p.kind === "bundle" ? "Bundle" : p.brand ?? CAT_LABEL[p.category]}</span>
                     <span className="tile-foot">
                       <b>{money(p.price, p.currency)}</b>
-                      {p.track_stock && <span className={p.stock <= p.low_stock_at ? "money-neg" : "muted"}>{out ? "out of stock" : `${p.stock - inCart(p.id)} left`}</span>}
+                      {Number.isFinite(left) && <span className={left <= (p.low_stock_at ?? 3) ? "money-neg" : "muted"}>{out ? "out of stock" : `${left} left`}</span>}
                     </span>
                   </button>
                 );
@@ -129,6 +151,7 @@ function Pos() {
 
       <aside className="pos-cart panel">
         <header><h2>Cart</h2>{cart.length > 0 && <button className="btn small ghost" onClick={reset}>Clear</button>}</header>
+        {requestIds.length > 0 && <div className="pos-note"><Icon name="phone" width={16} height={16} /> Order from the app: it will be marked collected.</div>}
         <div className="body stack">
           {cart.length === 0 ? <p className="muted">Tap a product, or scan its barcode.</p> : (
             <div className="cart-lines">
@@ -186,6 +209,39 @@ function Pos() {
   );
 }
 
+// ---------------- orders placed from the member app ----------------
+
+function Orders({ state, onSell }: { state: any; onSell: (preset: any) => void }) {
+  const { run } = useAction();
+  const setStatus = async (id: string, status: string) => { if (await run(() => put(`/api/shop/requests/${id}`, { status }), status === "ready" ? "Member notified" : "Order cancelled")) state.reload(); };
+  return (
+    <Loader state={state}>
+      {(list: any[]) => list.length ? (
+        <div className="stack">
+          <p className="ink-2" style={{ margin: 0 }}>Members asked for these in the app. Prepare the order and mark it ready: the member gets a notification. When they come, sell it: it's marked collected.</p>
+          <div className="table-wrap"><table className="data">
+            <thead><tr><th>Asked</th><th>Member</th><th>Product</th><th className="r">Price</th><th>Status</th><th /></tr></thead>
+            <tbody>{list.map((o) => (
+              <tr key={o.id}>
+                <td>{fmtDate(o.created_at, { weekday: "short", day: "numeric", month: "short" })} {fmtTime(o.created_at)}</td>
+                <td><Link to={`/members/${o.member_id}`}>{o.first_name} {o.last_name}</Link> <small className="muted">#{o.code}</small></td>
+                <td>{o.qty} × {o.product_name}{o.note && <><br /><small className="muted">“{o.note}”</small></>}{o.stock != null && o.stock < o.qty && <><br /><small className="money-neg">only {o.stock} in stock</small></>}</td>
+                <td className="r">{money(Number(o.price) * o.qty, o.currency)}</td>
+                <td><span className="plate" data-s={o.status === "ready" ? "ok" : "warn"} /> {o.status === "ready" ? "Ready" : "To prepare"}</td>
+                <td className="r">
+                  {o.status === "pending" && <button className="btn small" onClick={() => setStatus(o.id, "ready")}><Icon name="check" />Ready</button>}{" "}
+                  <button className="btn small primary" onClick={() => onSell({ member: { id: o.member_id, first_name: o.first_name, last_name: o.last_name, code: o.code }, items: [{ product_id: o.product_id, qty: o.qty }], request_ids: [o.id] })}>Sell</button>{" "}
+                  <button className="btn small ghost" onClick={() => setStatus(o.id, "cancelled")}>{t("Cancel")}</button>
+                </td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        </div>
+      ) : <Empty title="No orders from the app.">Members can tap “I want it” on a product in their app; it shows up here.</Empty>}
+    </Loader>
+  );
+}
+
 // ---------------- products & stock ----------------
 
 function Products() {
@@ -201,7 +257,10 @@ function Products() {
     <div className="stack">
       <div className="spread">
         <Segmented label="Filter" value={filter} onChange={setFilter} options={[{ value: "all", label: "All products" }, { value: "low", label: "Low stock" }]} />
-        {manager && <button className="btn primary" onClick={() => setEdit({ category: "supplements", currency: "USD", track_stock: true, active: true, low_stock_at: 5, cost_usd: "", price: "", stock: "" })}><Icon name="plus" />New product</button>}
+        {manager && <div className="row">
+          <button className="btn" onClick={() => setEdit({ kind: "bundle", category: "supplements", currency: "USD", track_stock: false, active: true, in_app: true, featured: true, low_stock_at: 0, cost_usd: "", price: "", stock: "", components: [] })}><Icon name="gift" />New bundle</button>
+          <button className="btn primary" onClick={() => setEdit({ kind: "item", category: "supplements", currency: "USD", track_stock: true, active: true, in_app: true, featured: false, low_stock_at: 5, cost_usd: "", price: "", stock: "", components: [] })}><Icon name="plus" />New product</button>
+        </div>}
       </div>
       <Loader state={state}>
         {(list: any[]) => {
@@ -215,16 +274,16 @@ function Products() {
                 const low = p.track_stock && p.stock <= p.low_stock_at;
                 return (
                   <tr key={p.id} style={!p.active ? { opacity: 0.45 } : undefined}>
-                    <td><span className="who"><b>{p.name}</b><small>{[p.brand, p.barcode].filter(Boolean).join(" · ")}{p.expires_on ? <> · <span className={p.expires_on <= soon ? "money-neg" : ""}>expires {fmtDate(p.expires_on, { month: "short", year: "numeric" })}</span></> : null}</small></span></td>
+                    <td><span className="who prod-cell">{p.has_image ? <img src={`/api/public/products/${p.id}/image`} alt="" className="prod-thumb" /> : <span className="prod-thumb empty"><Icon name={p.kind === "bundle" ? "gift" : "bag"} width={16} height={16} /></span>}<span><b>{p.name}</b>{p.kind === "bundle" && <span className="tag" style={{ marginInlineStart: 6 }}>bundle</span>}{p.featured && <span className="tag" style={{ marginInlineStart: 6 }}>on app home</span>}{!p.in_app && <span className="tag muted" style={{ marginInlineStart: 6 }}>hidden in app</span>}<br /><small>{p.kind === "bundle" ? p.contents : [p.brand, p.barcode].filter(Boolean).join(" · ")}{p.expires_on ? <> · <span className={p.expires_on <= soon ? "money-neg" : ""}>expires {fmtDate(p.expires_on, { month: "short", year: "numeric" })}</span></> : null}</small></span></span></td>
                     <td>{CAT_LABEL[p.category]}</td>
                     <td className="r">{money(p.price, p.currency)}</td>
-                    <td className="r muted">{Number(p.cost_usd) > 0 ? money(p.cost_usd) : "—"}</td>
-                    <td className="r">{margin != null && Number(p.cost_usd) > 0 ? `${margin}%` : "—"}</td>
-                    <td className="r">{p.track_stock ? <span className={low ? "money-neg" : ""}><span className="plate" data-s={p.stock <= 0 ? "denied" : low ? "warn" : "ok"} /> {p.stock}</span> : <span className="muted">not tracked</span>}</td>
+                    <td className="r muted">{p.kind !== "bundle" && Number(p.cost_usd) > 0 ? money(p.cost_usd) : "—"}</td>
+                    <td className="r">{p.kind !== "bundle" && margin != null && Number(p.cost_usd) > 0 ? `${margin}%` : "—"}</td>
+                    <td className="r">{p.kind === "bundle" ? <span className="muted" title="Limited by the products inside">{p.bundle_stock ?? "—"} possible</span> : p.track_stock ? <span className={low ? "money-neg" : ""}><span className="plate" data-s={p.stock <= 0 ? "denied" : low ? "warn" : "ok"} /> {p.stock}</span> : <span className="muted">not tracked</span>}</td>
                     <td className="r">{p.sold_30d}</td>
                     <td className="r">
                       {manager && p.track_stock && <button className="btn small" onClick={() => setStock({ p, kind: "restock", qty: "", unit_cost_usd: "", note: "", expires_on: "" })}>Restock</button>}{" "}
-                      {manager && <button className="btn small ghost" onClick={() => setEdit({ ...p, stock: undefined })}>{t("Edit")}</button>}
+                      {manager && <button className="btn small ghost" onClick={() => setEdit({ ...p, stock: undefined, description: p.description ?? "", components: p.components ?? [] })}>{t("Edit")}</button>}
                       {manager && p.track_stock && <button className="btn small ghost" onClick={async () => setMoves({ p, rows: await get(`/api/shop/products/${p.id}/moves`) })}>History</button>}
                     </td>
                   </tr>
@@ -234,7 +293,7 @@ function Products() {
           ) : <Empty title={filter === "low" ? "Nothing is running low." : "No products yet."} action={manager && filter === "all" ? <button className="btn primary" onClick={() => setEdit({ category: "supplements", currency: "USD", track_stock: true, active: true, low_stock_at: 5, cost_usd: "", price: "", stock: "" })}>Add your first product</button> : undefined} />;
         }}
       </Loader>
-      {edit && <ProductModal p={edit} onClose={(saved) => { setEdit(null); if (saved) state.reload(); }} />}
+      {edit && <ProductModal p={edit} all={state.data ?? []} onClose={(saved) => { setEdit(null); if (saved) state.reload(); }} />}
       {stock && <StockModal s={stock} onClose={(saved) => { setStock(null); if (saved) state.reload(); }} />}
       {moves && (
         <Modal title={`Stock history · ${moves.p.name}`} open onClose={() => setMoves(null)} wide>
@@ -252,39 +311,75 @@ function Products() {
   );
 }
 
-function ProductModal({ p, onClose }: { p: any; onClose: (saved: boolean) => void }) {
+function ProductModal({ p, all, onClose }: { p: any; all: any[]; onClose: (saved: boolean) => void }) {
   const [f, setF] = useState<any>(p);
+  const [image, setImage] = useState<string | null | undefined>(undefined);
+  const bundle = f.kind === "bundle";
+  const items = all.filter((x) => x.kind !== "bundle" && x.active && x.id !== f.id);
+  const comps: { product_id: string; qty: number }[] = f.components ?? [];
+  const compValue = comps.reduce((s, c) => { const x = items.find((i) => i.id === c.product_id); return s + (x ? Number(x.price) * c.qty : 0); }, 0);
   const { busy, run } = useAction();
   const set = (k: string, v: any) => setF((x: any) => ({ ...x, [k]: v }));
   const save = async () => {
     const body: any = {
       name: f.name, name_ar: f.name_ar || null, category: f.category, brand: f.brand || null, barcode: f.barcode || null,
       price: Number(f.price), currency: f.currency, cost_usd: Number(f.cost_usd || 0), low_stock_at: Number(f.low_stock_at || 0),
-      track_stock: !!f.track_stock, expires_on: f.expires_on || null, active: !!f.active,
+      track_stock: bundle ? false : !!f.track_stock, expires_on: f.expires_on || null, active: !!f.active,
+      description: f.description || null, in_app: !!f.in_app, featured: !!f.featured, kind: f.kind ?? "item",
+      components: bundle ? comps.filter((c) => c.product_id && c.qty > 0) : [],
     };
-    if (!f.id) body.stock = Number(f.stock || 0);
+    if (!f.id && !bundle) body.stock = Number(f.stock || 0);
     const r = await run(() => (f.id ? put(`/api/shop/products/${f.id}`, body) : post("/api/shop/products", body)), t("Save"));
-    if (r) onClose(true);
+    if (!r) return;
+    if (image !== undefined) { try { await put(`/api/shop/products/${f.id ?? r.id}/image`, { image }); } catch (e) { toastError(e); } }
+    onClose(true);
   };
   return (
-    <Modal title={f.id ? f.name : "New product"} open onClose={() => onClose(false)} wide
-      footer={<button className="btn primary" disabled={busy || !f.name || f.price === ""} onClick={save}>{t("Save")}</button>}>
+    <Modal title={f.id ? f.name : bundle ? "New bundle" : "New product"} open onClose={() => onClose(false)} wide
+      footer={<button className="btn primary" disabled={busy || !f.name || f.price === "" || (bundle && !comps.some((c) => c.product_id))} onClick={save}>{t("Save")}</button>}>
+      {bundle && (
+        <section className="bundle-box">
+          <b>Inside the bundle</b>
+          <small className="muted">Selling the bundle takes these products out of stock. {compValue > 0 && <>Bought separately: <b>{money(compValue)}</b>{Number(f.price) > 0 && Number(f.price) < compValue ? <> · members save <b>{money(compValue - Number(f.price))}</b></> : null}</>}</small>
+          {comps.map((c, i) => (
+            <div key={i} className="row">
+              <select className="input" style={{ flex: 1 }} value={c.product_id} onChange={(e) => set("components", comps.map((x, j) => (j === i ? { ...x, product_id: e.target.value } : x)))}>
+                <option value="">Choose a product…</option>
+                {items.map((x) => <option key={x.id} value={x.id}>{x.name} · {money(x.price, x.currency)}</option>)}
+              </select>
+              <input className="input" style={{ width: 70 }} inputMode="numeric" value={c.qty} onChange={(e) => set("components", comps.map((x, j) => (j === i ? { ...x, qty: Number(e.target.value.replace(/\D/g, "") || 0) } : x)))} aria-label="Quantity" />
+              <button className="btn small ghost" onClick={() => set("components", comps.filter((_, j) => j !== i))} aria-label="Remove"><Icon name="x" /></button>
+            </div>
+          ))}
+          <button className="btn small" onClick={() => set("components", [...comps, { product_id: "", qty: 1 }])}><Icon name="plus" />Add a product</button>
+        </section>
+      )}
       <div className="grid-2">
         <Field label="Name"><input className="input" value={f.name ?? ""} onChange={(e) => set("name", e.target.value)} placeholder="Whey protein 2 kg — chocolate" autoFocus /></Field>
         <Field label="Name in Arabic"><input className="input" dir="rtl" value={f.name_ar ?? ""} onChange={(e) => set("name_ar", e.target.value)} /></Field>
         <Field label="Category"><select className="input" value={f.category} onChange={(e) => set("category", e.target.value)}>{CATEGORIES.map((c) => <option key={c} value={c}>{CAT_LABEL[c]}</option>)}</select></Field>
         <Field label="Brand"><input className="input" value={f.brand ?? ""} onChange={(e) => set("brand", e.target.value)} /></Field>
-        <Field label="Barcode" hint="Scan it with the USB scanner"><input className="input" value={f.barcode ?? ""} onChange={(e) => set("barcode", e.target.value)} /></Field>
-        <Field label="Expiry date (current batch)"><input className="input" type="date" value={f.expires_on ?? ""} onChange={(e) => set("expires_on", e.target.value)} /></Field>
+        {!bundle && <Field label="Barcode" hint="Scan it with the USB scanner"><input className="input" value={f.barcode ?? ""} onChange={(e) => set("barcode", e.target.value)} /></Field>}
+        {!bundle && <Field label="Expiry date (current batch)"><input className="input" type="date" value={f.expires_on ?? ""} onChange={(e) => set("expires_on", e.target.value)} /></Field>}
       </div>
+      <Field label="Description for members" hint="Shown in the app: what it is, how to use it, flavours…"><textarea className="input" rows={2} maxLength={1000} value={f.description ?? ""} onChange={(e) => set("description", e.target.value)} dir="auto" /></Field>
+      <Field label="Photo" hint="Shown in the member app; resized automatically">
+        <div className="row">
+          {(image || (image === undefined && f.has_image)) && <img className="thumb" src={image ?? `/api/public/products/${f.id}/image`} alt="" />}
+          <input type="file" accept="image/*" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; try { setImage(await shrinkImage(file)); } catch (err) { toastError(err); } }} />
+          {(image || (image === undefined && f.has_image)) && <button className="btn small ghost" onClick={() => setImage(null)}>Remove</button>}
+        </div>
+      </Field>
       <div className="grid-3">
         <Field label="Selling price"><input className="input" inputMode="decimal" value={f.price} onChange={(e) => set("price", e.target.value.replace(/[^\d.]/g, ""))} /></Field>
         <Field label={t("Currency")}><Segmented label={t("Currency")} value={f.currency} onChange={(v) => set("currency", v)} options={[{ value: "USD", label: "USD" }, { value: "LBP", label: "LBP" }]} /></Field>
-        <Field label="Purchase cost ($ per unit)" hint="Used to compute your margin"><input className="input" inputMode="decimal" value={f.cost_usd} onChange={(e) => set("cost_usd", e.target.value.replace(/[^\d.]/g, ""))} /></Field>
-        {!f.id && <Field label="Units in stock now"><input className="input" inputMode="numeric" value={f.stock} onChange={(e) => set("stock", e.target.value.replace(/\D/g, ""))} /></Field>}
-        <Field label="Warn me below"><input className="input" inputMode="numeric" value={f.low_stock_at} onChange={(e) => set("low_stock_at", e.target.value.replace(/\D/g, ""))} /></Field>
+        {!bundle && <Field label="Purchase cost ($ per unit)" hint="Used to compute your margin"><input className="input" inputMode="decimal" value={f.cost_usd} onChange={(e) => set("cost_usd", e.target.value.replace(/[^\d.]/g, ""))} /></Field>}
+        {!f.id && !bundle && <Field label="Units in stock now"><input className="input" inputMode="numeric" value={f.stock} onChange={(e) => set("stock", e.target.value.replace(/\D/g, ""))} /></Field>}
+        {!bundle && <Field label="Warn me below"><input className="input" inputMode="numeric" value={f.low_stock_at} onChange={(e) => set("low_stock_at", e.target.value.replace(/\D/g, ""))} /></Field>}
       </div>
-      <label className="check"><input type="checkbox" checked={!!f.track_stock} onChange={(e) => set("track_stock", e.target.checked)} /> Track stock (untick for services, e.g. body composition scan)</label>
+      {!bundle && <label className="check"><input type="checkbox" checked={!!f.track_stock} onChange={(e) => set("track_stock", e.target.checked)} /> Track stock (untick for services, e.g. body composition scan)</label>}
+      <label className="check"><input type="checkbox" checked={!!f.in_app} onChange={(e) => set("in_app", e.target.checked)} /> Show in the member app catalogue</label>
+      <label className="check"><input type="checkbox" checked={!!f.featured} onChange={(e) => set("featured", e.target.checked)} /> Feature it on the app's home screen</label>
       <label className="check"><input type="checkbox" checked={!!f.active} onChange={(e) => set("active", e.target.checked)} /> On sale</label>
     </Modal>
   );

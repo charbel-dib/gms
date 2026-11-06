@@ -5,11 +5,19 @@ import { Bars } from "../../shared/charts.tsx";
 import { fmtDate, fmtTime, money, t } from "../../shared/i18n.ts";
 import { Link, can, useApp } from "../app.tsx";
 import { openReceipt } from "../receipt.tsx";
+import { openFinanceReport } from "../report.tsx";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const monthStart = () => today().slice(0, 8) + "01";
+const lastMonth = () => {
+  const end = new Date(monthStart() + "T00:00:00Z");
+  end.setUTCDate(0);
+  const to = end.toISOString().slice(0, 10);
+  return { from: to.slice(0, 8) + "01", to };
+};
 
 export function PaymentsPage() {
+  const { me } = useApp();
   const [from, setFrom] = useState(today());
   const [to, setTo] = useState(today());
   const state = useAsync(() => get(`/api/payments?from=${from}&to=${to}`), [from, to]);
@@ -20,6 +28,7 @@ export function PaymentsPage() {
         <div className="row">
           <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From" style={{ width: 160 }} />
           <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="To" style={{ width: 160 }} />
+          {can(me, "owner", "manager") && <button className="btn primary" disabled={!from || !to || to < from} onClick={() => openFinanceReport(from, to)}><Icon name="file" />Export report</button>}
         </div>
       </div>
       <Loader state={state}>
@@ -111,11 +120,13 @@ export function ReportsPage() {
       <div className="page-head">
         <div><h1>{t("Reports")}</h1><p>Money in, money out, and how your coaches perform.</p></div>
         <div className="row">
-          <Segmented label="Period" value={from === monthStart() && to === today() ? "month" : "custom"} onChange={(v) => {
+          <Segmented label="Period" value={from === monthStart() && to === today() ? "month" : from === lastMonth().from && to === lastMonth().to ? "last" : "custom"} onChange={(v) => {
             if (v === "month") { setFrom(monthStart()); setTo(today()); }
-          }} options={[{ value: "month", label: "This month" }, { value: "custom", label: "Custom" }]} />
+            if (v === "last") { setFrom(lastMonth().from); setTo(lastMonth().to); }
+          }} options={[{ value: "month", label: "This month" }, { value: "last", label: "Last month" }, { value: "custom", label: "Custom" }]} />
           <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From" style={{ width: 160 }} />
           <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="To" style={{ width: 160 }} />
+          <button className="btn primary" disabled={!from || !to || to < from} onClick={() => openFinanceReport(from, to)}><Icon name="file" />Export report</button>
         </div>
       </div>
       <Loader state={fin}>

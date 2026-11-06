@@ -46,6 +46,20 @@ npm run build && npm run seed:demo && npm start
 
 Tests : `npm test` (crée et vide une base `gms_test`, voir `tests/helpers.ts`).
 
+## Documentation des API
+
+- Dans l'app : **API reference** en bas du menu (owner) ou sur la page Platform (super-admin). Chaque route y figure avec qui peut l'appeler, ses paramètres et les champs du corps (types, obligatoires, valeurs permises). Un bouton **Try it** envoie un vrai appel dans ta session.
+- Fichier OpenAPI 3.1 : bouton **OpenAPI file**, ou `GET /api/docs.json`. Il s'importe dans Postman, Insomnia ou Swagger Editor.
+- Elle est générée depuis le code à chaque `npm run build` (`scripts/gen-api-docs.ts`) : routes, rôles et vrais schémas zod. Pour la régénérer seule : `npm run docs:api`.
+- Une nouvelle route doit avoir son résumé dans `scripts/api-summaries.ts`, sinon un test échoue.
+
+## Engagement, KPI et rapport financier (v3)
+
+- **KPI** : Insights → Key numbers. Chaque indicateur est comparé à la période d'avant et noté (bon / à surveiller / à agir) selon les repères du secteur. « Focus now » classe les actions par argent en jeu.
+- **Rapport financier** : Reports (ou Payments) → Export report. Aperçu A4 avec logo : « PDF / Print » puis « Enregistrer en PDF », ou bouton Excel (7 feuilles).
+- **App membre** : Home (pass, prochain cours/PT, objectif de la semaine, série, défi, offres, produits), Classes (avec durée), Coach (réservation PT), Shop (catalogue, « I want it »), Me (historique, progrès, invitations, paramètres).
+- **Côté gym** : menu Member app (offres, défis, parrainage, interrupteurs), Shop → App orders et bundles, Personal training → Coach hours (disponibilités, congés, règles de réservation).
+
 ## Mettre en production
 
 Voir **[infra/README.md](infra/README.md)** : environ 45 minutes la première fois, environ 85 $/mois au départ, puis

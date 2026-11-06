@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { db, one, many, audit } from "../db/index.ts";
 import { requireStaff } from "../auth.ts";
-import { notFound, zCurrency, zDate, zId, zMoney, zPhone, type Router } from "../http.ts";
+import { bad, notFound, zCurrency, zDate, zId, zMoney, zPhone, type Router } from "../http.ts";
 import { gymRate, gymToday, toUsd } from "../services/money.ts";
 import { lowStock } from "./shop.ts";
+import { financeData, financeWorkbook, renderFinanceHtml, reportFileName } from "../services/finreport.ts";
 
 export async function dashboard(gymId: string) {
   const q = db;
@@ -112,6 +113,38 @@ export function registerBusiness(r: Router) {
     const revenue = byMethod.reduce((s, x) => s + Number(x.usd), 0);
     const spent = expenses.reduce((s, x) => s + Number(x.usd), 0);
     return { from, to, revenue: Math.round(revenue * 100) / 100, expenses_total: Math.round(spent * 100) / 100, profit: Math.round((revenue - spent) * 100) / 100, byMethod, byCurrency, byKind, expenses, daily, cashDrawer };
+  });
+
+  /** Financial report of a period, as an A4 page (preview, print, save as PDF). */
+  r.get("/api/reports/finance/report", async (ctx) => {
+    const u = await requireStaff(ctx, ["owner", "manager"]);
+    const today = await gymToday(db, u.gymId);
+    const from = zDate.parse(ctx.query.get("from") ?? today.slice(0, 8) + "01");
+    const to = zDate.parse(ctx.query.get("to") ?? today);
+    if (to < from) throw bad("invalid_period", "The end date is before the start date");
+    const d = await financeData(u.gymId, from, to);
+    await audit(db, u.gymId, u.id, "report.finance.view", "report", undefined, { from, to });
+    return { html: renderFinanceHtml(d), filename: reportFileName(d.gym.name, d.from, d.to, "pdf"), from: d.from, to: d.to };
+  });
+
+  /** The same report as an Excel workbook: summary and every transaction. */
+  r.get("/api/reports/finance/report.xlsx", async (ctx) => {
+    const u = await requireStaff(ctx, ["owner", "manager"]);
+    const today = await gymToday(db, u.gymId);
+    const from = zDate.parse(ctx.query.get("from") ?? today.slice(0, 8) + "01");
+    const to = zDate.parse(ctx.query.get("to") ?? today);
+    if (to < from) throw bad("invalid_period", "The end date is before the start date");
+    const d = await financeData(u.gymId, from, to);
+    const file = financeWorkbook(d);
+    await audit(db, u.gymId, u.id, "report.finance.export", "report", undefined, { from, to });
+    ctx.res.writeHead(200, {
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="${reportFileName(d.gym.name, d.from, d.to, "xlsx")}"`,
+      "Content-Length": file.length,
+      "Cache-Control": "private, no-store",
+    });
+    ctx.res.end(file);
+    return undefined;
   });
 
   r.get("/api/reports/coaches", async (ctx) => {

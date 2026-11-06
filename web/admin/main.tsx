@@ -16,7 +16,10 @@ import { LeadsPage } from "./pages/leads.tsx";
 import { SettingsPage } from "./pages/settings.tsx";
 import { PlatformPage } from "./pages/platform.tsx";
 import { ReceiptHost } from "./receipt.tsx";
+import { ReportHost } from "./report.tsx";
 import { ShopPage } from "./pages/shop.tsx";
+import { MemberAppPage } from "./pages/memberapp.tsx";
+import { DevelopersPage } from "./pages/developers.tsx";
 
 function Login({ onDone }: { onDone: () => void }) {
   const [email, setEmail] = useState("");
@@ -156,9 +159,10 @@ function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
     { to: "/payments", label: t("Payments"), icon: "card", show: can(me, "owner", "manager", "reception") },
     { to: "/shop", label: t("Shop"), icon: "bag", show: moduleOn(me, "shop") && can(me, "owner", "manager", "reception") },
     { to: "/messages", label: t("Messages"), icon: "message", show: moduleOn(me, "whatsapp") && can(me, "owner", "manager", "reception"), count: outbox },
-    { to: "/insights", label: t("Insights"), icon: "spark", show: moduleOn(me, "ai") && can(me, "owner", "manager", "reception") },
+    { to: "/insights", label: t("Insights"), icon: "spark", show: can(me, "owner", "manager") || (moduleOn(me, "ai") && can(me, "reception")) },
     { to: "/reports", label: t("Reports"), icon: "chart", show: can(me, "owner", "manager") },
     { to: "/leads", label: t("Leads"), icon: "lead", show: moduleOn(me, "leads") && can(me, "owner", "manager", "reception") },
+    { to: "/app", label: t("Member app"), icon: "phone", show: moduleOn(me, "memberApp") && can(me, "owner", "manager") },
     { to: "/expenses", label: t("Expenses"), icon: "receipt", show: moduleOn(me, "expenses") && can(me, "owner", "manager") },
     { to: "/settings", label: t("Settings"), icon: "settings", show: can(me, "owner", "manager") },
   ];
@@ -185,6 +189,7 @@ function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
           )}
         </nav>
         <div className="side-foot">
+          {can(me, "owner") && <Link to="/developers" className="side-link" aria-current={path === "/developers" ? "page" : undefined}><Icon name="code" width={16} height={16} style={{ display: "inline", verticalAlign: -3, marginInlineEnd: 6 }} />{t("API reference")}</Link>}
           <button onClick={() => setLang(getLang() === "ar" ? "en" : "ar")}><Icon name="globe" width={16} height={16} style={{ display: "inline", verticalAlign: -3, marginInlineEnd: 6 }} />{getLang() === "ar" ? t("Switch to English") : t("Switch to Arabic")}</button>
           <button onClick={async () => { await post("/api/auth/logout"); setGymOverride(null); location.href = "/"; }}><Icon name="logout" width={16} height={16} style={{ display: "inline", verticalAlign: -3, marginInlineEnd: 6 }} />{t("Sign out")}</button>
         </div>
@@ -220,6 +225,8 @@ function Routes({ me }: { me: Me }) {
     case "/leads": return <LeadsPage />;
     case "/expenses": return <ExpensesPage />;
     case "/settings": return <SettingsPage />;
+    case "/developers": return can(me, "owner") ? <DevelopersPage /> : null;
+    case "/app": return can(me, "owner", "manager") ? <MemberAppPage /> : null;
     default: return <div className="page"><div className="empty"><b>This page does not exist.</b><Link className="btn" to="/">Go to Today</Link></div></div>;
   }
 }
@@ -227,6 +234,7 @@ function Routes({ me }: { me: Me }) {
 function Root() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   useLang();
+  const rootPath = usePath().split("?")[0];
   const load = useCallback(async () => {
     try {
       const r = await get<Me>("/api/auth/me");
@@ -252,7 +260,7 @@ function Root() {
   if (me.user.role === "superadmin" && !me.gym) {
     return (
       <AppCtx.Provider value={{ me, reloadMe: load }}>
-        <div className="shell" style={{ gridTemplateColumns: "1fr" }}><div className="main"><PlatformPage /></div></div>
+        <div className="shell" style={{ gridTemplateColumns: "1fr" }}><div className="main">{rootPath === "/developers" ? <DevelopersPage /> : <PlatformPage />}</div></div>
       </AppCtx.Provider>
     );
   }
@@ -260,6 +268,7 @@ function Root() {
     <AppCtx.Provider value={{ me, reloadMe: load }}>
       <Shell me={me}><Routes me={me} /></Shell>
       <ReceiptHost />
+      <ReportHost />
       {me.user.role === "superadmin" && getGymOverride() && (
         <button className="btn dark small" style={{ position: "fixed", bottom: 16, insetInlineStart: 252, zIndex: 50 }} onClick={() => { setGymOverride(null); location.href = "/platform"; }}>
           Leave {me.gym?.name}

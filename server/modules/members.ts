@@ -10,6 +10,7 @@ import { config } from "../config.ts";
 import { parseCsv, toCsv } from "../services/text.ts";
 import { receiptForStaff } from "../services/receipt.ts";
 import { notify } from "../services/notify.ts";
+import { linkNewMember, refreshProgress } from "./community.ts";
 
 const memberSchema = z.object({
   first_name: z.string().trim().min(1).max(60),
@@ -276,7 +277,8 @@ export function registerMembers(r: Router) {
       const m = await createMember(q, u.gymId, b);
       let sale: Awaited<ReturnType<typeof sellMembership>> | null = null;
       if (b.membership) sale = await sellMembership(q, u.gymId, u.id, m!.id, b.membership);
-      if (b.lead_id) await q.query("UPDATE leads SET status = 'converted', member_id = $3 WHERE id = $1 AND gym_id = $2", [b.lead_id, u.gymId, m!.id]);
+      // converts the lead (by id, or the open lead with the same phone) and credits whoever invited them
+      await linkNewMember(q, u.gymId, m!.id, b.phone ?? null, b.lead_id ?? null);
       await audit(q, u.gymId, u.id, "member.create", "member", m!.id);
       return { id: m!.id, code: m!.code, sale };
     });
@@ -571,7 +573,12 @@ export function registerMembers(r: Router) {
     const u = await requireStaff(ctx);
     const b = await ctx.body(z.object({ token: z.string().max(80).optional(), code: z.coerce.number().int().positive().optional(), member_id: zId.optional() })
       .refine((x) => x.token || x.code || x.member_id, "token, code or member_id is required"));
-    return db.tx((q) => performCheckin(q, u.gymId, u.id, b, b.token ? "qr" : "manual"));
+    const res = await db.tx((q) => performCheckin(q, u.gymId, u.id, b, b.token ? "qr" : "manual"));
+    // badges and challenge progress: after the check-in is committed, never blocking the desk
+    if (res.result === "ok" && !res.duplicate && res.member?.id) {
+      db.tx((q) => refreshProgress(q, u.gymId, res.member.id)).catch((e) => console.error("[progress]", e.message));
+    }
+    return res;
   });
 
   r.get("/api/checkins", async (ctx) => {

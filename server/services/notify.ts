@@ -20,9 +20,14 @@ export const NOTIFICATION_TYPES = {
   winback: { category: "membership", scheduled: true, label: "Membership expired", help: "A few days after it ended, to invite them back" },
   receipt: { category: "payments", scheduled: false, label: "Payment receipt", help: "After each payment, with the receipt" },
   announcement: { category: "news", scheduled: true, label: "Gym announcements", help: "Messages you send to a group of members" },
+  offer: { category: "news", scheduled: true, label: "New offers", help: "When you publish an offer and choose to tell members" },
+  request_ready: { category: "payments", scheduled: false, label: "Order ready", help: "When a product the member asked for in the app is ready at reception" },
+  badge: { category: "progress", scheduled: true, label: "Badges", help: "When the member earns a badge (10th visit, 4-week streak…)" },
+  challenge: { category: "progress", scheduled: true, label: "Challenges", help: "When a challenge starts and when the member completes it" },
+  referral: { category: "progress", scheduled: true, label: "Friend joined", help: "When a friend the member invited becomes a member" },
 } as const;
 export type NotificationKind = keyof typeof NOTIFICATION_TYPES;
-export const NOTIFICATION_CATEGORIES = ["classes", "membership", "payments", "news"] as const;
+export const NOTIFICATION_CATEGORIES = ["classes", "membership", "payments", "progress", "news"] as const;
 
 export interface PushSettings {
   enabled: boolean;
@@ -70,7 +75,7 @@ export interface NotifyInput {
   body: string;
   /** path inside the site, e.g. /r/<token>; default: the member app, optionally on a tab */
   url?: string;
-  tab?: "pass" | "classes" | "history" | "inbox";
+  tab?: "home" | "classes" | "coach" | "shop" | "me" | "progress" | "inbox";
   dedupeKey?: string;
   createdBy?: string | null;
   /** ignore quiet hours (tests sent by staff) */
@@ -92,7 +97,7 @@ export async function notify(q: Queryable, n: NotifyInput) {
   if (!ps.enabled || ps.types[n.kind] === false) return null;
   if (ctx.notify_prefs?.[type.category] === false) return null;
   const delay = type.scheduled && !n.immediate ? quietDelayMinutes(localMinutes(ctx.timezone), ps.quietFrom, ps.quietTo) : 0;
-  const url = n.url ?? `/m/${ctx.slug}${n.tab && n.tab !== "pass" ? `?tab=${n.tab}` : ""}`;
+  const url = n.url ?? `/m/${ctx.slug}${n.tab && n.tab !== "home" ? `?tab=${n.tab}` : ""}`;
   const row = await one(
     q,
     `INSERT INTO notifications (gym_id, member_id, kind, title, body, url, dedupe_key, send_after, created_by)
