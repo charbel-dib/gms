@@ -3,6 +3,7 @@ import { get, post, put } from "../../shared/api.ts";
 import { Empty, Field, Icon, Loader, Modal, Segmented, useAction, useAsync } from "../../shared/ui.tsx";
 import { fmtDate, t } from "../../shared/i18n.ts";
 import { navigate } from "../app.tsx";
+import { ReferrerPicker } from "./forms.tsx";
 
 const STAGES = ["new", "contacted", "trial", "converted", "lost"] as const;
 const LABEL: Record<string, string> = { new: "New", contacted: "Contacted", trial: "Trial visit", converted: "Joined", lost: "Lost" };
@@ -13,7 +14,7 @@ export function LeadsPage() {
   const [stage, setStage] = useState<string>("open");
   const { busy, run } = useAction();
   const save = async () => {
-    const body = { name: edit.name, phone: edit.phone || null, source: edit.source || null, status: edit.status, interest: edit.interest || null, notes: edit.notes || null, follow_up_on: edit.follow_up_on || null };
+    const body = { name: edit.name, phone: edit.phone || null, source: edit.source || null, status: edit.status, interest: edit.interest || null, notes: edit.notes || null, follow_up_on: edit.follow_up_on || null, referred_by: edit.source === "referral" ? edit.referred_by ?? null : null };
     const r = await run(() => (edit.id ? put(`/api/leads/${edit.id}`, body) : post("/api/leads", body)), t("Save"));
     if (r) { setEdit(null); state.reload(); }
   };
@@ -33,7 +34,7 @@ export function LeadsPage() {
               <thead><tr><th>{t("Name")}</th><th>Interest</th><th>Stage</th><th>Follow up</th><th /></tr></thead>
               <tbody>{rows.map((l) => (
                 <tr key={l.id} className="clickable" onClick={() => setEdit({ ...l })}>
-                  <td><span className="who"><b>{l.name}</b><small>{l.phone ?? "—"} · {l.source ?? ""}</small></span></td>
+                  <td><span className="who"><b>{l.name}</b><small>{l.phone ?? "—"} · {l.referrer_name ? `referred by ${l.referrer_name}` : l.source ?? ""}</small></span></td>
                   <td>{l.interest ?? "—"}</td>
                   <td><span className="tag">{LABEL[l.status]}</span></td>
                   <td style={{ color: l.follow_up_on && l.follow_up_on <= today && !["converted", "lost"].includes(l.status) ? "var(--plate-red)" : undefined }}>{l.follow_up_on ? fmtDate(l.follow_up_on) : "—"}</td>
@@ -49,7 +50,7 @@ export function LeadsPage() {
       {edit && (
         <Modal title={edit.id ? edit.name : "Add a lead"} open onClose={() => setEdit(null)}
           footer={<>
-            {edit.id && edit.status !== "converted" && <button className="btn" onClick={() => navigate(`/members?new=1`)}>Make them a member</button>}
+            {edit.id && edit.status !== "converted" && <button className="btn" onClick={() => navigate(`/members?new=1&lead=${edit.id}`)}>Make them a member</button>}
             <button className="btn primary" disabled={busy || !edit.name} onClick={save}>{t("Save")}</button>
           </>}>
           <div className="grid-2">
@@ -60,6 +61,7 @@ export function LeadsPage() {
             <Field label="Stage"><select className="input" value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>{STAGES.map((s) => <option key={s} value={s}>{LABEL[s]}</option>)}</select></Field>
             <Field label="Follow up on"><input className="input" type="date" value={edit.follow_up_on ?? ""} onChange={(e) => setEdit({ ...edit, follow_up_on: e.target.value })} /></Field>
           </div>
+          {edit.source === "referral" && <ReferrerPicker value={edit.referred_by ?? null} label={edit.referrer_name} hint="The member who sent them. Credited when they join." onChange={(id, name) => setEdit({ ...edit, referred_by: id, referrer_name: name })} />}
           <Field label={t("Notes")}><textarea className="input" value={edit.notes ?? ""} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} /></Field>
         </Modal>
       )}

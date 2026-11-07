@@ -194,22 +194,29 @@ export function registerBusiness(r: Router) {
     name: z.string().trim().min(1).max(80), phone: zPhone.nullable().optional(), source: z.string().max(40).nullable().optional(),
     status: z.enum(["new", "contacted", "trial", "converted", "lost"]).default("new"), interest: z.string().max(80).nullable().optional(),
     notes: z.string().max(1000).nullable().optional(), follow_up_on: zDate.nullable().optional(),
+    referred_by: zId.nullable().optional(), // the member who sent them; credited when they join
   });
+  const checkReferrer = async (gymId: string, id: string | null | undefined) => {
+    if (id && !(await one(db, "SELECT 1 FROM members WHERE id = $1 AND gym_id = $2", [id, gymId]))) throw bad("unknown_referrer", "The member who referred them was not found");
+  };
   r.get("/api/leads", async (ctx) => {
     const u = await requireStaff(ctx, ["owner", "manager", "reception"]);
-    return many(db, "SELECT * FROM leads WHERE gym_id = $1 ORDER BY (status IN ('converted','lost')), follow_up_on NULLS LAST, created_at DESC LIMIT 500", [u.gymId]);
+    return many(db, "SELECT l.*, r.first_name || ' ' || r.last_name AS referrer_name FROM leads l LEFT JOIN members r ON r.id = l.referred_by WHERE l.gym_id = $1 ORDER BY (status IN ('converted','lost')), follow_up_on NULLS LAST, created_at DESC LIMIT 500", [u.gymId]);
   });
   r.post("/api/leads", async (ctx) => {
     const u = await requireStaff(ctx, ["owner", "manager", "reception"]);
     const b = await ctx.body(leadSchema);
-    return one(db, "INSERT INTO leads (gym_id, name, phone, source, status, interest, notes, follow_up_on) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",
-      [u.gymId, b.name, b.phone ?? null, b.source ?? null, b.status, b.interest ?? null, b.notes ?? null, b.follow_up_on ?? null]);
+    await checkReferrer(u.gymId, b.referred_by);
+    return one(db, "INSERT INTO leads (gym_id, name, phone, source, status, interest, notes, follow_up_on, referred_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",
+      [u.gymId, b.name, b.phone ?? null, b.referred_by ? "referral" : b.source ?? null, b.status, b.interest ?? null, b.notes ?? null, b.follow_up_on ?? null, b.referred_by ?? null]);
   });
   r.put("/api/leads/:id", async (ctx) => {
     const u = await requireStaff(ctx, ["owner", "manager", "reception"]);
     const b = await ctx.body(leadSchema);
-    const row = await one(db, "UPDATE leads SET name=$3, phone=$4, source=$5, status=$6, interest=$7, notes=$8, follow_up_on=$9 WHERE id=$1 AND gym_id=$2 RETURNING *",
-      [zId.parse(ctx.params.id), u.gymId, b.name, b.phone ?? null, b.source ?? null, b.status, b.interest ?? null, b.notes ?? null, b.follow_up_on ?? null]);
+    await checkReferrer(u.gymId, b.referred_by);
+    // referred_by left out of the body keeps the current referrer
+    const row = await one(db, "UPDATE leads SET name=$3, phone=$4, source=$5, status=$6, interest=$7, notes=$8, follow_up_on=$9, referred_by = CASE WHEN $10 THEN $11::uuid ELSE referred_by END WHERE id=$1 AND gym_id=$2 RETURNING *",
+      [zId.parse(ctx.params.id), u.gymId, b.name, b.phone ?? null, b.source ?? null, b.status, b.interest ?? null, b.notes ?? null, b.follow_up_on ?? null, b.referred_by !== undefined, b.referred_by ?? null]);
     if (!row) throw notFound("lead");
     return row;
   });

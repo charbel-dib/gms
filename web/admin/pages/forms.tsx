@@ -1,7 +1,7 @@
 /** Reusable forms: selling a membership and recording a payment. */
 import React, { useEffect, useMemo, useState } from "react";
 import { get } from "../../shared/api.ts";
-import { Field, Segmented } from "../../shared/ui.tsx";
+import { Field, Icon, Segmented, useDebounced } from "../../shared/ui.tsx";
 import { money, t } from "../../shared/i18n.ts";
 import { useApp } from "../app.tsx";
 
@@ -110,4 +110,48 @@ export function emptySale(): SaleValue {
 
 export function toSaleBody(s: SaleValue) {
   return { plan_id: s.plan_id, start_date: s.start_date || null, discount: Number(s.discount || 0), payment: toPaymentBody(s.payment) };
+}
+
+/**
+ * "Referred by": search a member by name, phone or number and pick them.
+ * value is the member's id; `label` shows who is picked when the form opens on an existing value.
+ */
+export function ReferrerPicker({ value, label, onChange, exclude, hint }: {
+  value: string | null; label?: string | null; onChange: (id: string | null, name: string | null) => void; exclude?: string; hint?: string;
+}) {
+  const [q, setQ] = useState("");
+  const [rows, setRows] = useState<any[]>([]);
+  const dq = useDebounced(q.trim());
+  useEffect(() => {
+    if (dq.length < 2) { setRows([]); return; }
+    let live = true;
+    get(`/api/members?limit=6&q=${encodeURIComponent(dq)}`).then((r: any) => { if (live) setRows(r.rows.filter((m: any) => m.id !== exclude)); }).catch(() => {});
+    return () => { live = false; };
+  }, [dq, exclude]);
+  if (value) {
+    return (
+      <Field label="Referred by" hint={hint}>
+        <div className="spread input" style={{ alignItems: "center" }}>
+          <span><Icon name="user" /> {label ?? "Member"}</span>
+          <button type="button" className="btn small ghost" onClick={() => onChange(null, null)}>Change</button>
+        </div>
+      </Field>
+    );
+  }
+  return (
+    <Field label="Referred by" hint={hint ?? "The member who brought them. They get notified and earn the referral badge."}>
+      <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a member: name, phone or #" />
+      {rows.length > 0 && (
+        <div className="list" role="listbox" style={{ marginTop: 6 }}>
+          {rows.map((m) => (
+            <button type="button" key={m.id} role="option" aria-selected={false} className="btn ghost block" style={{ justifyContent: "flex-start" }}
+              onClick={() => { onChange(m.id, `${m.first_name} ${m.last_name}`.trim()); setQ(""); setRows([]); }}>
+              <b>{m.first_name} {m.last_name}</b>&nbsp;<small className="muted">#{m.code}{m.phone ? ` · ${m.phone}` : ""}</small>
+            </button>
+          ))}
+        </div>
+      )}
+      {dq.length >= 2 && !rows.length && <small className="muted">No member matches “{dq}”.</small>}
+    </Field>
+  );
 }

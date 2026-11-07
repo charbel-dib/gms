@@ -10,7 +10,7 @@ import { config } from "../config.ts";
 import { parseCsv, toCsv } from "../services/text.ts";
 import { receiptForStaff } from "../services/receipt.ts";
 import { notify } from "../services/notify.ts";
-import { linkNewMember, refreshProgress } from "./community.ts";
+import { creditReferral, linkNewMember, refreshProgress } from "./community.ts";
 
 const memberSchema = z.object({
   first_name: z.string().trim().min(1).max(60),
@@ -35,7 +35,7 @@ const paymentInput = z.object({
 });
 
 export async function getOverview(q: Queryable, gymId: string, memberId: string) {
-  const m = await one(q, "SELECT * FROM member_overview WHERE id = $1 AND gym_id = $2", [memberId, gymId]);
+  const m = await one(q, "SELECT o.*, mm.referred_by FROM member_overview o JOIN members mm ON mm.id = o.id WHERE o.id = $1 AND o.gym_id = $2", [memberId, gymId]);
   if (!m) throw notFound("member");
   return m;
 }
@@ -272,13 +272,15 @@ export function registerMembers(r: Router) {
     const b = await ctx.body(memberSchema.extend({
       membership: z.object({ plan_id: zId, start_date: zDate.nullable().optional(), discount: zMoney.optional(), payment: paymentInput.nullable().optional() }).nullable().optional(),
       lead_id: zId.nullable().optional(),
+      referred_by: zId.nullable().optional(),
     }));
     const out = await db.tx(async (q) => {
-      const m = await createMember(q, u.gymId, b);
+      const { referred_by, ...fields } = b;
+      const m = await createMember(q, u.gymId, { ...fields, source: referred_by ? "referral" : fields.source });
       let sale: Awaited<ReturnType<typeof sellMembership>> | null = null;
       if (b.membership) sale = await sellMembership(q, u.gymId, u.id, m!.id, b.membership);
       // converts the lead (by id, or the open lead with the same phone) and credits whoever invited them
-      await linkNewMember(q, u.gymId, m!.id, b.phone ?? null, b.lead_id ?? null);
+      await linkNewMember(q, u.gymId, m!.id, b.phone ?? null, b.lead_id ?? null, referred_by ?? null);
       await audit(q, u.gymId, u.id, "member.create", "member", m!.id);
       return { id: m!.id, code: m!.code, sale };
     });
@@ -370,15 +372,18 @@ export function registerMembers(r: Router) {
       many(db, "SELECT id, kind, title, body, status, devices, created_at, read_at FROM notifications WHERE member_id = $1 ORDER BY created_at DESC LIMIT 30", [id]),
       one(db, "SELECT count(*)::int AS devices FROM push_subscriptions WHERE member_id = $1", [id]),
     ]);
+    // sequential after the batch: who brought them, and the friends they brought
+    const referrer = m.referred_by ? await one(db, "SELECT id, code, first_name, last_name FROM members WHERE id = $1", [m.referred_by]) : null;
+    const referred = await many(db, "SELECT id, code, first_name, last_name, created_at FROM members WHERE referred_by = $1 AND gym_id = $2 ORDER BY created_at DESC LIMIT 20", [id, u.gymId]);
     const visits30 = checkins.filter((c) => c.result === "ok" && Date.now() - new Date(c.at).getTime() < 30 * 86400000).length;
-    return { ...m, memberships, payments, checkins, bookings, pt, programs, messages, churn, visits30, notifications, push_devices: push.devices };
+    return { ...m, memberships, payments, checkins, bookings, pt, programs, messages, churn, visits30, notifications, push_devices: push.devices, referrer, referred };
   });
 
   r.put("/api/members/:id", async (ctx) => {
     const u = await requireStaff(ctx, ["owner", "manager", "reception"]);
     const id = zId.parse(ctx.params.id);
-    const b = await ctx.body(memberSchema.partial());
-    await getOverview(db, u.gymId, id);
+    const { referred_by, ...b } = await ctx.body(memberSchema.partial().extend({ referred_by: zId.nullable().optional() }));
+    const before = await getOverview(db, u.gymId, id);
     if (b.phone) {
       const dup = await one(db, "SELECT code FROM members WHERE gym_id = $1 AND phone = $2 AND id <> $3 AND archived_at IS NULL", [u.gymId, b.phone, id]);
       if (dup) throw bad("duplicate_phone", `This phone already belongs to member #${dup.code}`);
@@ -390,8 +395,24 @@ export function registerMembers(r: Router) {
       vals.push(v);
       sets.push(`${k} = $${vals.length}`);
     }
-    if (sets.length) await db.query(`UPDATE members SET ${sets.join(", ")} WHERE id = $1 AND gym_id = $2`, vals);
-    await audit(db, u.gymId, u.id, "member.update", "member", id, { fields: Object.keys(b) });
+    await db.tx(async (q) => {
+      if (sets.length) await q.query(`UPDATE members SET ${sets.join(", ")} WHERE id = $1 AND gym_id = $2`, vals);
+      // "Referred by": credit a new referrer (tells them, badge); clearing or changing it fixes a mistake quietly
+      if (referred_by !== undefined && referred_by !== before.referred_by) {
+        if (referred_by && !before.referred_by) {
+          await creditReferral(q, u.gymId, id, referred_by);
+          if (!b.source) await q.query("UPDATE members SET source = 'referral' WHERE id = $1", [id]);
+        } else {
+          if (referred_by) {
+            if (referred_by === id) throw bad("self_referral", "A member cannot refer themselves");
+            const ok = await one(q, "SELECT 1 FROM members WHERE id = $1 AND gym_id = $2", [referred_by, u.gymId]);
+            if (!ok) throw bad("unknown_referrer", "The member who referred them was not found");
+          }
+          await q.query("UPDATE members SET referred_by = $2 WHERE id = $1", [id, referred_by]);
+        }
+      }
+    });
+    await audit(db, u.gymId, u.id, "member.update", "member", id, { fields: [...Object.keys(b), ...(referred_by !== undefined ? ["referred_by"] : [])] });
     return getOverview(db, u.gymId, id);
   });
 

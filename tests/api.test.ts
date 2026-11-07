@@ -825,6 +825,46 @@ test("member history: upcoming booked classes and the last class attended, with 
   assert.ok(h.payments.every((p: any) => /^[0-9a-f]{32}$/.test(p.public_token)));
 });
 
+test("referrals picked by reception: on a new member, on an existing member, and on a lead", async () => {
+  const sami = await reception.ok("POST", "/api/members", { first_name: "Sami", last_name: "Brings", phone: "70111201" });
+  // 1. "Referred by" on the new member form: credited, told, and earns the badge
+  const nour = await reception.ok("POST", "/api/members", { first_name: "Nour", last_name: "Friend", phone: "70111202", source: "referral", referred_by: sami.id });
+  const nourView = await reception.ok("GET", `/api/members/${nour.id}`);
+  assert.equal(nourView.referrer.id, sami.id);
+  assert.equal(nourView.source, "referral");
+  let samiView = await reception.ok("GET", `/api/members/${sami.id}`);
+  assert.deepEqual(samiView.referred.map((x: any) => x.id), [nour.id]);
+  assert.ok(samiView.notifications.some((n: any) => n.kind === "referral" && n.title.includes("Nour")));
+  const app = await memberLogin(sami.id, "70111201");
+  assert.ok((await app.ok("GET", "/api/m/progress")).badges.find((b: any) => b.key === "ambassador").earned_at, "referral badge");
+  assert.equal((await app.ok("GET", "/api/m/referral")).joined, 1);
+  const refs = await reception.ok("GET", "/api/referrals");
+  assert.equal(refs.referrers.find((r: any) => r.id === sami.id).joined, 1);
+
+  // 2. added without a referrer, fixed afterwards from Edit
+  const karl = await reception.ok("POST", "/api/members", { first_name: "Karl", last_name: "Late", phone: "70111203", source: "referral" });
+  assert.equal((await reception.ok("GET", `/api/members/${karl.id}`)).referrer, null);
+  await reception.ok("PUT", `/api/members/${karl.id}`, { referred_by: sami.id });
+  assert.equal((await reception.ok("GET", `/api/members/${karl.id}`)).referrer.id, sami.id);
+  samiView = await reception.ok("GET", `/api/members/${sami.id}`);
+  assert.equal(samiView.referred.length, 2);
+  // saving the form again does not notify twice; a member cannot refer themselves; unknown ids are refused
+  await reception.ok("PUT", `/api/members/${karl.id}`, { referred_by: sami.id, notes: "ok" });
+  assert.equal((await reception.ok("GET", `/api/members/${sami.id}`)).notifications.filter((n: any) => n.kind === "referral").length, 2);
+  assert.equal((await reception.put(`/api/members/${karl.id}`, { referred_by: karl.id })).status, 400);
+  assert.equal((await reception.post("/api/members", { first_name: "Ghost", referred_by: "00000000-0000-4000-8000-000000000000" })).status, 400);
+
+  // 3. a lead typed in by reception with a referrer, then "Make them a member"
+  const lead = await reception.ok("POST", "/api/leads", { name: "Maya Walkin", phone: "70111204", source: "referral", status: "new", referred_by: sami.id });
+  assert.equal((await reception.ok("GET", "/api/leads")).find((l: any) => l.id === lead.id).referrer_name, "Sami Brings");
+  const maya = await reception.ok("POST", "/api/members", { first_name: "Maya", last_name: "Walkin", phone: "70111204", lead_id: lead.id });
+  assert.equal((await reception.ok("GET", `/api/members/${maya.id}`)).referrer.id, sami.id);
+  assert.equal((await reception.ok("GET", "/api/leads")).find((l: any) => l.id === lead.id).status, "converted");
+  // the lead keeps its referrer when edited without the field
+  await reception.ok("PUT", `/api/leads/${lead.id}`, { name: "Maya Walkin", status: "converted" });
+  assert.equal((await reception.ok("GET", "/api/leads")).find((l: any) => l.id === lead.id).referred_by, sami.id);
+});
+
 test("app install and website: per-gym page head and manifest, app icon, website on / for visitors, demo requests", async () => {
   // member page carries the gym's name and install tags; install route served too
   const page = await fetch(`${ctx.base}/m/alpha/install`).then((r) => r.text());

@@ -171,24 +171,36 @@ export async function referralCode(q: Queryable, gymId: string, memberId: string
 }
 
 /**
- * When reception creates a member, link them to the lead with the same phone (or the lead
- * they came from): the lead is converted and, if a member invited them, the referrer is credited.
+ * Credits `referrerId` for bringing `memberId`: sets referred_by (only if not set yet), tells the
+ * referrer in the app and refreshes their badges. Returns false when nothing changed.
  */
-export async function linkNewMember(q: Queryable, gymId: string, memberId: string, phone: string | null, leadId?: string | null) {
+export async function creditReferral(q: Queryable, gymId: string, memberId: string, referrerId: string): Promise<boolean> {
+  if (referrerId === memberId) throw bad("self_referral", "A member cannot refer themselves");
+  const referrer = await one(q, "SELECT id FROM members WHERE id = $1 AND gym_id = $2 AND archived_at IS NULL", [referrerId, gymId]);
+  if (!referrer) throw bad("unknown_referrer", "The member who referred them was not found");
+  const set = await one(q, "UPDATE members SET referred_by = $3 WHERE id = $1 AND gym_id = $2 AND referred_by IS NULL RETURNING first_name", [memberId, gymId, referrerId]);
+  if (!set) return false;
+  // sequential: a transaction's connection runs one query at a time
+  const gym = await one(q, "SELECT settings FROM gyms WHERE id = $1", [gymId]);
+  const reward = engageSettings(gym.settings).referralReward;
+  await notify(q, { gymId, memberId: referrerId, kind: "referral", title: `🤝 ${set.first_name} joined the gym!`, body: reward ? `Thanks for inviting them. Your reward: ${reward}. Ask reception.` : "Thanks for inviting them!", tab: "progress", dedupeKey: `referral:${memberId}` });
+  await refreshProgress(q, gymId, referrerId);
+  return true;
+}
+
+/**
+ * When reception creates a member, link them to the lead with the same phone (or the lead
+ * they came from): the lead is converted and whoever invited them is credited. Reception can
+ * also pick the referrer directly ("Referred by"), which is used when the lead has none.
+ */
+export async function linkNewMember(q: Queryable, gymId: string, memberId: string, phone: string | null, leadId?: string | null, referrerId?: string | null) {
   const lead = leadId
     ? await one(q, "SELECT * FROM leads WHERE id = $1 AND gym_id = $2", [leadId, gymId])
     : phone ? await one(q, "SELECT * FROM leads WHERE gym_id = $1 AND phone = $2 AND status <> 'converted' AND member_id IS NULL ORDER BY created_at DESC LIMIT 1", [gymId, phone]) : null;
-  if (!lead) return null;
-  await q.query("UPDATE leads SET status = 'converted', member_id = $2 WHERE id = $1", [lead.id, memberId]);
-  if (lead.referred_by && lead.referred_by !== memberId) {
-    await q.query("UPDATE members SET referred_by = $2 WHERE id = $1 AND referred_by IS NULL", [memberId, lead.referred_by]);
-    // sequential: a transaction's connection runs one query at a time
-    const friend = await one(q, "SELECT first_name FROM members WHERE id = $1", [memberId]);
-    const gym = await one(q, "SELECT settings FROM gyms WHERE id = $1", [gymId]);
-    const reward = engageSettings(gym.settings).referralReward;
-    await notify(q, { gymId, memberId: lead.referred_by, kind: "referral", title: `🤝 ${friend.first_name} joined the gym!`, body: reward ? `Thanks for inviting them. Your reward: ${reward}. Ask reception.` : "Thanks for inviting them!", tab: "progress", dedupeKey: `referral:${memberId}` });
-  }
-  return lead.id;
+  if (lead) await q.query("UPDATE leads SET status = 'converted', member_id = $2 WHERE id = $1", [lead.id, memberId]);
+  const by = (lead?.referred_by && lead.referred_by !== memberId ? lead.referred_by : null) ?? referrerId ?? null;
+  if (by) await creditReferral(q, gymId, memberId, by);
+  return lead?.id ?? null;
 }
 
 // ---------------- images (products, offers) ----------------

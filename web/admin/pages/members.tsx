@@ -4,7 +4,7 @@ import { Empty, Field, Icon, Loader, Modal, Segmented, Status, Tabs, initials, t
 import { fmtDate, fmtTime, money, relDays, t } from "../../shared/i18n.ts";
 import { qrSvg } from "../../shared/qr.ts";
 import { Link, can, doCheckin, navigate, usePath, useApp } from "../app.tsx";
-import { PaymentFields, SaleFields, emptyPayment, emptySale, toPaymentBody, toSaleBody } from "./forms.tsx";
+import { PaymentFields, ReferrerPicker, SaleFields, emptyPayment, emptySale, toPaymentBody, toSaleBody } from "./forms.tsx";
 import { openReceipt } from "../receipt.tsx";
 
 const STATUSES = ["all", "active", "expiring", "expired", "frozen", "none"] as const;
@@ -13,11 +13,12 @@ function NewMemberModal({ open, onClose, lead }: { open: boolean; onClose: () =>
   const [f, setF] = useState({ first_name: "", last_name: "", phone: "", gender: "", birth_date: "", email: "", source: "walk-in", notes: "" });
   const [sell, setSell] = useState(true);
   const [sale, setSale] = useState(emptySale());
+  const [ref, setRef] = useState<{ id: string | null; name: string | null }>({ id: null, name: null });
   const { busy, run } = useAction();
   useEffect(() => {
     if (open && lead) {
       const [first, ...rest] = String(lead.name).split(" ");
-      setF((x) => ({ ...x, first_name: first, last_name: rest.join(" "), phone: lead.phone ?? "", source: lead.source ?? "walk-in" }));
+      setF((x) => ({ ...x, first_name: first, last_name: rest.join(" "), phone: lead.phone ?? "", source: lead.referred_by ? "referral" : lead.source ?? "walk-in", notes: lead.notes ?? "" }));
     }
   }, [open, lead?.id]);
   const set = (k: string, v: string) => setF((x) => ({ ...x, [k]: v }));
@@ -25,11 +26,13 @@ function NewMemberModal({ open, onClose, lead }: { open: boolean; onClose: () =>
     const r = await run(() => post("/api/members", {
       ...f, phone: f.phone || null, gender: f.gender || null, birth_date: f.birth_date || null, email: f.email || null,
       membership: sell && sale.plan_id ? toSaleBody(sale) : null, lead_id: lead?.id ?? null,
+      referred_by: f.source === "referral" ? ref.id : null,
     }), "Member added");
     if (r) {
       onClose();
       setF({ first_name: "", last_name: "", phone: "", gender: "", birth_date: "", email: "", source: "walk-in", notes: "" });
       setSale(emptySale());
+      setRef({ id: null, name: null });
       navigate(`/members/${r.id}`);
       if (r.sale?.payment) openReceipt(r.sale.payment.id);
     }
@@ -51,6 +54,9 @@ function NewMemberModal({ open, onClose, lead }: { open: boolean; onClose: () =>
           </select>
         </Field>
       </div>
+      {f.source === "referral" && (lead?.referred_by
+        ? <p className="ink-2" style={{ margin: 0 }}>Referred by <b>{lead.referrer_name ?? "a member"}</b>. They’ll be credited when you add this member.</p>
+        : <ReferrerPicker value={ref.id} label={ref.name} onChange={(id, name) => setRef({ id, name })} />)}
       <label className="check"><input type="checkbox" checked={sell} onChange={(e) => setSell(e.target.checked)} /> Sell a membership now</label>
       {sell && <SaleFields value={sale} onChange={setSale} gender={f.gender || null} />}
     </Modal>
@@ -70,6 +76,13 @@ export function MembersPage() {
   const balance = params.get("balance") === "1";
   const state = useAsync(() => get(`/api/members?limit=300&sort=${sort}${status !== "all" ? `&status=${status}` : ""}${dq ? `&q=${encodeURIComponent(dq)}` : ""}${balance ? "&balance=1" : ""}`), [status, dq, sort, balance]);
   useEffect(() => { if (params.get("new") === "1") setCreating(true); }, [path]);
+  // "Make them a member" from Leads: pre-fill from that lead and credit whoever referred them
+  const leadId = params.get("lead");
+  const [lead, setLead] = useState<any>(null);
+  useEffect(() => {
+    if (!leadId) { setLead(null); return; }
+    get("/api/leads").then((list: any[]) => setLead(list.find((l) => l.id === leadId) ?? null)).catch(() => {});
+  }, [leadId]);
   return (
     <div className="page">
       <div className="page-head">
@@ -115,7 +128,7 @@ export function MembersPage() {
           </Empty>
         )}
       </Loader>
-      <NewMemberModal open={creating} onClose={() => { setCreating(false); if (params.get("new")) navigate("/members", true); state.reload(); }} />
+      <NewMemberModal open={creating && (!leadId || !!lead)} lead={lead} onClose={() => { setCreating(false); if (params.get("new")) navigate("/members", true); state.reload(); }} />
       <ImportModal open={importing} onClose={() => { setImporting(false); state.reload(); }} />
     </div>
   );
@@ -298,6 +311,8 @@ export function MemberPage({ id }: { id: string }) {
                       <div className="spread"><dt className="muted">Birthday</dt><dd style={{ margin: 0 }}>{m.birth_date ? fmtDate(m.birth_date, { day: "numeric", month: "long" }) : "—"}</dd></div>
                       <div className="spread"><dt className="muted">Email</dt><dd style={{ margin: 0 }}>{m.email ?? "—"}</dd></div>
                       <div className="spread"><dt className="muted">Source</dt><dd style={{ margin: 0 }}>{m.source ?? "—"}</dd></div>
+                      {m.referrer && <div className="spread"><dt className="muted">Referred by</dt><dd style={{ margin: 0 }}><Link to={`/members/${m.referrer.id}`}>{m.referrer.first_name} {m.referrer.last_name}</Link></dd></div>}
+                      {m.referred?.length > 0 && <div className="spread"><dt className="muted">Friends brought</dt><dd style={{ margin: 0, textAlign: "end" }}>{m.referred.map((x: any, i: number) => <React.Fragment key={x.id}>{i > 0 && ", "}<Link to={`/members/${x.id}`}>{x.first_name} {x.last_name}</Link></React.Fragment>)}</dd></div>}
                       <div className="spread"><dt className="muted">Member since</dt><dd style={{ margin: 0 }}>{fmtDate(m.created_at, { month: "short", year: "numeric" })}</dd></div>
                       {m.notes && <p className="ink-2" style={{ whiteSpace: "pre-wrap" }}>{m.notes}</p>}
                     </dl>
@@ -434,12 +449,12 @@ function FreezeModal({ open, ms, onClose }: { open: boolean; ms: any; onClose: (
 function EditModal({ open, m, onClose }: { open: boolean; m: any; onClose: () => void }) {
   const [f, setF] = useState<any>({});
   const { busy, run } = useAction();
-  useEffect(() => { if (open) setF({ first_name: m.first_name, last_name: m.last_name, phone: m.phone ?? "", email: m.email ?? "", gender: m.gender ?? "", birth_date: m.birth_date ?? "", notes: m.notes ?? "", tags: (m.tags ?? []).join(", "), whatsapp_opt_in: m.whatsapp_opt_in }); }, [open]);
+  useEffect(() => { if (open) setF({ referred_by: m.referrer?.id ?? null, referrer_name: m.referrer ? `${m.referrer.first_name} ${m.referrer.last_name}`.trim() : null, first_name: m.first_name, last_name: m.last_name, phone: m.phone ?? "", email: m.email ?? "", gender: m.gender ?? "", birth_date: m.birth_date ?? "", notes: m.notes ?? "", tags: (m.tags ?? []).join(", "), whatsapp_opt_in: m.whatsapp_opt_in }); }, [open]);
   const set = (k: string, v: any) => setF((x: any) => ({ ...x, [k]: v }));
   return (
     <Modal title={`${t("Edit")} · ${m.first_name}`} open={open} onClose={onClose}
       footer={<><button className="btn" onClick={onClose}>{t("Cancel")}</button><button className="btn primary" disabled={busy} onClick={async () => {
-        const r = await run(() => put(`/api/members/${m.id}`, { ...f, phone: f.phone || null, email: f.email || null, gender: f.gender || null, birth_date: f.birth_date || null, tags: f.tags.split(",").map((s: string) => s.trim()).filter(Boolean) }), "Saved");
+        const r = await run(() => put(`/api/members/${m.id}`, { ...f, referrer_name: undefined, phone: f.phone || null, email: f.email || null, gender: f.gender || null, birth_date: f.birth_date || null, tags: f.tags.split(",").map((s: string) => s.trim()).filter(Boolean) }), "Saved");
         if (r) onClose();
       }}>{t("Save")}</button></>}>
       <div className="grid-2">
@@ -450,6 +465,7 @@ function EditModal({ open, m, onClose }: { open: boolean; m: any; onClose: () =>
         <Field label={t("Gender")}><select className="input" value={f.gender ?? ""} onChange={(e) => set("gender", e.target.value)}><option value="">—</option><option value="female">{t("Female")}</option><option value="male">{t("Male")}</option></select></Field>
         <Field label="Birth date"><input className="input" type="date" value={f.birth_date ?? ""} onChange={(e) => set("birth_date", e.target.value)} /></Field>
       </div>
+      <ReferrerPicker value={f.referred_by ?? null} label={f.referrer_name} exclude={m.id} onChange={(id, name) => setF((x: any) => ({ ...x, referred_by: id, referrer_name: name }))} />
       <Field label="Tags" hint="Comma separated, e.g. student, VIP, injury"><input className="input" value={f.tags ?? ""} onChange={(e) => set("tags", e.target.value)} /></Field>
       <Field label={t("Notes")}><textarea className="input" value={f.notes ?? ""} onChange={(e) => set("notes", e.target.value)} /></Field>
       <label className="check"><input type="checkbox" checked={!!f.whatsapp_opt_in} onChange={(e) => set("whatsapp_opt_in", e.target.checked)} /> Receives WhatsApp reminders</label>
