@@ -344,7 +344,7 @@ function InviteCard({ r }: { r: any }) {
         </div>
       </div>
       <div className="row">
-        <a className="m-btn grow" href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noreferrer"><Icon name="whatsapp" width={18} height={18} style={{ marginInlineEnd: 6 }} />WhatsApp</a>
+        <a className="m-btn grow" href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noreferrer"><Icon name="whatsapp" width={18} height={18} style={{ marginInlineEnd: 6 }} />{t("WhatsApp")}</a>
         <button className="m-btn ghost" onClick={async () => {
           try { if (canShare) await navigator.share({ text, url }); else { await navigator.clipboard.writeText(url); toast(t("Link copied")); } } catch { /* cancelled */ }
         }}>{canShare ? t("Share") : t("Copy link")}</button>
@@ -359,7 +359,7 @@ function GymInfo({ gym }: { gym: any }) {
       <div className="m-card"><div className="rows">
         {(gym.hours ?? []).map((h: any) => <div key={h.day}><span style={{ flex: 1 }}>{t(WEEKDAYS[h.day])}</span><span className="m-muted">{h.closed ? "—" : `${h.open} – ${h.close}`}</span></div>)}
         {gym.ladiesHours?.length > 0 && <div><span style={{ flex: 1 }}>{t("Ladies hours")}</span><span className="m-muted" style={{ textAlign: "end" }}>{gym.ladiesHours.map((h: any) => `${t(WEEKDAYS[h.day])} ${h.from}–${h.to}`).join(", ")}</span></div>}
-        {(gym.whatsapp || gym.phone) && <div><span style={{ flex: 1 }}>{t("Contact")}</span><a className="m-btn ghost" href={`https://wa.me/${(gym.whatsapp ?? gym.phone).replace(/\D/g, "")}`}>WhatsApp</a></div>}
+        {(gym.whatsapp || gym.phone) && <div><span style={{ flex: 1 }}>{t("Contact")}</span><a className="m-btn ghost" href={`https://wa.me/${(gym.whatsapp ?? gym.phone).replace(/\D/g, "")}`}>{t("WhatsApp")}</a></div>}
         {gym.address && <div><span style={{ flex: 1 }}>{t("Address")}</span><span className="m-muted" style={{ textAlign: "end" }} dir="auto">{gym.address}{gym.city ? `, ${gym.city}` : ""}</span></div>}
       </div></div>
     </Section>
@@ -428,7 +428,7 @@ export function SettingsView({ me, onBack, onPrefs, onLogout }: { me: any; onBac
 
       <Section title={t("Language")}>
         <div className="m-seg">
-          <button className={getLang() === "en" ? "on" : ""} onClick={() => setLang("en")}>English</button>
+          <button className={getLang() === "en" ? "on" : ""} onClick={() => setLang("en")}>{t("English")}</button>
           <button className={getLang() === "ar" ? "on" : ""} onClick={() => setLang("ar")}>العربية</button>
         </div>
       </Section>
@@ -441,9 +441,9 @@ export function SettingsView({ me, onBack, onPrefs, onLogout }: { me: any; onBac
         }}>
           <div className="rows">
             <div><input className="m-input pin-s" type="password" inputMode="numeric" autoComplete="current-password" placeholder={t("Current PIN")} maxLength={6} value={pin.current} onChange={(e) => setPin({ ...pin, current: e.target.value.replace(/\D/g, "") })} /></div>
-            <div><input className="m-input pin-s" type="password" inputMode="numeric" autoComplete="new-password" placeholder={t("New PIN (4–6 digits)")} maxLength={6} value={pin.next} onChange={(e) => setPin({ ...pin, next: e.target.value.replace(/\D/g, "") })} /></div>
+            <div><input className="m-input pin-s" type="password" inputMode="numeric" autoComplete="new-password" placeholder={t("New PIN (6 digits)")} maxLength={6} value={pin.next} onChange={(e) => setPin({ ...pin, next: e.target.value.replace(/\D/g, "") })} /></div>
             <div><input className="m-input pin-s" type="password" inputMode="numeric" autoComplete="new-password" placeholder={t("New PIN again")} maxLength={6} value={pin.again} onChange={(e) => setPin({ ...pin, again: e.target.value.replace(/\D/g, "") })} /></div>
-            <div><button className="m-btn block" disabled={pin.current.length < 4 || pin.next.length < 4 || pin.again.length < 4}>{t("Save")}</button></div>
+            <div><button className="m-btn block" disabled={pin.current.length < 4 || pin.next.length < 6 || pin.again.length < 6}>{t("Save")}</button></div>
           </div>
         </form>
       </Section>

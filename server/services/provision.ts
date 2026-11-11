@@ -1,6 +1,6 @@
 import { one, type Queryable } from "../db/index.ts";
 import { hashPassword } from "../auth.ts";
-import { getTemplate } from "../templates.ts";
+import { getTemplate, levelModules, type GymLevel } from "../templates.ts";
 import { clampModules, PLAN_PRICES } from "./plans.ts";
 
 export interface NewGym {
@@ -12,6 +12,8 @@ export interface NewGym {
   brand_color?: string;
   template: string;
   saas_plan?: "starter" | "pro" | "elite";
+  /** How much of the product the gym starts with. Defaults to the simplest. */
+  level?: GymLevel;
   owner: { name: string; email: string; password: string; phone?: string | null };
 }
 
@@ -24,7 +26,7 @@ export async function provisionGym(q: Queryable, input: NewGym): Promise<{ gymId
      VALUES ($1,$2,$3,$4,$5,$5,$6,$7,$8,$9,$10) RETURNING id`,
     [
       input.slug, input.name, input.name_ar ?? null, input.city ?? null, input.phone ?? null,
-      input.brand_color ?? "#E4572E", clampModules(input.saas_plan ?? "pro", t.modules), { ...t.settings, template: t.key },
+      input.brand_color ?? "#E4572E", clampModules(input.saas_plan ?? "pro", levelModules(input.level ?? "essential")), { ...t.settings, template: t.key, level: input.level ?? "essential" },
       input.saas_plan ?? "pro", PLAN_PRICES[input.saas_plan ?? "pro"],
     ],
   );

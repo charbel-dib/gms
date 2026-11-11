@@ -116,6 +116,21 @@ export const TEMPLATES: GymTemplate[] = [
   },
 ];
 
+/**
+ * How much of GMS a gym sees. Nothing is removed from the product: a level is only
+ * a preset of modules, and the owner can still switch any module on in Settings.
+ *   essential — members, check-in, payments, WhatsApp messages (a small weights gym)
+ *   studio    — + classes, personal training, member app
+ *   full      — everything
+ */
+export type GymLevel = "essential" | "studio" | "full";
+export const LEVELS: GymLevel[] = ["essential", "studio", "full"];
+export function levelModules(level: GymLevel): Record<string, boolean> {
+  const studio = level !== "essential";
+  const full = level === "full";
+  return { whatsapp: true, classes: studio, pt: studio, memberApp: studio, expenses: full, leads: full, shop: full, ai: full };
+}
+
 export function getTemplate(key: string): GymTemplate {
   return TEMPLATES.find((t) => t.key === key) ?? TEMPLATES[0];
 }

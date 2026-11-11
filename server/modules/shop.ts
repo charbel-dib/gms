@@ -10,6 +10,7 @@ import { bad, notFound, zCurrency, zDate, zId, zMethod, type Router } from "../h
 import { gymRate, gymToday, toUsd } from "../services/money.ts";
 import { getOverview, recordPayment } from "./members.ts";
 import { parseImage } from "./community.ts";
+import { assertDiscountAllowed, clampForReception } from "../services/access.ts";
 
 export const PRODUCT_CATEGORIES = ["supplements", "drinks", "snacks", "accessories", "apparel", "other"] as const;
 
@@ -71,7 +72,7 @@ interface SaleInput {
 }
 
 /** Creates a sale atomically: locks products, checks stock, decrements it, records the payment. */
-export async function createSale(q: Queryable, gymId: string, userId: string | null, input: SaleInput) {
+export async function createSale(q: Queryable, gymId: string, userId: string | null, input: SaleInput, actor: { role: string; gymId: string } | null = null) {
   if (!input.items.length) throw bad("empty_cart", "Add at least one product");
   if (input.on_account && !input.member_id) throw bad("member_required", "Choose a member to put the sale on their account");
   if (!input.on_account && !input.payment) throw bad("payment_required", "Choose how the customer pays");
@@ -112,6 +113,7 @@ export async function createSale(q: Queryable, gymId: string, userId: string | n
   }
   const subtotal = round2(lines.reduce((s, l) => s + l.lineUsd, 0));
   const discount = Math.min(round2(input.discount_usd ?? 0), subtotal);
+  await assertDiscountAllowed(q, actor, discount, subtotal);
   const total = round2(subtotal - discount);
   const cost = round2(lines.reduce((s, l) => s + l.costUsd, 0));
   const saleNo = await nextCounter(q, gymId, "sale", 1);
@@ -283,14 +285,14 @@ export function registerShop(r: Router) {
       payment: z.object({ currency: zCurrency, method: zMethod, reference: z.string().max(80).nullable().optional() }).nullable().optional(),
       request_ids: z.array(zId).max(20).optional(),
     }));
-    return db.tx((q) => createSale(q, u.gymId, u.id, b));
+    return db.tx((q) => createSale(q, u.gymId, u.id, b, u));
   });
 
   r.get("/api/shop/sales", async (ctx) => {
     const u = await requireStaff(ctx, ["owner", "manager", "reception"]);
     const today = await gymToday(db, u.gymId);
-    const from = zDate.parse(ctx.query.get("from") ?? today);
-    const to = zDate.parse(ctx.query.get("to") ?? today);
+    // reception sees today's and yesterday's sales unless the gym lets it see the history
+    const { from, to } = await clampForReception(db, u, zDate.parse(ctx.query.get("from") ?? today), zDate.parse(ctx.query.get("to") ?? today));
     return many(db, `
       SELECT s.*, m.first_name, m.last_name, m.code, us.name AS sold_by_name,
              (SELECT string_agg(si.qty || ' × ' || si.name, ', ' ORDER BY si.name) FROM sale_items si WHERE si.sale_id = s.id) AS summary,

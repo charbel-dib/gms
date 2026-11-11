@@ -11,6 +11,8 @@ import { parseCsv, toCsv } from "../services/text.ts";
 import { receiptForStaff } from "../services/receipt.ts";
 import { notify } from "../services/notify.ts";
 import { creditReferral, linkNewMember, refreshProgress } from "./community.ts";
+import { assertCanSeeMember, assertDiscountAllowed, clampForReception, coachMemberSql, gymAccess } from "../services/access.ts";
+import { forbidden } from "../http.ts";
 
 const memberSchema = z.object({
   first_name: z.string().trim().min(1).max(60),
@@ -79,6 +81,8 @@ export async function sellMembership(
   userId: string | null,
   memberId: string,
   input: { plan_id: string; start_date?: string | null; discount?: number; notes?: string | null; payment?: z.infer<typeof paymentInput> | null },
+  /** who sells: reception has a discount limit */
+  actor: { role: string; gymId: string } | null = null,
 ) {
   const member = await getOverview(q, gymId, memberId);
   if (member.archived_at) throw bad("member_archived", "This member is archived");
@@ -94,6 +98,7 @@ export async function sellMembership(
   }
   const end = addDays(start, plan.duration_days - 1);
   const discount = Math.min(input.discount ?? 0, Number(plan.price));
+  await assertDiscountAllowed(q, actor, discount, Number(plan.price));
   const rate = await gymRate(q, gymId);
   const ms = await one(
     q,
@@ -145,6 +150,8 @@ export async function performCheckin(
   userId: string | null,
   ref: { token?: string; code?: number; member_id?: string },
   method: "qr" | "manual" | "app",
+  /** When the member actually came in: set for check-ins taken while the desk had no internet and sent later. */
+  at: Date | null = null,
 ): Promise<CheckinResult> {
   let memberId: string | null = null;
   if (ref.member_id) memberId = ref.member_id;
@@ -198,8 +205,8 @@ export async function performCheckin(
 
   if (!duplicate) {
     await q.query(
-      `INSERT INTO checkins (gym_id, member_id, membership_id, method, result, reason, by_user) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [gymId, memberId, m.membership_id, method, reason ? "denied" : "ok", reason, userId],
+      `INSERT INTO checkins (gym_id, member_id, membership_id, method, result, reason, by_user, at) VALUES ($1,$2,$3,$4,$5,$6,$7, COALESCE($8::timestamptz, now()))`,
+      [gymId, memberId, m.membership_id, method, reason ? "denied" : "ok", reason, userId, at],
     );
     if (!reason) {
       if (m.visits_total != null) await q.query("UPDATE memberships SET visits_used = visits_used + 1 WHERE id = $1", [m.membership_id]);
@@ -221,7 +228,7 @@ export async function performCheckin(
 export function registerMembers(r: Router) {
   r.get("/api/members", async (ctx) => {
     const u = await requireStaff(ctx);
-    const { limit, offset } = pageParams(ctx.query, 500);
+    const { limit, offset } = pageParams(ctx.query, 2000);
     const where = ["gym_id = $1"];
     const vals: unknown[] = [u.gymId];
     const status = ctx.query.get("status");
@@ -231,7 +238,12 @@ export function registerMembers(r: Router) {
       vals.push(status);
       where.push(`status = $${vals.length}`);
     }
-    if (ctx.query.get("balance") === "1") where.push("balance_usd > 0.009");
+    const coach = u.role === "coach";
+    if (coach && (await gymAccess(db, u.gymId)).coachMembers === "own") {
+      vals.push(u.id);
+      where.push(coachMemberSql("member_overview.id", vals.length));
+    }
+    if (ctx.query.get("balance") === "1" && !coach) where.push("balance_usd > 0.009");
     if (ctx.query.get("risk") === "1") where.push("churn_score >= 0.6 AND status IN ('active','expiring')");
     const qs = ctx.query.get("q")?.trim();
     if (qs) {
@@ -264,7 +276,9 @@ export function registerMembers(r: Router) {
     } as Record<string, string>)[ctx.query.get("sort") ?? "recent"] ?? "created_at DESC";
     const rows = await many(db, `SELECT *, count(*) OVER () AS total FROM member_overview WHERE ${where.join(" AND ")} ORDER BY ${sort} LIMIT ${limit} OFFSET ${offset}`, vals);
     const counts = await many(db, `SELECT status, count(*)::int AS n FROM member_overview WHERE gym_id = $1 AND archived_at IS NULL GROUP BY status`, [u.gymId]);
-    return { total: rows[0]?.total ?? 0, rows: rows.map(({ total, ...r }) => r), counts: Object.fromEntries(counts.map((c) => [c.status, c.n])) };
+    // coaches never see what members owe
+    const clean = rows.map(({ total, ...r }) => (coach ? { ...r, balance_usd: null } : r));
+    return { total: rows[0]?.total ?? 0, rows: clean, counts: coach ? {} : Object.fromEntries(counts.map((c) => [c.status, c.n])) };
   });
 
   r.post("/api/members", async (ctx) => {
@@ -278,7 +292,7 @@ export function registerMembers(r: Router) {
       const { referred_by, ...fields } = b;
       const m = await createMember(q, u.gymId, { ...fields, source: referred_by ? "referral" : fields.source });
       let sale: Awaited<ReturnType<typeof sellMembership>> | null = null;
-      if (b.membership) sale = await sellMembership(q, u.gymId, u.id, m!.id, b.membership);
+      if (b.membership) sale = await sellMembership(q, u.gymId, u.id, m!.id, b.membership, u);
       // converts the lead (by id, or the open lead with the same phone) and credits whoever invited them
       await linkNewMember(q, u.gymId, m!.id, b.phone ?? null, b.lead_id ?? null, referred_by ?? null);
       await audit(q, u.gymId, u.id, "member.create", "member", m!.id);
@@ -359,6 +373,7 @@ export function registerMembers(r: Router) {
     const u = await requireStaff(ctx);
     const id = zId.parse(ctx.params.id);
     const m = await getOverview(db, u.gymId, id);
+    await assertCanSeeMember(db, u, id);
     const [memberships, payments, checkins, bookings, pt, programs, messages, churn, notifications, push] = await Promise.all([
       many(db, "SELECT * FROM memberships WHERE member_id = $1 ORDER BY start_date DESC", [id]),
       many(db, "SELECT p.*, us.name AS received_by_name FROM payments p LEFT JOIN users us ON us.id = p.received_by WHERE p.member_id = $1 ORDER BY paid_at DESC", [id]),
@@ -376,6 +391,11 @@ export function registerMembers(r: Router) {
     const referrer = m.referred_by ? await one(db, "SELECT id, code, first_name, last_name FROM members WHERE id = $1", [m.referred_by]) : null;
     const referred = await many(db, "SELECT id, code, first_name, last_name, created_at FROM members WHERE referred_by = $1 AND gym_id = $2 ORDER BY created_at DESC LIMIT 20", [id, u.gymId]);
     const visits30 = checkins.filter((c) => c.result === "ok" && Date.now() - new Date(c.at).getTime() < 30 * 86400000).length;
+    if (u.role === "coach") {
+      // a coach sees training, not money or the gym's conversations with the member
+      return { ...m, balance_usd: null, memberships: memberships.map(({ price, discount, price_usd, ...x }: any) => x), payments: [], checkins, bookings,
+        pt: pt.map(({ price, price_usd, ...x }: any) => x), programs, messages: [], churn, visits30, notifications: [], push_devices: push.devices, referrer, referred };
+    }
     return { ...m, memberships, payments, checkins, bookings, pt, programs, messages, churn, visits30, notifications, push_devices: push.devices, referrer, referred };
   });
 
@@ -461,7 +481,7 @@ export function registerMembers(r: Router) {
       notes: z.string().max(500).nullable().optional(),
       payment: paymentInput.nullable().optional(),
     }));
-    return db.tx((q) => sellMembership(q, u.gymId, u.id, zId.parse(ctx.params.id), b));
+    return db.tx((q) => sellMembership(q, u.gymId, u.id, zId.parse(ctx.params.id), b, u));
   });
 
   r.post("/api/memberships/:id/freeze", async (ctx) => {
@@ -534,10 +554,8 @@ export function registerMembers(r: Router) {
   r.get("/api/payments", async (ctx) => {
     const u = await requireStaff(ctx, ["owner", "manager", "reception"]);
     const today = await gymToday(db, u.gymId);
-    const from = ctx.query.get("from") ?? today;
-    const to = ctx.query.get("to") ?? today;
-    zDate.parse(from);
-    zDate.parse(to);
+    // reception sees today's and yesterday's till unless the gym lets it see the history
+    const { from, to } = await clampForReception(db, u, zDate.parse(ctx.query.get("from") ?? today), zDate.parse(ctx.query.get("to") ?? today));
     const rows = await many(
       db,
       `SELECT p.*, m.first_name, m.last_name, m.code, us.name AS received_by_name
@@ -584,7 +602,7 @@ export function registerMembers(r: Router) {
 
   /** Receipt: HTML for the in-app preview/print, shareable link and WhatsApp message. */
   r.get("/api/payments/:id/receipt", async (ctx) => {
-    const u = await requireStaff(ctx);
+    const u = await requireStaff(ctx, ["owner", "manager", "reception"]);
     const r2 = await receiptForStaff(zId.parse(ctx.params.id), u.gymId);
     if (!r2) throw notFound("payment");
     return r2;
@@ -593,9 +611,13 @@ export function registerMembers(r: Router) {
   // ---------- check-in ----------
   r.post("/api/checkin", async (ctx) => {
     const u = await requireStaff(ctx);
-    const b = await ctx.body(z.object({ token: z.string().max(80).optional(), code: z.coerce.number().int().positive().optional(), member_id: zId.optional() })
+    if (u.role === "coach" && !(await gymAccess(db, u.gymId)).coachCheckin) throw forbidden("Check-in is done by reception in this gym");
+    const b = await ctx.body(z.object({ token: z.string().max(80).optional(), code: z.coerce.number().int().positive().optional(), member_id: zId.optional(), at: z.string().datetime().optional() })
       .refine((x) => x.token || x.code || x.member_id, "token, code or member_id is required"));
-    const res = await db.tx((q) => performCheckin(q, u.gymId, u.id, b, b.token ? "qr" : "manual"));
+    // a check-in taken offline keeps its real time, as long as it is recent and not in the future
+    const when = b.at ? new Date(b.at) : null;
+    const at = when && when.getTime() <= Date.now() && Date.now() - when.getTime() < 72 * 3600_000 ? when : null;
+    const res = await db.tx((q) => performCheckin(q, u.gymId, u.id, b, b.token ? "qr" : "manual", at));
     // badges and challenge progress: after the check-in is committed, never blocking the desk
     if (res.result === "ok" && !res.duplicate && res.member?.id) {
       db.tx((q) => refreshProgress(q, u.gymId, res.member.id)).catch((e) => console.error("[progress]", e.message));
@@ -603,8 +625,21 @@ export function registerMembers(r: Router) {
     return res;
   });
 
+  // The desk keeps this short list on the device so check-in still works when the internet drops.
+  r.get("/api/offline/members", async (ctx) => {
+    const u = await requireStaff(ctx, ["owner", "manager", "reception"]);
+    return many(
+      db,
+      `SELECT mo.id, mo.code, mo.first_name, mo.last_name, mo.status, mo.end_date, mo.plan_name, m.qr_token
+         FROM member_overview mo JOIN members m ON m.id = mo.id
+        WHERE mo.gym_id = $1 AND mo.archived_at IS NULL ORDER BY mo.code LIMIT 5000`,
+      [u.gymId],
+    );
+  });
+
   r.get("/api/checkins", async (ctx) => {
     const u = await requireStaff(ctx);
+    if (u.role === "coach" && !(await gymAccess(db, u.gymId)).coachCheckin) throw forbidden("Check-in is done by reception in this gym");
     return many(
       db,
       `SELECT c.*, m.first_name, m.last_name, m.code, m.gender, us.name AS by_name

@@ -1,7 +1,7 @@
 /** Member app API (/api/m/...) and public gym endpoints (branding, logo, manifest). */
 import { z } from "zod";
 import { db, one, many } from "../db/index.ts";
-import { checkRateLimit, clearRateLimit, createSession, destroySession, hashPassword, requireMember, verifyPassword } from "../auth.ts";
+import { checkRateLimit, clearRateLimit, createSession, destroySession, endOtherSessions, guardLogin, hashPassword, noteLoginFailure, requireMember, verifyPassword } from "../auth.ts";
 import { bad, notFound, zId, zPhone, type Router } from "../http.ts";
 import { bookSession, cancelBooking, ensureSessions } from "./classes.ts";
 import { botReply } from "../ai/bot.ts";
@@ -99,17 +99,21 @@ export function registerPortal(r: Router) {
     return undefined;
   });
 
-  // ---- member auth: phone + 4-digit PIN given by reception ----
+  // ---- member auth: phone + PIN given by reception (6 digits; older ones have 4) ----
   r.post("/api/m/:slug/login", async (ctx) => {
     const g = await gymBySlug(ctx.params.slug);
     const b = await ctx.body(z.object({ phone: zPhone, pin: z.string().regex(/^\d{4,6}$/) }));
-    const key = `member:${ctx.ip}:${g.id}:${b.phone}`;
-    await checkRateLimit(key, 8);
+    // limited per member account (any address) and per address (any account)
+    const keys = { account: `member:${g.id}:${b.phone}`, address: `member-ip:${ctx.ip}` };
+    await guardLogin(keys);
     const candidates = await many(db, "SELECT id, pin_hash FROM members WHERE gym_id = $1 AND phone = $2 AND archived_at IS NULL AND pin_hash IS NOT NULL", [g.id, b.phone]);
     let found: string | null = null;
     for (const c of candidates) if (await verifyPassword(b.pin, c.pin_hash)) found = c.id;
-    if (!found) throw bad("invalid_credentials", "Wrong phone or PIN. Ask reception for your PIN.");
-    await clearRateLimit(key);
+    if (!found) {
+      await noteLoginFailure(keys);
+      throw bad("invalid_credentials", "Wrong phone or PIN. Ask reception for your PIN.");
+    }
+    await clearRateLimit(keys.account);
     await createSession(ctx, "member", { memberId: found, gymId: g.id });
     return { ok: true };
   });
@@ -138,7 +142,9 @@ export function registerPortal(r: Router) {
                                         (SELECT count(*) FROM products WHERE gym_id = $2 AND active AND in_app)::int AS products,
                                         m.created_at, m.app_prefs, g.settings, g.modules
                                    FROM members m JOIN gyms g ON g.id = m.gym_id WHERE m.id = $1`, [me.id, me.gymId]);
-    const es = { badges: true, challenges: true, leaderboard: true, referrals: true, ...(extra.settings?.engage ?? {}) };
+    // badges, challenges and referrals are extras: on by default only for gyms on the "everything" level
+    const extras = (extra.settings?.level ?? "full") === "full";
+    const es = { badges: extras, challenges: extras, leaderboard: extras, referrals: extras, ...(extra.settings?.engage ?? {}) };
     const pts = { memberBooking: true, ...(extra.settings?.pt ?? {}) };
     return {
       member: { ...m, member_since: extra.created_at }, gym: await gymBySlug(gym.slug), stats: { ...stats, week_streak: streak.weeks }, unread: unread.n,
@@ -153,10 +159,16 @@ export function registerPortal(r: Router) {
 
   r.put("/api/m/pin", async (ctx) => {
     const me = await requireMember(ctx);
-    const b = await ctx.body(z.object({ current: z.string(), next: z.string().regex(/^\d{4,6}$/) }));
+    const b = await ctx.body(z.object({ current: z.string(), next: z.string().regex(/^\d{6}$/, "The new PIN must have 6 digits") }));
+    const keys = { account: `member-pin:${me.id}`, address: `member-ip:${ctx.ip}` };
+    await guardLogin(keys);
     const row = await one(db, "SELECT pin_hash FROM members WHERE id = $1", [me.id]);
-    if (!(await verifyPassword(b.current, row.pin_hash))) throw bad("invalid_credentials", "Current PIN is wrong");
+    if (!(await verifyPassword(b.current, row.pin_hash))) {
+      await noteLoginFailure(keys);
+      throw bad("invalid_credentials", "Current PIN is wrong");
+    }
     await db.query("UPDATE members SET pin_hash = $2 WHERE id = $1", [me.id, await hashPassword(b.next)]);
+    await endOtherSessions(ctx, "member", me.id);
     return { ok: true };
   });
 

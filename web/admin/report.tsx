@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n.ts";
 /** Financial report preview: save as PDF / print, or download the Excel file. Opened with openFinanceReport(from, to). */
 import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { get, getGymOverride } from "../shared/api.ts";
@@ -45,20 +46,20 @@ export function ReportHost() {
     get(`/api/reports/finance/report?from=${p.from}&to=${p.to}`).then(setR, (e) => { toastError(e); close(); });
   }, [p]);
   return (
-    <Modal title="Financial report" open={!!p} onClose={close} wide
+    <Modal title={t("Financial report")} open={!!p} onClose={close} wide
       footer={r && (
         <>
-          <span className="muted grow" style={{ fontSize: "var(--step--1)" }}>To save a PDF: Print, then choose “Save as PDF”.</span>
+          <span className="muted grow" style={{ fontSize: "var(--step--1)" }}>{t("To save a PDF: Print, then choose “Save as PDF”.")}</span>
           <button className="btn" disabled={busy} onClick={async () => {
             setBusy(true);
-            try { await downloadFile(`/api/reports/finance/report.xlsx?from=${r.from}&to=${r.to}`, "financial-report.xlsx"); toast("Excel file downloaded"); }
+            try { await downloadFile(`/api/reports/finance/report.xlsx?from=${r.from}&to=${r.to}`, "financial-report.xlsx"); toast(t("Excel file downloaded")); }
             catch (e) { toastError(e); } finally { setBusy(false); }
-          }}><Icon name="download" />Excel</button>
-          <button className="btn primary" onClick={() => frame.current?.contentWindow?.print()}><Icon name="print" />PDF / Print</button>
+          }}><Icon name="download" />{t("Excel")}</button>
+          <button className="btn primary" onClick={() => frame.current?.contentWindow?.print()}><Icon name="print" />{t("PDF / Print")}</button>
         </>
       )}>
       {!r ? <div className="empty"><Spinner /></div> : (
-        <iframe ref={frame} title="Financial report" srcDoc={r.html} className="report-frame" />
+        <iframe ref={frame} title={t("Financial report")} srcDoc={r.html} className="report-frame" />
       )}
     </Modal>
   );

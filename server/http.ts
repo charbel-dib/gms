@@ -36,6 +36,8 @@ export interface StaffUser {
   email: string;
   name: string;
   role: "superadmin" | "owner" | "manager" | "reception" | "coach";
+  must_change_password?: boolean;
+  totp_enabled?: boolean;
 }
 
 export interface MemberPrincipal {
@@ -157,10 +159,17 @@ export function sendJson(res: ServerResponse, status: number, data: unknown) {
   res.end(body);
 }
 
+/**
+ * The client's address. Behind proxies, X-Forwarded-For is "<whatever the client sent>, <client>, <proxy>…":
+ * each proxy appends the address it received the request from, so only the entries the trusted proxies
+ * added can be believed. Taking the leftmost one would let anyone pick their own address.
+ */
 export function clientIp(req: IncomingMessage): string {
   if (config.trustProxy) {
     const xff = req.headers["x-forwarded-for"];
-    if (typeof xff === "string" && xff) return xff.split(",")[0].trim();
+    const list = (Array.isArray(xff) ? xff.join(",") : xff ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+    const i = list.length - config.trustProxyHops;
+    if (i >= 0) return list[i];
   }
   return req.socket.remoteAddress ?? "unknown";
 }

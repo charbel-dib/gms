@@ -293,6 +293,8 @@ resource "aws_ecs_task_definition" "app" {
       { name = "ROOT_DOMAIN", value = local.public_host },
       { name = "SUPERADMIN_EMAIL", value = var.superadmin_email },
       { name = "TRUST_PROXY", value = "true" },
+      # proxies appending to X-Forwarded-For: CloudFront + load balancer, or the load balancer alone with a domain
+      { name = "TRUST_PROXY_HOPS", value = local.use_domain ? "1" : "2" },
       { name = "JOBS_ENABLED", value = "true" },
     ]
     secrets = [for k in local.secret_keys : { name = k, valueFrom = "${aws_secretsmanager_secret.app.arn}:${k}::" }]

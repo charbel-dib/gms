@@ -6,6 +6,11 @@ import { gymRate, toUsd } from "../services/money.ts";
 import { getOverview, recordPayment } from "./members.ts";
 import { sendWhatsApp } from "../services/whatsapp.ts";
 import { notify } from "../services/notify.ts";
+import { assertCanSeeMember } from "../services/access.ts";
+
+async function checkCoach(q: Queryable, gymId: string, coachId: string | null | undefined) {
+  if (coachId && !(await one(q, "SELECT 1 FROM users WHERE id = $1 AND gym_id = $2", [coachId, gymId]))) throw notFound("coach");
+}
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:00)?$/);
 const zColor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
@@ -226,6 +231,7 @@ export function registerClasses(r: Router) {
     const u = await requireStaff(ctx, ["owner", "manager"]);
     const b = await ctx.body(z.object({ class_type_id: zId, coach_id: zId.nullable().optional(), starts_at: z.string().datetime({ offset: true }), duration_min: z.coerce.number().int().min(10).max(300), capacity: z.coerce.number().int().min(1).max(500), room: z.string().max(40).nullable().optional() }));
     if (!(await one(db, "SELECT 1 FROM class_types WHERE id = $1 AND gym_id = $2", [b.class_type_id, u.gymId]))) throw notFound("class type");
+    await checkCoach(db, u.gymId, b.coach_id);
     return one(db, `INSERT INTO class_sessions (gym_id, class_type_id, coach_id, starts_at, ends_at, capacity, room)
                     VALUES ($1,$2,$3,$4::timestamptz,$4::timestamptz + make_interval(mins => $5),$6,$7) RETURNING *`,
       [u.gymId, b.class_type_id, b.coach_id ?? null, b.starts_at, b.duration_min, b.capacity, b.room ?? null]);
@@ -236,6 +242,7 @@ export function registerClasses(r: Router) {
     return db.tx(async (q) => {
       const s = await one(q, `SELECT s.*, ct.name FROM class_sessions s JOIN class_types ct ON ct.id = s.class_type_id WHERE s.id = $1 AND s.gym_id = $2`, [zId.parse(ctx.params.id), u.gymId]);
       if (!s) throw notFound("class");
+      await checkCoach(q, u.gymId, b.coach_id);
       const row = await one(q, `UPDATE class_sessions SET cancelled = coalesce($2, cancelled), coach_id = CASE WHEN $3::boolean THEN $4 ELSE coach_id END, capacity = coalesce($5, capacity) WHERE id = $1 RETURNING *`,
         [s.id, b.cancelled ?? null, b.coach_id !== undefined, b.coach_id ?? null, b.capacity ?? null]);
       if (b.cancelled && !s.cancelled && b.notify) {
@@ -270,13 +277,19 @@ export function registerClasses(r: Router) {
   });
   r.put("/api/bookings/:id", async (ctx) => {
     const u = await requireStaff(ctx);
-    const b = await ctx.body(z.object({ status: z.enum(["attended", "no_show", "cancelled", "booked"]) }));
+    const b = await ctx.body(z.object({ status: z.enum(["attended", "no_show", "cancelled", "booked"]), force: z.boolean().default(false) }));
     const id = zId.parse(ctx.params.id);
     return db.tx(async (q) => {
-      const bk = await one(q, `SELECT b.*, s.coach_id FROM bookings b JOIN class_sessions s ON s.id = b.session_id WHERE b.id = $1 AND b.gym_id = $2`, [id, u.gymId]);
+      const bk = await one(q, `SELECT b.*, s.coach_id, s.capacity FROM bookings b JOIN class_sessions s ON s.id = b.session_id WHERE b.id = $1 AND b.gym_id = $2 FOR UPDATE OF s`, [id, u.gymId]);
       if (!bk) throw notFound("booking");
       if (u.role === "coach" && bk.coach_id !== u.id) throw forbidden();
       if (b.status === "cancelled") return cancelBooking(q, u.gymId, id, { byStaff: true });
+      // taking a spot (from the waitlist or a cancellation) only when one is free; a manager can squeeze someone in
+      if (["booked", "attended"].includes(b.status) && !["booked", "attended"].includes(bk.status)) {
+        const taken = await one(q, "SELECT count(*)::int AS n FROM bookings WHERE session_id = $1 AND status IN ('booked','attended')", [bk.session_id]);
+        const canForce = b.force && ["owner", "manager", "superadmin"].includes(u.role);
+        if (taken.n >= bk.capacity && !canForce) throw bad("class_full", "This class is full. A manager can add someone over capacity.");
+      }
       return one(q, "UPDATE bookings SET status = $2 WHERE id = $1 RETURNING *", [id, b.status]);
     });
   });
@@ -342,6 +355,12 @@ export function registerClasses(r: Router) {
       const s = await one(q, "SELECT * FROM pt_sessions WHERE id = $1 AND gym_id = $2 FOR UPDATE", [zId.parse(ctx.params.id), u.gymId]);
       if (!s) throw notFound("PT session");
       if (u.role === "coach" && s.coach_id !== u.id) throw forbidden();
+      // bringing back a cancelled session needs a session left on the package
+      if (b.status === "scheduled" && s.status === "cancelled") {
+        const left = await one(q, `SELECT p.sessions_total - p.sessions_used - (SELECT count(*) FROM pt_sessions x WHERE x.package_id = p.id AND x.status = 'scheduled') AS n
+                                     FROM pt_packages p WHERE p.id = $1 FOR UPDATE`, [s.package_id]);
+        if (Number(left.n) < 1) throw bad("package_full", "No sessions left on this package");
+      }
       const consumes = (st: string) => st === "done" || st === "no_show";
       if (b.status && consumes(b.status) !== consumes(s.status)) {
         await q.query(`UPDATE pt_packages SET sessions_used = sessions_used + $2 WHERE id = $1`, [s.package_id, consumes(b.status) ? 1 : -1]);
@@ -357,6 +376,7 @@ export function registerClasses(r: Router) {
     const b = await ctx.body(z.object({ title: z.string().trim().min(1).max(100), content: z.string().trim().min(1).max(10000) }));
     const id = zId.parse(ctx.params.id);
     await getOverview(db, u.gymId, id);
+    await assertCanSeeMember(db, u, id);
     return one(db, "INSERT INTO programs (gym_id, member_id, coach_id, title, content) VALUES ($1,$2,$3,$4,$5) RETURNING *", [u.gymId, id, u.role === "coach" ? u.id : null, b.title, b.content]);
   });
   r.del("/api/programs/:id", async (ctx) => {

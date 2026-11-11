@@ -22,21 +22,21 @@ export function LeadsPage() {
   return (
     <div className="page">
       <div className="page-head">
-        <div><h1>{t("Leads")}</h1><p>People who asked about the gym on Instagram, by phone or at the door. Follow up until they join.</p></div>
-        <button className="btn primary" onClick={() => setEdit({ status: "new", source: "instagram" })}><Icon name="plus" />Add a lead</button>
+        <div><h1>{t("Leads")}</h1><p>{t("People who asked about the gym on Instagram, by phone or at the door. Follow up until they join.")}</p></div>
+        <button className="btn primary" onClick={() => setEdit({ status: "new", source: "instagram" })}><Icon name="plus" />{t("Add a lead")}</button>
       </div>
-      <Segmented label="Stage" value={stage} onChange={setStage} options={[{ value: "open", label: "Open" }, ...STAGES.map((s) => ({ value: s, label: LABEL[s] }))]} />
+      <Segmented label={t("Stage")} value={stage} onChange={setStage} options={[{ value: "open", label: t("Open") }, ...STAGES.map((s) => ({ value: s, label: t(LABEL[s]) }))]} />
       <Loader state={state}>
         {(list: any[]) => {
           const rows = list.filter((l) => (stage === "open" ? !["converted", "lost"].includes(l.status) : l.status === stage));
           return rows.length ? (
             <div className="table-wrap"><table className="data">
-              <thead><tr><th>{t("Name")}</th><th>Interest</th><th>Stage</th><th>Follow up</th><th /></tr></thead>
+              <thead><tr><th>{t("Name")}</th><th>{t("Interest")}</th><th>{t("Stage")}</th><th>{t("Follow up")}</th><th /></tr></thead>
               <tbody>{rows.map((l) => (
                 <tr key={l.id} className="clickable" onClick={() => setEdit({ ...l })}>
                   <td><span className="who"><b>{l.name}</b><small>{l.phone ?? "—"} · {l.referrer_name ? `referred by ${l.referrer_name}` : l.source ?? ""}</small></span></td>
                   <td>{l.interest ?? "—"}</td>
-                  <td><span className="tag">{LABEL[l.status]}</span></td>
+                  <td><span className="tag">{t(LABEL[l.status] ?? l.status)}</span></td>
                   <td style={{ color: l.follow_up_on && l.follow_up_on <= today && !["converted", "lost"].includes(l.status) ? "var(--plate-red)" : undefined }}>{l.follow_up_on ? fmtDate(l.follow_up_on) : "—"}</td>
                   <td className="r" onClick={(e) => e.stopPropagation()}>
                     {l.phone && <a className="btn small" href={`https://wa.me/${l.phone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><Icon name="whatsapp" /></a>}
@@ -44,24 +44,24 @@ export function LeadsPage() {
                 </tr>
               ))}</tbody>
             </table></div>
-          ) : <Empty title="No lead in this stage." />;
+          ) : <Empty title={t("No lead in this stage.")} />;
         }}
       </Loader>
       {edit && (
-        <Modal title={edit.id ? edit.name : "Add a lead"} open onClose={() => setEdit(null)}
+        <Modal title={edit.id ? edit.name : t("Add a lead")} open onClose={() => setEdit(null)}
           footer={<>
-            {edit.id && edit.status !== "converted" && <button className="btn" onClick={() => navigate(`/members?new=1&lead=${edit.id}`)}>Make them a member</button>}
+            {edit.id && edit.status !== "converted" && <button className="btn" onClick={() => navigate(`/members?new=1&lead=${edit.id}`)}>{t("Make them a member")}</button>}
             <button className="btn primary" disabled={busy || !edit.name} onClick={save}>{t("Save")}</button>
           </>}>
           <div className="grid-2">
             <Field label={t("Name")}><input className="input" value={edit.name ?? ""} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></Field>
             <Field label={t("Phone")}><input className="input" value={edit.phone ?? ""} onChange={(e) => setEdit({ ...edit, phone: e.target.value })} /></Field>
-            <Field label="Source"><select className="input" value={edit.source ?? ""} onChange={(e) => setEdit({ ...edit, source: e.target.value })}>{["instagram", "tiktok", "walk-in", "referral", "google", "other"].map((s) => <option key={s}>{s}</option>)}</select></Field>
-            <Field label="Interested in"><input className="input" value={edit.interest ?? ""} onChange={(e) => setEdit({ ...edit, interest: e.target.value })} placeholder="Weight loss, classes, PT…" /></Field>
-            <Field label="Stage"><select className="input" value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>{STAGES.map((s) => <option key={s} value={s}>{LABEL[s]}</option>)}</select></Field>
-            <Field label="Follow up on"><input className="input" type="date" value={edit.follow_up_on ?? ""} onChange={(e) => setEdit({ ...edit, follow_up_on: e.target.value })} /></Field>
+            <Field label={t("Source")}><select className="input" value={edit.source ?? ""} onChange={(e) => setEdit({ ...edit, source: e.target.value })}>{["instagram", "tiktok", "walk-in", "referral", "google", "other"].map((s) => <option key={s}>{s}</option>)}</select></Field>
+            <Field label={t("Interested in")}><input className="input" value={edit.interest ?? ""} onChange={(e) => setEdit({ ...edit, interest: e.target.value })} placeholder={t("Weight loss, classes, PT…")} /></Field>
+            <Field label={t("Stage")}><select className="input" value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })}>{STAGES.map((s) => <option key={s} value={s}>{t(LABEL[s])}</option>)}</select></Field>
+            <Field label={t("Follow up on")}><input className="input" type="date" value={edit.follow_up_on ?? ""} onChange={(e) => setEdit({ ...edit, follow_up_on: e.target.value })} /></Field>
           </div>
-          {edit.source === "referral" && <ReferrerPicker value={edit.referred_by ?? null} label={edit.referrer_name} hint="The member who sent them. Credited when they join." onChange={(id, name) => setEdit({ ...edit, referred_by: id, referrer_name: name })} />}
+          {edit.source === "referral" && <ReferrerPicker value={edit.referred_by ?? null} label={edit.referrer_name} hint={t("The member who sent them. Credited when they join.")} onChange={(id, name) => setEdit({ ...edit, referred_by: id, referrer_name: name })} />}
           <Field label={t("Notes")}><textarea className="input" value={edit.notes ?? ""} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} /></Field>
         </Modal>
       )}

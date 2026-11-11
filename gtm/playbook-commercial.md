@@ -1,41 +1,54 @@
 # Playbook commercial GMS
 
-Objectif du premier mois : **15 démos, 3 salles pilotes**. La liste des 98 salles est dans
-`GMS-prospects-Lebanon.xlsx` (onglet *Prospects*), triée par priorité. Commencer par les salles **A**
-(indépendantes, plus de 40 avis Google : actives, le décideur est sur place).
+Objectif : **valider dans quelques salles avant de vendre**. Trois salles pilotes qui utilisent GMS tous les jours
+pendant un mois gratuit, puis on élargit.
 
-## Ordre d'attaque
+La liste est dans `GMS-prospects-Lebanon.xlsx` (onglet *Gyms*) : 265 salles dans tout le Liban, triées par région
+(Akkar et le Nord en premier), dont 203 avec un numéro de portable. Chaque ligne a deux liens, « Send in Arabic » et
+« Send in English » : WhatsApp s'ouvre avec le message déjà écrit et le nom de la salle dedans.
 
-1. Salles A de Beirut et du Metn (proches, nombreuses, habituées aux outils).
-2. Salles A de Keserwan, Jbeil, Batroun.
-3. Studios femmes, box CrossFit et clubs de boxe : ils ont le plus besoin des cours et de l'application membre.
-4. Chaînes (Fitness Zone, Goodlife, Fit20, F45…) : cycle plus long, viser une seule succursale pilote.
+## Ordre
 
-## Premier message (WhatsApp ou Instagram)
+1. **Akkar : 3 à 5 pilotes gratuits**, là où tu connais quelqu'un. C'est le terrain d'essai (coupures, téléphone,
+   espèces), pas la source de revenu. Google Maps n'y montre que 7 salles : les autres se trouvent par le bouche à
+   oreille, sur Instagram et Facebook, ou en passant à Halba, Minyara, Bebnine et Kobayat.
+2. **Tripoli, Zgharta, Koura** : 40 salles dans la liste, dont plusieurs grandes (plus de 100 avis).
+3. **Batroun, Jbeil, Keserwan, Metn, Beyrouth**, puis le Sud et la Bekaa.
+4. Chaînes : cycle long, une seule succursale pilote, plus tard.
 
-Un message, une relance trois jours plus tard, puis on arrête si pas d'intérêt.
+## Le premier message
 
-**Arabizi**
-> Marhaba! Ana Charbel, mhandes men Lebnen. 3am nelta2 ma3 asshab gyms 3an system bisahhel ishtirakat, el dafe3 bel dollar w lira, w reminders 3al WhatsApp bi shakel automatique. Btsamahli 15 d2i2a demo bel gym 3andak hal jem3a? Bfarjik kif bta3rif min mn el members 3am yfello abel ma yfello.
+Un message, une relance trois jours plus tard, puis on arrête. Quelques messages par jour, envoyés à la main :
+beaucoup de messages identiques en peu de temps peuvent faire restreindre un numéro WhatsApp.
 
 **Arabe**
-> مرحبا! أنا شربل، مهندس من لبنان. عم نشتغل مع أصحاب نوادي رياضية على برنامج بيسهّل الاشتراكات، الدفع بالدولار والليرة، وتذكير تلقائي عالواتساب. بتسمحلي بـ ١٥ دقيقة عرض بالنادي هالجمعة؟ بفرجيك كيف بتعرف مين من المشتركين عم يفلّ قبل ما يفلّ.
+> مرحبا! أنا شربل، مهندس من لبنان. عملت GMS، برنامج بسيط للنوادي الرياضية: مين جوّا، مين دفع، وتذكير التجديد عالواتساب، بالعربي والإنكليزي. بحب قدّم لناديكم شهر ببلاش مع مشتركينكم. بتسمحولي بـ 15 دقيقة هالجمعة لفرجيكم؟
 
 **English**
-> Hi! I'm Charbel, a Lebanese engineer. I built GMS, a gym system made for Lebanon: memberships, payments in dollars and lira, QR entry, and automatic WhatsApp renewal reminders. Could I show you in 15 minutes this week? I'll show you which of your members are about to leave, before they do.
+> Hello! I'm Charbel, an engineer from Lebanon. I built GMS, a simple program for gyms: who's in, who paid, and renewal reminders on WhatsApp, in Arabic and English. I'd like to offer your gym one month free, with your own members. Could I show you in 15 minutes this week?
 
-## La démo (15 minutes, sur la salle de démo « Cedar Fitness »)
+Joindre la vidéo courte (`gtm/video/GMS-1-meet-ar.mp4` ou `-en`). Quand la personne répond, envoyer la deuxième
+(`GMS-2-how-we-start`), qui montre comment on démarre, puis l'affiche (`GMS-one-pager.pdf`).
+
+**Relance (trois jours après)**
+> مرحبا، بس حبّيت اتأكد إنو وصلتكم رسالتي عن GMS. إذا مش وقته هلأ، ما في مشكلة أبداً.
+> Hello, just checking that my message about GMS reached you. If now is not the time, no problem at all.
+
+## La démo (15 minutes)
+
+Petite salle : se connecter en `owner@demo-halba.gms` (« Halba Gym », niveau Essential, 6 entrées de menu), en arabe.
+Salle avec cours : `owner@demo.gms` (« Cedar Fitness », tout activé).
 
 | Temps | Montrer | Phrase clé |
 |---|---|---|
 | 0–2 | Leur situation : « Comment vous savez qui doit renouveler cette semaine ? » | Laisser parler. Noter les douleurs. |
-| 2–4 | **Today** : phrase du jour, qui termine cette semaine, impayés | « Ça, c'est votre matinée en 10 secondes. » |
-| 4–6 | **Check-in** : scanner un QR, voir le disque vert, puis un membre expiré en rouge | « Plus personne n'entre avec un abonnement fini. » |
+| 2–4 | **Today** : la phrase du jour et les trois choses à faire, avec les noms | « Ça, c'est votre matinée en 10 secondes. » |
+| 4–6 | **Check-in** : taper un prénom, voir le disque vert, puis un membre expiré en rouge | « Plus personne n'entre avec un abonnement fini, et pas besoin de carte. » |
 | 6–8 | **Vente/renouvellement** en dollars puis en livres, reçu imprimé | « Le taux du jour, le reçu, et la caisse du soir est juste. » |
-| 8–10 | **Messages** : rappels préparés, un clic = WhatsApp ouvert | « Vous gardez votre WhatsApp, GMS fait le travail. » |
-| 10–12 | **Insights** : membres à risque avec les raisons, brouillon de message en arabizi | « Ces 13 personnes, c'est ~500 $ par mois qui va partir. » |
-| 12–14 | **Application membre** sur votre téléphone : QR, réservation de cours, question en arabizi | « Votre appli, à votre nom, sans passer par l'App Store. » |
-| 14–15 | Proposition | « J'importe votre Excel gratuitement et vous l'utilisez 30 jours. Si ça ne vous fait pas gagner de temps, vous arrêtez. » |
+| 8–10 | Sur **Today**, toucher l'icône WhatsApp à côté d'un nom : le message est écrit | « Vous gardez votre WhatsApp, GMS écrit le message. » |
+| 10–12 | Couper le wifi, faire une entrée, le remettre | « Même sans internet, l'entrée continue. » |
+| 12–14 | Seulement si la salle a des cours : **Settings → What you use**, passer en Studio, montrer les cours et l'application membre | « Le jour où vous en avez besoin, c'est un bouton. » |
+| 14–15 | Proposition | « J'importe votre Excel ou votre cahier et vous l'utilisez un mois, gratuitement. Si ça ne vous fait pas gagner de temps, vous arrêtez. » |
 
 Avant la démo : `node seed-demo.js` (ou Platform → New gym → *Fill with demo data*), et se connecter en `owner@demo.gms`.
 
@@ -44,9 +57,9 @@ Avant la démo : `node seed-demo.js` (ou Platform → New gym → *Fill with dem
 | Objection | Réponse |
 |---|---|
 | « J'ai déjà Excel / WhatsApp. » | GMS garde WhatsApp. Ce qu'Excel ne fait pas : bloquer l'entrée d'un abonnement fini, rappeler tout seul, montrer qui va partir. |
-| « C'est cher. » | Un seul membre retenu par mois (45–60 $) paie l'offre Pro. On le voit dans l'onglet *At risk* dès la première semaine. |
-| « Mes employés ne savent pas utiliser un logiciel. » | La réception fait deux gestes : scanner et encaisser. Formation sur place de 30 minutes incluse. |
-| « Et si internet coupe ? » | Fonctionne en 4G depuis un téléphone ; le QR des membres reste lisible hors connexion. |
+| « C'est cher. » | Le premier mois est gratuit. Ensuite, regardez la ligne « Collect » sur Today : ce que GMS vous aide à encaisser chaque mois. |
+| « Mes employés ne savent pas utiliser un logiciel. » | La réception fait deux gestes : taper un nom et encaisser. En arabe, sur un téléphone si besoin. Formation sur place de 30 minutes incluse. |
+| « Et si internet coupe ? » | L'entrée continue sur le poste et se synchronise au retour de la connexion. Les paiements se notent et se saisissent après. |
 | « Mes données ? » | Hébergement AWS en Europe, sauvegardes 14 jours, chaque salle ne voit que ses données, export Excel à tout moment. |
 | « Il y a GymLeb. » | Comparer sur place : application membre à leur marque, cours avec liste d'attente, IA, prix. |
 

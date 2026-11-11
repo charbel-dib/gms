@@ -2,7 +2,7 @@
 # Manual deploy from your computer (needs Docker + AWS CLI logged in):
 #   ./scripts/deploy.sh            builds, pushes :latest and a dated tag, restarts the ECS service
 set -euo pipefail
-REGION="${AWS_REGION:-eu-central-1}"
+REGION="${AWS_REGION:-eu-west-3}"
 CLUSTER="${ECS_CLUSTER:-gms-prod}"
 SERVICE="${ECS_SERVICE:-app}"
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text)

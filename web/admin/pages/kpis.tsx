@@ -15,10 +15,10 @@ type Kpi = {
 };
 
 const GROUPS: { key: string; title: string; sub: string }[] = [
-  { key: "members", title: "Members & retention", sub: "Are people joining, staying and coming back?" },
-  { key: "money", title: "Money", sub: "What comes in, what's left, what each member is worth" },
-  { key: "engagement", title: "Engagement & operations", sub: "How much members use the gym, classes and coaches" },
-  { key: "ai", title: "AI predictions", sub: "What the churn model expects next, from your own history" },
+  { key: "members", title: t("Members & retention"), sub: t("Are people joining, staying and coming back?") },
+  { key: "money", title: t("Money"), sub: t("What comes in, what's left, what each member is worth") },
+  { key: "engagement", title: t("Engagement & operations"), sub: t("How much members use the gym, classes and coaches") },
+  { key: "ai", title: t("AI predictions"), sub: t("What the churn model expects next, from your own history") },
 ];
 
 export function fmtKpi(v: number | null, unit: string) {
@@ -31,9 +31,9 @@ export function fmtKpi(v: number | null, unit: string) {
 }
 
 function Trend({ k }: { k: Kpi }) {
-  if (k.value == null || k.prev == null) return <span className="kpi-trend muted">{k.prev == null && k.group !== "ai" ? "no earlier data" : ""}</span>;
+  if (k.value == null || k.prev == null) return <span className="kpi-trend muted">{k.prev == null && k.group !== "ai" ? t("no earlier data") : ""}</span>;
   const diff = k.value - k.prev;
-  if (Math.abs(diff) < 1e-9) return <span className="kpi-trend muted">= same as before</span>;
+  if (Math.abs(diff) < 1e-9) return <span className="kpi-trend muted">{t("= same as before")}</span>;
   const better = diff > 0 === k.higherIsBetter;
   const rel = k.unit === "pct" ? `${diff > 0 ? "+" : ""}${Math.round(diff * 10) / 10} pts` : k.prev > 0 && k.value >= 0 ? `${diff > 0 ? "+" : ""}${Math.round((diff / Math.abs(k.prev)) * 100)}%` : `${diff > 0 ? "+" : ""}${fmtKpi(diff, k.unit)}`;
   return <span className={`kpi-trend ${better ? "up" : "down"}`} title={`Before: ${fmtKpi(k.prev, k.unit)}`}>{diff > 0 ? "▲" : "▼"} {rel}</span>;
@@ -49,7 +49,7 @@ function KpiTile({ k }: { k: Kpi; key?: React.Key }) {
       <div className="value num-display">{fmtKpi(k.value, k.unit)}</div>
       <Trend k={k} />
       <p className="kpi-why">{k.why}</p>
-      <small className="muted">Target: {k.target}</small>
+      <small className="muted">{t("Target:")}{" "}{k.target}</small>
     </div>
   );
 }
@@ -66,7 +66,7 @@ function KpiRow({ k }: { k: Kpi; key?: React.Key }) {
         <span className="kpi-target muted">{k.target}</span>
         <Icon name="chevron" width={16} height={16} className="kpi-chev" />
       </button>
-      {open && <p className="kpi-why-row">{k.why}{k.prev != null && <> Before: <b>{fmtKpi(k.prev, k.unit)}</b>.</>}</p>}
+      {open && <p className="kpi-why-row">{k.why}{k.prev != null && <> {t("Before:")}{" "}<b>{fmtKpi(k.prev, k.unit)}</b>.</>}</p>}
     </li>
   );
 }
@@ -77,8 +77,8 @@ export function KpisView() {
   return (
     <div className="stack">
       <div className="spread">
-        <p className="ink-2" style={{ maxWidth: "70ch", margin: 0 }}>Each number is compared with the same number of days just before, and rated against what healthy gyms reach. Click a row to see why it matters.</p>
-        <Segmented label="Period" value={period} onChange={setPeriod} options={[{ value: "month", label: "This month" }, { value: "last_month", label: "Last month" }, { value: "90d", label: "Last 90 days" }]} />
+        <p className="ink-2" style={{ maxWidth: "70ch", margin: 0 }}>{t("Each number is compared with the same number of days just before, and rated against what healthy gyms reach. Click a row to see why it matters.")}</p>
+        <Segmented label={t("Period")} value={period} onChange={setPeriod} options={[{ value: "month", label: t("This month") }, { value: "last_month", label: t("Last month") }, { value: "90d", label: t("Last 90 days") }]} />
       </div>
       <Loader state={state}>
         {(d: any) => {
@@ -89,8 +89,8 @@ export function KpisView() {
             <>
               <section className="panel focus">
                 <header>
-                  <h2><Icon name="spark" width={18} height={18} style={{ verticalAlign: -3, marginInlineEnd: 6 }} />Focus now</h2>
-                  <span className="muted">{counts.bad} to act on · {counts.watch} to watch · {counts.good} on track</span>
+                  <h2><Icon name="spark" width={18} height={18} style={{ verticalAlign: -3, marginInlineEnd: 6 }} />{t("Focus now")}</h2>
+                  <span className="muted">{counts.bad} {t("to act on ·")}{" "}{counts.watch} {t("to watch ·")}{" "}{counts.good} {t("on track")}</span>
                 </header>
                 {d.focus.length ? (
                   <ol className="focus-list">
@@ -104,12 +104,12 @@ export function KpisView() {
                             <div className="focus-people">{f.members.map((m: any) => <Link key={m.id} to={`/members/${m.id}`} className="chip">{m.name}</Link>)}</div>
                           )}
                         </div>
-                        {f.impact_usd ? <span className="focus-impact num-display" title="Money at stake">{money(f.impact_usd)}</span> : null}
-                        <Link to={f.link} className="btn small">Open</Link>
+                        {f.impact_usd ? <span className="focus-impact num-display" title={t("Money at stake")}>{money(f.impact_usd)}</span> : null}
+                        <Link to={f.link} className="btn small">{t("Open")}</Link>
                       </li>
                     ))}
                   </ol>
-                ) : <div className="body muted">Nothing urgent. Well done.</div>}
+                ) : <div className="body muted">{t("Nothing urgent. Well done.")}</div>}
               </section>
 
               <div className="kpi-tiles">{head.map((k) => <KpiTile key={k.key} k={k} />)}</div>
@@ -120,7 +120,7 @@ export function KpisView() {
                   <ul className="kpi-list">{kpis.filter((k) => k.group === g.key).map((k) => <KpiRow key={k.key} k={k} />)}</ul>
                 </section>
               ))}
-              <p className="muted" style={{ fontSize: "var(--step--1)" }}>Period {d.from} → {d.to}, compared with {d.previous.from} → {d.previous.to}. Benchmarks: members who train 2+ times a week are about half as likely to cancel; the average membership lasts 7–8 months; gyms lose 30–40% of members a year.</p>
+              <p className="muted" style={{ fontSize: "var(--step--1)" }}>{t("Period")}{" "}{d.from} → {d.to}{t(", compared with")}{" "}{d.previous.from} → {d.previous.to}{t(". Benchmarks: members who train 2+ times a week are about half as likely to cancel; the average membership lasts 7–8 months; gyms lose 30–40% of members a year.")}</p>
             </>
           );
         }}

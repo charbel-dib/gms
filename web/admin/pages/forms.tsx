@@ -22,7 +22,7 @@ export function PaymentFields({ value, onChange, suggestUsd }: { value: PaymentV
           <Segmented label={t("Currency")} value={value.currency} onChange={(c) => {
             const n = Number(value.amount || 0);
             set({ currency: c, amount: n ? String(c === "LBP" ? Math.round(n * rate) : Math.round((n / rate) * 100) / 100) : value.amount });
-          }} options={[{ value: "USD", label: "USD $" }, { value: "LBP", label: "LBP" }]} />
+          }} options={[{ value: "USD", label: t("USD $") }, { value: "LBP", label: "LBP" }]} />
         </Field>
         <Field label={t("Method")}>
           <select className="input" value={value.method} onChange={(e) => set({ method: e.target.value })}>
@@ -31,7 +31,7 @@ export function PaymentFields({ value, onChange, suggestUsd }: { value: PaymentV
         </Field>
       </div>
       {value.method !== "cash" && (
-        <Field label="Reference" hint="Whish / OMT transaction number, last digits of the card…">
+        <Field label={t("Reference")} hint={t("Whish / OMT transaction number, last digits of the card…")}>
           <input className="input" value={value.reference} onChange={(e) => set({ reference: e.target.value })} />
         </Field>
       )}
@@ -76,7 +76,7 @@ export function SaleFields({ value, onChange, gender }: { value: SaleValue; onCh
     <div className="stack">
       <Field label={t("Plan")}>
         <select className="input" value={value.plan_id} onChange={(e) => onChange({ ...value, plan_id: e.target.value, payment: { ...value.payment, amount: "" } })} required>
-          <option value="">Choose a plan…</option>
+          <option value="">{t("Choose a plan…")}</option>
           {available.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name} — {money(p.price, p.currency)} · {p.kind === "visits" ? `${p.visits} visits / ${p.duration_days} days` : `${p.duration_days} days`}
@@ -86,7 +86,7 @@ export function SaleFields({ value, onChange, gender }: { value: SaleValue; onCh
       </Field>
       {plan && (
         <div className="grid-2">
-          <Field label="Start date" hint="Leave empty: today, or the day after the current membership ends.">
+          <Field label={t("Start date")} hint={t("Leave empty: today, or the day after the current membership ends.")}>
             <input className="input" type="date" value={value.start_date} onChange={(e) => onChange({ ...value, start_date: e.target.value })} />
           </Field>
           <Field label={`Discount (${plan.currency})`}>
@@ -96,7 +96,7 @@ export function SaleFields({ value, onChange, gender }: { value: SaleValue; onCh
       )}
       {plan && (
         <div className="stack-s">
-          <div className="spread"><b>Payment now</b><span className="muted">Total due {money(due)}</span></div>
+          <div className="spread"><b>{t("Payment now")}</b><span className="muted">{t("Total due")}{" "}{money(due)}</span></div>
           <PaymentFields value={value.payment} onChange={(payment) => onChange({ ...value, payment })} suggestUsd={due} />
         </div>
       )}
@@ -130,28 +130,28 @@ export function ReferrerPicker({ value, label, onChange, exclude, hint }: {
   }, [dq, exclude]);
   if (value) {
     return (
-      <Field label="Referred by" hint={hint}>
+      <Field label={t("Referred by")} hint={hint}>
         <div className="spread input" style={{ alignItems: "center" }}>
-          <span><Icon name="user" /> {label ?? "Member"}</span>
-          <button type="button" className="btn small ghost" onClick={() => onChange(null, null)}>Change</button>
+          <span><Icon name="user" /> {label ?? t("Member")}</span>
+          <button type="button" className="btn small ghost" onClick={() => onChange(null, null)}>{t("Change")}</button>
         </div>
       </Field>
     );
   }
   return (
-    <Field label="Referred by" hint={hint ?? "The member who brought them. They get notified and earn the referral badge."}>
-      <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a member: name, phone or #" />
+    <Field label={t("Referred by")} hint={hint ?? t("The member who brought them. They get notified and earn the referral badge.")}>
+      <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search a member: name, phone or #")} />
       {rows.length > 0 && (
         <div className="list" role="listbox" style={{ marginTop: 6 }}>
           {rows.map((m) => (
             <button type="button" key={m.id} role="option" aria-selected={false} className="btn ghost block" style={{ justifyContent: "flex-start" }}
               onClick={() => { onChange(m.id, `${m.first_name} ${m.last_name}`.trim()); setQ(""); setRows([]); }}>
-              <b>{m.first_name} {m.last_name}</b>&nbsp;<small className="muted">#{m.code}{m.phone ? ` · ${m.phone}` : ""}</small>
+              <b>{m.first_name} {m.last_name}</b>{t(" ")}<small className="muted">#{m.code}{m.phone ? ` · ${m.phone}` : ""}</small>
             </button>
           ))}
         </div>
       )}
-      {dq.length >= 2 && !rows.length && <small className="muted">No member matches “{dq}”.</small>}
+      {dq.length >= 2 && !rows.length && <small className="muted">{t("No member matches “")}{dq}”.</small>}
     </Field>
   );
 }

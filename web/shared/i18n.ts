@@ -1,5 +1,6 @@
 /** English / Arabic (RTL). Missing Arabic strings fall back to English. */
 import { useSyncExternalStore } from "react";
+import { arMore } from "./ar-more.ts";
 
 export type Lang = "en" | "ar";
 
@@ -7,7 +8,7 @@ const ar: Record<string, string> = {
   // navigation
   Today: "اليوم", "Check-in": "الدخول", Members: "المشتركين", Classes: "الحصص", "Personal training": "التدريب الخاص", Payments: "الدفعات",
   Messages: "الرسائل", Shop: "المتجر", "API reference": "مرجع الـ API", Notifications: "الإشعارات", Insights: "الذكاء الاصطناعي", Reports: "التقارير", Leads: "العملاء المحتملين", Expenses: "المصاريف", Settings: "الإعدادات",
-  Platform: "المنصة", "Sign out": "تسجيل الخروج", "Switch to English": "English", "Switch to Arabic": "العربية",
+  Platform: "المنصة", "Your account": "حسابي", "Sign out": "تسجيل الخروج", "Switch to English": "English", "Switch to Arabic": "العربية",
   // statuses
   active: "فعّال", expiring: "ينتهي قريباً", expired: "منتهي", frozen: "مجمّد", none: "بلا اشتراك", upcoming: "يبدأ قريباً",
   // common
@@ -74,7 +75,7 @@ const ar: Record<string, string> = {
   "On this phone: on": "على هالتلفون: مفعّلة", "On this phone: off": "على هالتلفون: متوقفة", "My goal": "هدفي", "Visits per week": "زيارات بالأسبوع",
   "Members who train twice a week or more stick with it far more often.": "اللي بيتمرّنوا مرتين بالأسبوع أو أكتر بيكمّلوا أكتر بكتير.",
   "Show me on challenge leaderboards": "اعرضني بترتيب التحديات", "Only your first name and initial": "بس اسمك الأول وأول حرف من الشهرة", Language: "اللغة",
-  "The two new PINs are different": "الرمزين الجداد مش متطابقين", "PIN changed": "تم تغيير الرمز", "Current PIN": "الرمز الحالي", "New PIN (4–6 digits)": "رمز جديد (4–6 أرقام)", "New PIN again": "أعد الرمز الجديد",
+  "The two new PINs are different": "الرمزين الجداد مش متطابقين", "PIN changed": "تم تغيير الرمز", "Current PIN": "الرمز الحالي", "New PIN (6 digits)": "رمز جديد (6 أرقام)", "New PIN again": "أعد الرمز الجديد",
   Install: "تثبيت", "visits in total": "زيارة بالمجموع", "best streak": "أطول سلسلة", "Last 12 weeks": "آخر 12 أسبوع", goal: "الهدف", "Done!": "تم!",
   You: "انت", "{n} members taking part": "{n} مشترك مشاركين", "you're hidden from others": "انت مخفي عن الباقيين", "Earned on": "حصلت عليها بـ",
   "Not a member yet? Leave your number": "مش مشترك بعد؟ اترك رقمك", "You're already a member!": "انت مشترك من قبل!", "Thanks! 🙌": "شكراً! 🙌",
@@ -106,17 +107,20 @@ function apply() {
 apply();
 
 export function setLang(l: Lang) {
+  if (l === lang) return;
   lang = l;
   try {
     localStorage.setItem("gms.lang", l);
   } catch { /* ignore */ }
   apply();
   listeners.forEach((f) => f());
+  // some labels are prepared once when the app starts: reload so every one of them switches
+  if (typeof location !== "undefined") location.reload();
 }
 export const getLang = () => lang;
 
 export function t(s: string, vars?: Record<string, string | number>): string {
-  let out = lang === "ar" ? ar[s] ?? s : s;
+  let out = lang === "ar" ? arMore[s] ?? ar[s] ?? s : s;
   if (vars) out = out.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ""));
   return out;
 }
@@ -126,30 +130,34 @@ export function useLang(): Lang {
 }
 
 // ---------- formatting ----------
+/** In Arabic, keeps "$45" from being displayed as "45$": the amount is isolated as left-to-right text. */
+const iso = (s: string) => (lang === "ar" ? `\u2066${s}\u2069` : s);
+// Lebanese Arabic with the digits people actually use in Lebanon (0-9), not ٠-٩.
+const AR_LOCALE = "ar-LB-u-nu-latn";
 export function money(n: number | string | null | undefined, currency: "USD" | "LBP" = "USD"): string {
   const v = Number(n ?? 0);
-  if (currency === "LBP") return `${Math.round(v).toLocaleString("en-US")} LBP`;
+  if (currency === "LBP") return iso(`${Math.round(v).toLocaleString("en-US")} LBP`);
   const abs = Math.abs(v);
   const s = abs >= 1000 || Number.isInteger(abs) ? Math.round(abs).toLocaleString("en-US") : abs.toFixed(2);
-  return `${v < 0 ? "-" : ""}$${s}`;
+  return iso(`${v < 0 ? "-" : ""}$${s}`);
 }
 
 export function fmtDate(d: string | Date | null | undefined, opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" }): string {
   if (!d) return "—";
   const date = typeof d === "string" && d.length === 10 ? new Date(d + "T12:00:00") : new Date(d);
-  return date.toLocaleDateString(lang === "ar" ? "ar-LB" : "en-GB", opts);
+  return date.toLocaleDateString(lang === "ar" ? AR_LOCALE : "en-GB", opts);
 }
 
 export function fmtTime(d: string | Date): string {
-  return new Date(d).toLocaleTimeString(lang === "ar" ? "ar-LB" : "en-GB", { hour: "2-digit", minute: "2-digit" });
+  return new Date(d).toLocaleTimeString(lang === "ar" ? AR_LOCALE : "en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
 export function relDays(d: string | Date | null | undefined): string {
-  if (!d) return "never";
+  if (!d) return t("never");
   const days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
-  if (days <= 0) return "today";
-  if (days === 1) return "yesterday";
-  return `${days} days ago`;
+  if (days <= 0) return t("today");
+  if (days === 1) return t("yesterday");
+  return t("{n} days ago", { n: days });
 }
 
 export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

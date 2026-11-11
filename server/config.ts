@@ -43,4 +43,10 @@ export const config = {
   },
   jobsEnabled: env("JOBS_ENABLED", "true") === "true",
   trustProxy: env("TRUST_PROXY", isProd ? "true" : "false") === "true",
+  /**
+   * Proxies in front of the app that append to X-Forwarded-For. The client's own address is the
+   * entry this many places from the right; everything left of it was written by the client.
+   * CloudFront + load balancer = 2 (the default, the AWS setup without a domain), load balancer alone = 1.
+   */
+  trustProxyHops: Math.max(1, Number(env("TRUST_PROXY_HOPS", "2")) || 2),
 };

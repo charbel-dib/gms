@@ -27,14 +27,14 @@ export function ShopPage() {
   return (
     <div className="page">
       <div className="page-head">
-        <div><h1>Shop</h1><p>Supplements, drinks and accessories sold at reception.</p></div>
+        <div><h1>{t("Shop")}</h1><p>{t("Supplements, drinks and accessories sold at reception.")}</p></div>
       </div>
       <Tabs value={tab} onChange={setTab} tabs={[
-        { value: "sell", label: "Sell" },
-        { value: "orders", label: `App orders${pending ? ` (${pending})` : ""}` },
-        { value: "products", label: "Products & stock" },
-        { value: "sales", label: "Sales" },
-        ...(manager ? [{ value: "overview" as Tab, label: "Overview" }] : []),
+        { value: "sell", label: t("Sell") },
+        { value: "orders", label: `${t("App orders")}${pending ? ` (${pending})` : ""}` },
+        { value: "products", label: t("Products & stock") },
+        { value: "sales", label: t("Sales") },
+        ...(manager ? [{ value: "overview" as Tab, label: t("Overview") }] : []),
       ]} />
       {tab === "sell" && <Pos preset={pickup} onPresetUsed={() => setPickup(null)} />}
       {tab === "orders" && <Orders state={orders} onSell={(p) => { setPickup(p); setTab("sell"); }} />}
@@ -112,7 +112,7 @@ function Pos({ preset, onPresetUsed }: { preset?: any; onPresetUsed?: () => void
     <div className="pos">
       <section className="pos-catalog">
         <div className="row">
-          <input ref={search} className="input" style={{ flex: 1 }} value={q} placeholder="Search or scan a barcode" aria-label="Search or scan a barcode"
+          <input ref={search} className="input" style={{ flex: 1 }} value={q} placeholder={t("Search or scan a barcode")} aria-label={t("Search or scan a barcode")}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
               if (e.key !== "Enter" || !q.trim()) return;
@@ -124,7 +124,7 @@ function Pos({ preset, onPresetUsed }: { preset?: any; onPresetUsed?: () => void
         </div>
         <div className="chips-row">
           {["all", ...CATEGORIES].filter((c) => c === "all" || (products.data ?? []).some((p: any) => p.category === c)).map((c) => (
-            <button key={c} className={`chip ${cat === c ? "on" : ""}`} onClick={() => setCat(c)}>{c === "all" ? "All" : CAT_LABEL[c]}</button>
+            <button key={c} className={`chip ${cat === c ? "on" : ""}`} onClick={() => setCat(c)}>{c === "all" ? t("All") : CAT_LABEL[c]}</button>
           ))}
         </div>
         <Loader state={products}>
@@ -136,32 +136,32 @@ function Pos({ preset, onPresetUsed }: { preset?: any; onPresetUsed?: () => void
                 return (
                   <button key={p.id} className="tile" disabled={out} onClick={() => add(p)}>
                     <span className="tile-name">{p.name}</span>
-                    <span className="tile-meta">{p.kind === "bundle" ? "Bundle" : p.brand ?? CAT_LABEL[p.category]}</span>
+                    <span className="tile-meta">{p.kind === "bundle" ? t("Bundle") : p.brand ?? CAT_LABEL[p.category]}</span>
                     <span className="tile-foot">
                       <b>{money(p.price, p.currency)}</b>
-                      {Number.isFinite(left) && <span className={left <= (p.low_stock_at ?? 3) ? "money-neg" : "muted"}>{out ? "out of stock" : `${left} left`}</span>}
+                      {Number.isFinite(left) && <span className={left <= (p.low_stock_at ?? 3) ? "money-neg" : "muted"}>{out ? t("out of stock") : `${left} left`}</span>}
                     </span>
                   </button>
                 );
               })}
             </div>
-          ) : <Empty title={(products.data ?? []).length ? "No product matches." : "No products yet."}>{!(products.data ?? []).length && "Add your supplements and drinks in Products & stock."}</Empty>}
+          ) : <Empty title={(products.data ?? []).length ? t("No product matches.") : t("No products yet.")}>{!(products.data ?? []).length && t("Add your supplements and drinks in Products & stock.")}</Empty>}
         </Loader>
       </section>
 
       <aside className="pos-cart panel">
-        <header><h2>Cart</h2>{cart.length > 0 && <button className="btn small ghost" onClick={reset}>Clear</button>}</header>
-        {requestIds.length > 0 && <div className="pos-note"><Icon name="phone" width={16} height={16} /> Order from the app: it will be marked collected.</div>}
+        <header><h2>{t("Cart")}</h2>{cart.length > 0 && <button className="btn small ghost" onClick={reset}>{t("Clear")}</button>}</header>
+        {requestIds.length > 0 && <div className="pos-note"><Icon name="phone" width={16} height={16} /> {t("Order from the app: it will be marked collected.")}</div>}
         <div className="body stack">
-          {cart.length === 0 ? <p className="muted">Tap a product, or scan its barcode.</p> : (
+          {cart.length === 0 ? <p className="muted">{t("Tap a product, or scan its barcode.")}</p> : (
             <div className="cart-lines">
               {cart.map((l) => (
                 <div key={l.p.id} className="cart-line">
                   <span className="grow">{l.p.name}<small className="muted"> · {money(l.p.price, l.p.currency)}</small></span>
                   <span className="qty">
-                    <button className="btn small" onClick={() => setQty(l.p.id, l.qty - 1)} aria-label="One less">−</button>
+                    <button className="btn small" onClick={() => setQty(l.p.id, l.qty - 1)} aria-label={t("One less")}>−</button>
                     <b>{l.qty}</b>
-                    <button className="btn small" onClick={() => setQty(l.p.id, l.qty + 1)} aria-label="One more">+</button>
+                    <button className="btn small" onClick={() => setQty(l.p.id, l.qty + 1)} aria-label={t("One more")}>+</button>
                   </span>
                   <span className="line-total">{money(usd(l.p) * l.qty)}</span>
                 </div>
@@ -169,13 +169,13 @@ function Pos({ preset, onPresetUsed }: { preset?: any; onPresetUsed?: () => void
             </div>
           )}
 
-          <Field label="Customer">
+          <Field label={t("Customer")}>
             {member ? (
               <div className="spread"><span className="who"><b>{member.first_name} {member.last_name}</b><small>#{member.code}{Number(member.balance_usd) > 0 ? ` · owes ${money(member.balance_usd)}` : ""}</small></span>
-                <button className="btn small ghost" onClick={() => { setMember(null); setOnAccount(false); }}>Walk-in</button></div>
+                <button className="btn small ghost" onClick={() => { setMember(null); setOnAccount(false); }}>{t("Walk-in")}</button></div>
             ) : (
               <div className="stack-s">
-                <input className="input" value={memberQ} onChange={(e) => setMemberQ(e.target.value)} placeholder="Walk-in, or search a member" />
+                <input className="input" value={memberQ} onChange={(e) => setMemberQ(e.target.value)} placeholder={t("Walk-in, or search a member")} />
                 {found.data?.rows?.map((m: any) => <button key={m.id} className="btn ghost small" style={{ justifyContent: "flex-start" }} onClick={() => { setMember(m); setMemberQ(""); }}>{m.first_name} {m.last_name} <small className="muted">#{m.code}</small></button>)}
               </div>
             )}
@@ -183,8 +183,8 @@ function Pos({ preset, onPresetUsed }: { preset?: any; onPresetUsed?: () => void
 
           {cart.length > 0 && (
             <>
-              <Field label="Discount ($)"><input className="input" inputMode="decimal" value={discount} onChange={(e) => setDiscount(e.target.value.replace(/[^\d.]/g, ""))} placeholder="0" /></Field>
-              {member && <label className="check"><input type="checkbox" checked={onAccount} onChange={(e) => setOnAccount(e.target.checked)} /> Put on {member.first_name}'s account (pays later)</label>}
+              <Field label={t("Discount ($)")}><input className="input" inputMode="decimal" value={discount} onChange={(e) => setDiscount(e.target.value.replace(/[^\d.]/g, ""))} placeholder="0" /></Field>
+              {member && <label className="check"><input type="checkbox" checked={onAccount} onChange={(e) => setOnAccount(e.target.checked)} /> {t("Put on")}{" "}{member.first_name}{t("'s account (pays later)")}</label>}
               {!onAccount && (
                 <div className="grid-2">
                   <Field label={t("Currency")}><Segmented label={t("Currency")} value={currency} onChange={setCurrency} options={[{ value: "USD", label: "USD" }, { value: "LBP", label: "LBP" }]} /></Field>
@@ -193,9 +193,9 @@ function Pos({ preset, onPresetUsed }: { preset?: any; onPresetUsed?: () => void
                   </Field>
                 </div>
               )}
-              {!onAccount && method !== "cash" && <Field label="Reference"><input className="input" value={reference} onChange={(e) => setReference(e.target.value)} /></Field>}
+              {!onAccount && method !== "cash" && <Field label={t("Reference")}><input className="input" value={reference} onChange={(e) => setReference(e.target.value)} /></Field>}
               <div className="cart-total">
-                <span>Total</span>
+                <span>{t("Total")}</span>
                 <span><b className="num-display">{money(total)}</b>{!onAccount && currency === "LBP" && <small className="muted"> = {money(totalLbp, "LBP")}</small>}</span>
               </div>
               <button className="btn primary block" style={{ minHeight: 50 }} disabled={busy || !cart.length} onClick={checkout}>
@@ -218,26 +218,26 @@ function Orders({ state, onSell }: { state: any; onSell: (preset: any) => void }
     <Loader state={state}>
       {(list: any[]) => list.length ? (
         <div className="stack">
-          <p className="ink-2" style={{ margin: 0 }}>Members asked for these in the app. Prepare the order and mark it ready: the member gets a notification. When they come, sell it: it's marked collected.</p>
+          <p className="ink-2" style={{ margin: 0 }}>{t("Members asked for these in the app. Prepare the order and mark it ready: the member gets a notification. When they come, sell it: it's marked collected.")}</p>
           <div className="table-wrap"><table className="data">
-            <thead><tr><th>Asked</th><th>Member</th><th>Product</th><th className="r">Price</th><th>Status</th><th /></tr></thead>
+            <thead><tr><th>{t("Asked")}</th><th>{t("Member")}</th><th>{t("Product")}</th><th className="r">{t("Price")}</th><th>{t("Status")}</th><th /></tr></thead>
             <tbody>{list.map((o) => (
               <tr key={o.id}>
                 <td>{fmtDate(o.created_at, { weekday: "short", day: "numeric", month: "short" })} {fmtTime(o.created_at)}</td>
                 <td><Link to={`/members/${o.member_id}`}>{o.first_name} {o.last_name}</Link> <small className="muted">#{o.code}</small></td>
-                <td>{o.qty} × {o.product_name}{o.note && <><br /><small className="muted">“{o.note}”</small></>}{o.stock != null && o.stock < o.qty && <><br /><small className="money-neg">only {o.stock} in stock</small></>}</td>
+                <td>{o.qty} × {o.product_name}{o.note && <><br /><small className="muted">“{o.note}”</small></>}{o.stock != null && o.stock < o.qty && <><br /><small className="money-neg">only {o.stock} {t("in stock")}</small></>}</td>
                 <td className="r">{money(Number(o.price) * o.qty, o.currency)}</td>
-                <td><span className="plate" data-s={o.status === "ready" ? "ok" : "warn"} /> {o.status === "ready" ? "Ready" : "To prepare"}</td>
+                <td><span className="plate" data-s={o.status === "ready" ? "ok" : "warn"} /> {o.status === "ready" ? t("Ready") : t("To prepare")}</td>
                 <td className="r">
-                  {o.status === "pending" && <button className="btn small" onClick={() => setStatus(o.id, "ready")}><Icon name="check" />Ready</button>}{" "}
-                  <button className="btn small primary" onClick={() => onSell({ member: { id: o.member_id, first_name: o.first_name, last_name: o.last_name, code: o.code }, items: [{ product_id: o.product_id, qty: o.qty }], request_ids: [o.id] })}>Sell</button>{" "}
+                  {o.status === "pending" && <button className="btn small" onClick={() => setStatus(o.id, "ready")}><Icon name="check" />{t("Ready")}</button>}{" "}
+                  <button className="btn small primary" onClick={() => onSell({ member: { id: o.member_id, first_name: o.first_name, last_name: o.last_name, code: o.code }, items: [{ product_id: o.product_id, qty: o.qty }], request_ids: [o.id] })}>{t("Sell")}</button>{" "}
                   <button className="btn small ghost" onClick={() => setStatus(o.id, "cancelled")}>{t("Cancel")}</button>
                 </td>
               </tr>
             ))}</tbody>
           </table></div>
         </div>
-      ) : <Empty title="No orders from the app.">Members can tap “I want it” on a product in their app; it shows up here.</Empty>}
+      ) : <Empty title={t("No orders from the app.")}>{t("Members can tap “I want it” on a product in their app; it shows up here.")}</Empty>}
     </Loader>
   );
 }
@@ -256,10 +256,10 @@ function Products() {
   return (
     <div className="stack">
       <div className="spread">
-        <Segmented label="Filter" value={filter} onChange={setFilter} options={[{ value: "all", label: "All products" }, { value: "low", label: "Low stock" }]} />
+        <Segmented label={t("Filter")} value={filter} onChange={setFilter} options={[{ value: "all", label: t("All products") }, { value: "low", label: t("Low stock") }]} />
         {manager && <div className="row">
-          <button className="btn" onClick={() => setEdit({ kind: "bundle", category: "supplements", currency: "USD", track_stock: false, active: true, in_app: true, featured: true, low_stock_at: 0, cost_usd: "", price: "", stock: "", components: [] })}><Icon name="gift" />New bundle</button>
-          <button className="btn primary" onClick={() => setEdit({ kind: "item", category: "supplements", currency: "USD", track_stock: true, active: true, in_app: true, featured: false, low_stock_at: 5, cost_usd: "", price: "", stock: "", components: [] })}><Icon name="plus" />New product</button>
+          <button className="btn" onClick={() => setEdit({ kind: "bundle", category: "supplements", currency: "USD", track_stock: false, active: true, in_app: true, featured: true, low_stock_at: 0, cost_usd: "", price: "", stock: "", components: [] })}><Icon name="gift" />{t("New bundle")}</button>
+          <button className="btn primary" onClick={() => setEdit({ kind: "item", category: "supplements", currency: "USD", track_stock: true, active: true, in_app: true, featured: false, low_stock_at: 5, cost_usd: "", price: "", stock: "", components: [] })}><Icon name="plus" />{t("New product")}</button>
         </div>}
       </div>
       <Loader state={state}>
@@ -267,30 +267,30 @@ function Products() {
           const rows = filter === "low" ? list.filter((p) => p.active && p.track_stock && p.stock <= p.low_stock_at) : list;
           return rows.length ? (
             <div className="table-wrap"><table className="data">
-              <thead><tr><th>Product</th><th>Category</th><th className="r">Price</th><th className="r">Cost</th><th className="r">Margin</th><th className="r">Stock</th><th className="r">Sold 30 days</th><th /></tr></thead>
+              <thead><tr><th>{t("Product")}</th><th>{t("Category")}</th><th className="r">{t("Price")}</th><th className="r">{t("Cost")}</th><th className="r">{t("Margin")}</th><th className="r">{t("Stock")}</th><th className="r">{t("Sold 30 days")}</th><th /></tr></thead>
               <tbody>{rows.map((p) => {
                 const priceUsd = p.currency === "LBP" ? Number(p.price) / Number(me.gym.lbp_rate) : Number(p.price);
                 const margin = priceUsd > 0 ? Math.round(((priceUsd - Number(p.cost_usd)) / priceUsd) * 100) : null;
                 const low = p.track_stock && p.stock <= p.low_stock_at;
                 return (
                   <tr key={p.id} style={!p.active ? { opacity: 0.45 } : undefined}>
-                    <td><span className="who prod-cell">{p.has_image ? <img src={`/api/public/products/${p.id}/image`} alt="" className="prod-thumb" /> : <span className="prod-thumb empty"><Icon name={p.kind === "bundle" ? "gift" : "bag"} width={16} height={16} /></span>}<span><b>{p.name}</b>{p.kind === "bundle" && <span className="tag" style={{ marginInlineStart: 6 }}>bundle</span>}{p.featured && <span className="tag" style={{ marginInlineStart: 6 }}>on app home</span>}{!p.in_app && <span className="tag muted" style={{ marginInlineStart: 6 }}>hidden in app</span>}<br /><small>{p.kind === "bundle" ? p.contents : [p.brand, p.barcode].filter(Boolean).join(" · ")}{p.expires_on ? <> · <span className={p.expires_on <= soon ? "money-neg" : ""}>expires {fmtDate(p.expires_on, { month: "short", year: "numeric" })}</span></> : null}</small></span></span></td>
+                    <td><span className="who prod-cell">{p.has_image ? <img src={`/api/public/products/${p.id}/image`} alt="" className="prod-thumb" /> : <span className="prod-thumb empty"><Icon name={p.kind === "bundle" ? "gift" : "bag"} width={16} height={16} /></span>}<span><b>{p.name}</b>{p.kind === "bundle" && <span className="tag" style={{ marginInlineStart: 6 }}>bundle</span>}{p.featured && <span className="tag" style={{ marginInlineStart: 6 }}>{t("on app home")}</span>}{!p.in_app && <span className="tag muted" style={{ marginInlineStart: 6 }}>{t("hidden in app")}</span>}<br /><small>{p.kind === "bundle" ? p.contents : [p.brand, p.barcode].filter(Boolean).join(" · ")}{p.expires_on ? <> · <span className={p.expires_on <= soon ? "money-neg" : ""}>expires {fmtDate(p.expires_on, { month: "short", year: "numeric" })}</span></> : null}</small></span></span></td>
                     <td>{CAT_LABEL[p.category]}</td>
                     <td className="r">{money(p.price, p.currency)}</td>
                     <td className="r muted">{p.kind !== "bundle" && Number(p.cost_usd) > 0 ? money(p.cost_usd) : "—"}</td>
                     <td className="r">{p.kind !== "bundle" && margin != null && Number(p.cost_usd) > 0 ? `${margin}%` : "—"}</td>
-                    <td className="r">{p.kind === "bundle" ? <span className="muted" title="Limited by the products inside">{p.bundle_stock ?? "—"} possible</span> : p.track_stock ? <span className={low ? "money-neg" : ""}><span className="plate" data-s={p.stock <= 0 ? "denied" : low ? "warn" : "ok"} /> {p.stock}</span> : <span className="muted">not tracked</span>}</td>
+                    <td className="r">{p.kind === "bundle" ? <span className="muted" title={t("Limited by the products inside")}>{p.bundle_stock ?? "—"} possible</span> : p.track_stock ? <span className={low ? "money-neg" : ""}><span className="plate" data-s={p.stock <= 0 ? "denied" : low ? "warn" : "ok"} /> {p.stock}</span> : <span className="muted">{t("not tracked")}</span>}</td>
                     <td className="r">{p.sold_30d}</td>
                     <td className="r">
-                      {manager && p.track_stock && <button className="btn small" onClick={() => setStock({ p, kind: "restock", qty: "", unit_cost_usd: "", note: "", expires_on: "" })}>Restock</button>}{" "}
+                      {manager && p.track_stock && <button className="btn small" onClick={() => setStock({ p, kind: "restock", qty: "", unit_cost_usd: "", note: "", expires_on: "" })}>{t("Restock")}</button>}{" "}
                       {manager && <button className="btn small ghost" onClick={() => setEdit({ ...p, stock: undefined, description: p.description ?? "", components: p.components ?? [] })}>{t("Edit")}</button>}
-                      {manager && p.track_stock && <button className="btn small ghost" onClick={async () => setMoves({ p, rows: await get(`/api/shop/products/${p.id}/moves`) })}>History</button>}
+                      {manager && p.track_stock && <button className="btn small ghost" onClick={async () => setMoves({ p, rows: await get(`/api/shop/products/${p.id}/moves`) })}>{t("History")}</button>}
                     </td>
                   </tr>
                 );
               })}</tbody>
             </table></div>
-          ) : <Empty title={filter === "low" ? "Nothing is running low." : "No products yet."} action={manager && filter === "all" ? <button className="btn primary" onClick={() => setEdit({ category: "supplements", currency: "USD", track_stock: true, active: true, low_stock_at: 5, cost_usd: "", price: "", stock: "" })}>Add your first product</button> : undefined} />;
+          ) : <Empty title={filter === "low" ? t("Nothing is running low.") : t("No products yet.")} action={manager && filter === "all" ? <button className="btn primary" onClick={() => setEdit({ category: "supplements", currency: "USD", track_stock: true, active: true, low_stock_at: 5, cost_usd: "", price: "", stock: "" })}>{t("Add your first product")}</button> : undefined} />;
         }}
       </Loader>
       {edit && <ProductModal p={edit} all={state.data ?? []} onClose={(saved) => { setEdit(null); if (saved) state.reload(); }} />}
@@ -304,7 +304,7 @@ function Products() {
                 <td className="r" style={{ color: m.qty > 0 ? "var(--plate-green)" : undefined }}>{m.qty > 0 ? `+${m.qty}` : m.qty}</td>
                 <td className="muted">{m.note ?? ""}{m.unit_cost_usd ? ` · ${money(m.unit_cost_usd)}/unit` : ""}</td><td className="muted">{m.by_name ?? ""}</td></tr>
             ))}</tbody></table></div>
-          ) : <Empty title="No movement yet." />}
+          ) : <Empty title={t("No movement yet.")} />}
         </Modal>
       )}
     </div>
@@ -335,52 +335,52 @@ function ProductModal({ p, all, onClose }: { p: any; all: any[]; onClose: (saved
     onClose(true);
   };
   return (
-    <Modal title={f.id ? f.name : bundle ? "New bundle" : "New product"} open onClose={() => onClose(false)} wide
+    <Modal title={f.id ? f.name : bundle ? t("New bundle") : t("New product")} open onClose={() => onClose(false)} wide
       footer={<button className="btn primary" disabled={busy || !f.name || f.price === "" || (bundle && !comps.some((c) => c.product_id))} onClick={save}>{t("Save")}</button>}>
       {bundle && (
         <section className="bundle-box">
-          <b>Inside the bundle</b>
-          <small className="muted">Selling the bundle takes these products out of stock. {compValue > 0 && <>Bought separately: <b>{money(compValue)}</b>{Number(f.price) > 0 && Number(f.price) < compValue ? <> · members save <b>{money(compValue - Number(f.price))}</b></> : null}</>}</small>
+          <b>{t("Inside the bundle")}</b>
+          <small className="muted">{t("Selling the bundle takes these products out of stock.")}{" "}{compValue > 0 && <>{t("Bought separately:")}{" "}<b>{money(compValue)}</b>{Number(f.price) > 0 && Number(f.price) < compValue ? <> {t("· members save")}{" "}<b>{money(compValue - Number(f.price))}</b></> : null}</>}</small>
           {comps.map((c, i) => (
             <div key={i} className="row">
               <select className="input" style={{ flex: 1 }} value={c.product_id} onChange={(e) => set("components", comps.map((x, j) => (j === i ? { ...x, product_id: e.target.value } : x)))}>
-                <option value="">Choose a product…</option>
+                <option value="">{t("Choose a product…")}</option>
                 {items.map((x) => <option key={x.id} value={x.id}>{x.name} · {money(x.price, x.currency)}</option>)}
               </select>
-              <input className="input" style={{ width: 70 }} inputMode="numeric" value={c.qty} onChange={(e) => set("components", comps.map((x, j) => (j === i ? { ...x, qty: Number(e.target.value.replace(/\D/g, "") || 0) } : x)))} aria-label="Quantity" />
-              <button className="btn small ghost" onClick={() => set("components", comps.filter((_, j) => j !== i))} aria-label="Remove"><Icon name="x" /></button>
+              <input className="input" style={{ width: 70 }} inputMode="numeric" value={c.qty} onChange={(e) => set("components", comps.map((x, j) => (j === i ? { ...x, qty: Number(e.target.value.replace(/\D/g, "") || 0) } : x)))} aria-label={t("Quantity")} />
+              <button className="btn small ghost" onClick={() => set("components", comps.filter((_, j) => j !== i))} aria-label={t("Remove")}><Icon name="x" /></button>
             </div>
           ))}
-          <button className="btn small" onClick={() => set("components", [...comps, { product_id: "", qty: 1 }])}><Icon name="plus" />Add a product</button>
+          <button className="btn small" onClick={() => set("components", [...comps, { product_id: "", qty: 1 }])}><Icon name="plus" />{t("Add a product")}</button>
         </section>
       )}
       <div className="grid-2">
-        <Field label="Name"><input className="input" value={f.name ?? ""} onChange={(e) => set("name", e.target.value)} placeholder="Whey protein 2 kg — chocolate" autoFocus /></Field>
-        <Field label="Name in Arabic"><input className="input" dir="rtl" value={f.name_ar ?? ""} onChange={(e) => set("name_ar", e.target.value)} /></Field>
-        <Field label="Category"><select className="input" value={f.category} onChange={(e) => set("category", e.target.value)}>{CATEGORIES.map((c) => <option key={c} value={c}>{CAT_LABEL[c]}</option>)}</select></Field>
-        <Field label="Brand"><input className="input" value={f.brand ?? ""} onChange={(e) => set("brand", e.target.value)} /></Field>
-        {!bundle && <Field label="Barcode" hint="Scan it with the USB scanner"><input className="input" value={f.barcode ?? ""} onChange={(e) => set("barcode", e.target.value)} /></Field>}
-        {!bundle && <Field label="Expiry date (current batch)"><input className="input" type="date" value={f.expires_on ?? ""} onChange={(e) => set("expires_on", e.target.value)} /></Field>}
+        <Field label={t("Name")}><input className="input" value={f.name ?? ""} onChange={(e) => set("name", e.target.value)} placeholder={t("Whey protein 2 kg — chocolate")} autoFocus /></Field>
+        <Field label={t("Name in Arabic")}><input className="input" dir="rtl" value={f.name_ar ?? ""} onChange={(e) => set("name_ar", e.target.value)} /></Field>
+        <Field label={t("Category")}><select className="input" value={f.category} onChange={(e) => set("category", e.target.value)}>{CATEGORIES.map((c) => <option key={c} value={c}>{CAT_LABEL[c]}</option>)}</select></Field>
+        <Field label={t("Brand")}><input className="input" value={f.brand ?? ""} onChange={(e) => set("brand", e.target.value)} /></Field>
+        {!bundle && <Field label={t("Barcode")} hint={t("Scan it with the USB scanner")}><input className="input" value={f.barcode ?? ""} onChange={(e) => set("barcode", e.target.value)} /></Field>}
+        {!bundle && <Field label={t("Expiry date (current batch)")}><input className="input" type="date" value={f.expires_on ?? ""} onChange={(e) => set("expires_on", e.target.value)} /></Field>}
       </div>
-      <Field label="Description for members" hint="Shown in the app: what it is, how to use it, flavours…"><textarea className="input" rows={2} maxLength={1000} value={f.description ?? ""} onChange={(e) => set("description", e.target.value)} dir="auto" /></Field>
-      <Field label="Photo" hint="Shown in the member app; resized automatically">
+      <Field label={t("Description for members")} hint={t("Shown in the app: what it is, how to use it, flavours…")}><textarea className="input" rows={2} maxLength={1000} value={f.description ?? ""} onChange={(e) => set("description", e.target.value)} dir="auto" /></Field>
+      <Field label={t("Photo")} hint={t("Shown in the member app; resized automatically")}>
         <div className="row">
           {(image || (image === undefined && f.has_image)) && <img className="thumb" src={image ?? `/api/public/products/${f.id}/image`} alt="" />}
           <input type="file" accept="image/*" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; try { setImage(await shrinkImage(file)); } catch (err) { toastError(err); } }} />
-          {(image || (image === undefined && f.has_image)) && <button className="btn small ghost" onClick={() => setImage(null)}>Remove</button>}
+          {(image || (image === undefined && f.has_image)) && <button className="btn small ghost" onClick={() => setImage(null)}>{t("Remove")}</button>}
         </div>
       </Field>
       <div className="grid-3">
-        <Field label="Selling price"><input className="input" inputMode="decimal" value={f.price} onChange={(e) => set("price", e.target.value.replace(/[^\d.]/g, ""))} /></Field>
+        <Field label={t("Selling price")}><input className="input" inputMode="decimal" value={f.price} onChange={(e) => set("price", e.target.value.replace(/[^\d.]/g, ""))} /></Field>
         <Field label={t("Currency")}><Segmented label={t("Currency")} value={f.currency} onChange={(v) => set("currency", v)} options={[{ value: "USD", label: "USD" }, { value: "LBP", label: "LBP" }]} /></Field>
-        {!bundle && <Field label="Purchase cost ($ per unit)" hint="Used to compute your margin"><input className="input" inputMode="decimal" value={f.cost_usd} onChange={(e) => set("cost_usd", e.target.value.replace(/[^\d.]/g, ""))} /></Field>}
-        {!f.id && !bundle && <Field label="Units in stock now"><input className="input" inputMode="numeric" value={f.stock} onChange={(e) => set("stock", e.target.value.replace(/\D/g, ""))} /></Field>}
-        {!bundle && <Field label="Warn me below"><input className="input" inputMode="numeric" value={f.low_stock_at} onChange={(e) => set("low_stock_at", e.target.value.replace(/\D/g, ""))} /></Field>}
+        {!bundle && <Field label={t("Purchase cost ($ per unit)")} hint={t("Used to compute your margin")}><input className="input" inputMode="decimal" value={f.cost_usd} onChange={(e) => set("cost_usd", e.target.value.replace(/[^\d.]/g, ""))} /></Field>}
+        {!f.id && !bundle && <Field label={t("Units in stock now")}><input className="input" inputMode="numeric" value={f.stock} onChange={(e) => set("stock", e.target.value.replace(/\D/g, ""))} /></Field>}
+        {!bundle && <Field label={t("Warn me below")}><input className="input" inputMode="numeric" value={f.low_stock_at} onChange={(e) => set("low_stock_at", e.target.value.replace(/\D/g, ""))} /></Field>}
       </div>
-      {!bundle && <label className="check"><input type="checkbox" checked={!!f.track_stock} onChange={(e) => set("track_stock", e.target.checked)} /> Track stock (untick for services, e.g. body composition scan)</label>}
-      <label className="check"><input type="checkbox" checked={!!f.in_app} onChange={(e) => set("in_app", e.target.checked)} /> Show in the member app catalogue</label>
-      <label className="check"><input type="checkbox" checked={!!f.featured} onChange={(e) => set("featured", e.target.checked)} /> Feature it on the app's home screen</label>
-      <label className="check"><input type="checkbox" checked={!!f.active} onChange={(e) => set("active", e.target.checked)} /> On sale</label>
+      {!bundle && <label className="check"><input type="checkbox" checked={!!f.track_stock} onChange={(e) => set("track_stock", e.target.checked)} /> {t("Track stock (untick for services, e.g. body composition scan)")}</label>}
+      <label className="check"><input type="checkbox" checked={!!f.in_app} onChange={(e) => set("in_app", e.target.checked)} /> {t("Show in the member app catalogue")}</label>
+      <label className="check"><input type="checkbox" checked={!!f.featured} onChange={(e) => set("featured", e.target.checked)} /> {t("Feature it on the app's home screen")}</label>
+      <label className="check"><input type="checkbox" checked={!!f.active} onChange={(e) => set("active", e.target.checked)} /> {t("On sale")}</label>
     </Modal>
   );
 }
@@ -394,16 +394,16 @@ function StockModal({ s, onClose }: { s: any; onClose: (saved: boolean) => void 
       footer={<button className="btn primary" disabled={busy || !qty} onClick={async () => {
         const r = await run(() => post(`/api/shop/products/${f.p.id}/stock`, { kind: f.kind, qty, unit_cost_usd: f.unit_cost_usd === "" ? null : Number(f.unit_cost_usd), expires_on: f.expires_on || null, note: f.note || null }), "Stock updated");
         if (r) onClose(true);
-      }}>{f.kind === "restock" ? `Add ${f.qty || 0} to stock` : "Save"}</button>}>
-      <Segmented label="Type" value={f.kind} onChange={(k) => setF({ ...f, kind: k, sign: "-" })} options={[{ value: "restock", label: "Delivery received" }, { value: "adjust", label: "Correction" }]} />
-      <p className="ink-2">In stock now: <b>{f.p.stock}</b></p>
+      }}>{f.kind === "restock" ? `Add ${f.qty || 0} to stock` : t("Save")}</button>}>
+      <Segmented label={t("Type")} value={f.kind} onChange={(k) => setF({ ...f, kind: k, sign: "-" })} options={[{ value: "restock", label: t("Delivery received") }, { value: "adjust", label: t("Correction") }]} />
+      <p className="ink-2">{t("In stock now:")}{" "}<b>{f.p.stock}</b></p>
       <div className="grid-2">
-        {f.kind === "adjust" && <Field label="Direction"><Segmented label="Direction" value={f.sign ?? "-"} onChange={(v) => setF({ ...f, sign: v })} options={[{ value: "-", label: "Remove" }, { value: "+", label: "Add" }]} /></Field>}
-        <Field label="Quantity"><input className="input" inputMode="numeric" value={f.qty} onChange={(e) => setF({ ...f, qty: e.target.value.replace(/\D/g, "") })} autoFocus /></Field>
-        {f.kind === "restock" && <Field label="Cost per unit ($)" hint="Updates the average cost"><input className="input" inputMode="decimal" value={f.unit_cost_usd} onChange={(e) => setF({ ...f, unit_cost_usd: e.target.value.replace(/[^\d.]/g, "") })} /></Field>}
-        {f.kind === "restock" && <Field label="Expiry date of this batch"><input className="input" type="date" value={f.expires_on} onChange={(e) => setF({ ...f, expires_on: e.target.value })} /></Field>}
+        {f.kind === "adjust" && <Field label={t("Direction")}><Segmented label={t("Direction")} value={f.sign ?? "-"} onChange={(v) => setF({ ...f, sign: v })} options={[{ value: "-", label: t("Remove") }, { value: "+", label: t("Add") }]} /></Field>}
+        <Field label={t("Quantity")}><input className="input" inputMode="numeric" value={f.qty} onChange={(e) => setF({ ...f, qty: e.target.value.replace(/\D/g, "") })} autoFocus /></Field>
+        {f.kind === "restock" && <Field label={t("Cost per unit ($)")} hint={t("Updates the average cost")}><input className="input" inputMode="decimal" value={f.unit_cost_usd} onChange={(e) => setF({ ...f, unit_cost_usd: e.target.value.replace(/[^\d.]/g, "") })} /></Field>}
+        {f.kind === "restock" && <Field label={t("Expiry date of this batch")}><input className="input" type="date" value={f.expires_on} onChange={(e) => setF({ ...f, expires_on: e.target.value })} /></Field>}
       </div>
-      <Field label="Note"><input className="input" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} placeholder={f.kind === "restock" ? "Supplier, invoice number…" : "Expired, broken, inventory count…"} /></Field>
+      <Field label={t("Note")}><input className="input" value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} placeholder={f.kind === "restock" ? t("Supplier, invoice number…") : t("Expired, broken, inventory count…")} /></Field>
     </Modal>
   );
 }
@@ -419,39 +419,39 @@ function Sales() {
   return (
     <div className="stack">
       <div className="row">
-        <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From" style={{ width: 160 }} />
-        <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="To" style={{ width: 160 }} />
+        <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label={t("From")} style={{ width: 160 }} />
+        <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label={t("To")} style={{ width: 160 }} />
       </div>
       <Loader state={state}>
         {(rows: any[]) => {
           const live = rows.filter((s) => s.status !== "void");
           return rows.length ? (
             <>
-              <p className="ink-2">{live.length} sale(s) · <b>{money(live.reduce((s, x) => s + Number(x.total_usd), 0))}</b>{can(me, "owner", "manager") && <> · margin {money(live.reduce((s, x) => s + Number(x.total_usd) - Number(x.cost_usd), 0))}</>}</p>
+              <p className="ink-2">{live.length} {t("sale(s) ·")}{" "}<b>{money(live.reduce((s, x) => s + Number(x.total_usd), 0))}</b>{can(me, "owner", "manager") && <> {t("· margin")}{" "}{money(live.reduce((s, x) => s + Number(x.total_usd) - Number(x.cost_usd), 0))}</>}</p>
               <div className="table-wrap"><table className="data">
-                <thead><tr><th>#</th><th>Time</th><th>Customer</th><th>Items</th><th>Paid</th><th className="r">Total</th><th /></tr></thead>
+                <thead><tr><th>#</th><th>{t("Time")}</th><th>{t("Customer")}</th><th>{t("Items")}</th><th>{t("Paid")}</th><th className="r">{t("Total")}</th><th /></tr></thead>
                 <tbody>{rows.map((s) => (
                   <tr key={s.id} style={s.status === "void" ? { opacity: 0.45, textDecoration: "line-through" } : undefined}>
                     <td>{s.sale_no}</td>
                     <td>{fmtDate(s.sold_at)} {fmtTime(s.sold_at)}</td>
-                    <td>{s.member_id ? <Link to={`/members/${s.member_id}`}>{s.first_name} {s.last_name}</Link> : <span className="muted">Walk-in</span>}</td>
+                    <td>{s.member_id ? <Link to={`/members/${s.member_id}`}>{s.first_name} {s.last_name}</Link> : <span className="muted">{t("Walk-in")}</span>}</td>
                     <td className="ink-2">{s.summary}</td>
-                    <td>{s.status === "on_account" ? <span className="tag">on account</span> : t(s.method ?? "")}</td>
+                    <td>{s.status === "on_account" ? <span className="tag">{t("on account")}</span> : t(s.method ?? "")}</td>
                     <td className="r"><b>{money(s.total_usd)}</b></td>
                     <td className="r">
-                      {s.payment_id && <button className="btn small ghost" onClick={() => openReceipt(s.payment_id)} aria-label="Receipt"><Icon name="receipt" /></button>}
+                      {s.payment_id && <button className="btn small ghost" onClick={() => openReceipt(s.payment_id)} aria-label={t("Receipt")}><Icon name="receipt" /></button>}
                       {s.status !== "void" && can(me, "owner", "manager") && <button className="btn small ghost danger" onClick={async () => {
                         const reason = prompt("Why are you voiding this sale? Products go back in stock.");
                         if (!reason) return;
                         await run(() => post(`/api/shop/sales/${s.id}/void`, { reason }), "Sale voided");
                         state.reload();
-                      }}>Void</button>}
+                      }}>{t("Void")}</button>}
                     </td>
                   </tr>
                 ))}</tbody>
               </table></div>
             </>
-          ) : <Empty title="No sale in this period." />;
+          ) : <Empty title={t("No sale in this period.")} />;
         }}
       </Loader>
     </div>
@@ -468,36 +468,36 @@ function Overview() {
   return (
     <div className="stack">
       <div className="row">
-        <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From" style={{ width: 160 }} />
-        <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="To" style={{ width: 160 }} />
+        <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label={t("From")} style={{ width: 160 }} />
+        <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label={t("To")} style={{ width: 160 }} />
       </div>
       <Loader state={state}>
         {(d: any) => (
           <>
             <div className="figures">
-              <div className="figure"><span className="label">Shop sales</span><span className="value num-display">{money(d.revenue)}</span><span className="delta">{d.sales} sales</span></div>
-              <div className="figure"><span className="label">Margin</span><span className="value num-display">{money(d.margin)}</span><span className="delta">{d.margin_pct != null ? `${d.margin_pct}% of sales` : "set purchase costs to see it"}</span></div>
-              <div className="figure"><span className="label">Stock value (at cost)</span><span className="value num-display">{money(d.stock_value)}</span></div>
-              <div className="figure"><span className="label">To reorder</span><span className="value num-display">{d.low_stock}</span><span className="delta">{d.expiring_soon ? `${d.expiring_soon} product(s) expire within 30 days` : "no expiry in the next 30 days"}</span></div>
+              <div className="figure"><span className="label">{t("Shop sales")}</span><span className="value num-display">{money(d.revenue)}</span><span className="delta">{d.sales} sales</span></div>
+              <div className="figure"><span className="label">{t("Margin")}</span><span className="value num-display">{money(d.margin)}</span><span className="delta">{d.margin_pct != null ? `${d.margin_pct}% of sales` : t("set purchase costs to see it")}</span></div>
+              <div className="figure"><span className="label">{t("Stock value (at cost)")}</span><span className="value num-display">{money(d.stock_value)}</span></div>
+              <div className="figure"><span className="label">{t("To reorder")}</span><span className="value num-display">{d.low_stock}</span><span className="delta">{d.expiring_soon ? `${d.expiring_soon} product(s) expire within 30 days` : t("no expiry in the next 30 days")}</span></div>
             </div>
             <div className="cols">
               <section className="panel">
-                <header><h2>Best sellers</h2></header>
+                <header><h2>{t("Best sellers")}</h2></header>
                 {d.top.length ? (
                   <div className="table-wrap" style={{ border: 0 }}><table className="data">
-                    <thead><tr><th>Product</th><th className="r">Units</th><th className="r">Sales</th><th className="r">Margin</th></tr></thead>
+                    <thead><tr><th>{t("Product")}</th><th className="r">{t("Units")}</th><th className="r">{t("Sales")}</th><th className="r">{t("Margin")}</th></tr></thead>
                     <tbody>{d.top.map((x: any) => <tr key={x.name}><td>{x.name}</td><td className="r">{x.qty}</td><td className="r">{money(x.revenue)}</td><td className="r">{money(x.margin)}</td></tr>)}</tbody>
                   </table></div>
-                ) : <Empty title="No sales in this period." />}
+                ) : <Empty title={t("No sales in this period.")} />}
               </section>
               <div className="stack">
                 <section className="panel">
-                  <header><h2>By category</h2></header>
+                  <header><h2>{t("By category")}</h2></header>
                   <div className="list">{d.byCategory.map((c: any) => <div key={c.category}><span className="grow">{CAT_LABEL[c.category] ?? c.category}</span><b>{money(c.revenue)}</b></div>)}{!d.byCategory.length && <div className="muted">—</div>}</div>
                 </section>
                 <section className="panel">
-                  <header><h2>Running low</h2></header>
-                  <div className="list">{d.lowStock.map((p: any) => <div key={p.id}><span className="plate" data-s={p.stock <= 0 ? "denied" : "warn"} /><span className="grow">{p.name}</span><b>{p.stock}</b></div>)}{!d.lowStock.length && <div className="muted">Nothing to reorder.</div>}</div>
+                  <header><h2>{t("Running low")}</h2></header>
+                  <div className="list">{d.lowStock.map((p: any) => <div key={p.id}><span className="plate" data-s={p.stock <= 0 ? "denied" : "warn"} /><span className="grow">{p.name}</span><b>{p.stock}</b></div>)}{!d.lowStock.length && <div className="muted">{t("Nothing to reorder.")}</div>}</div>
                 </section>
               </div>
             </div>

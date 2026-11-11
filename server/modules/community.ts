@@ -532,7 +532,8 @@ export function registerCommunity(r: Router) {
     const referrer = b.ref && engageSettings(g.settings).referrals
       ? await one(db, "SELECT id, first_name FROM members WHERE gym_id = $1 AND referral_code = $2 AND archived_at IS NULL", [g.id, b.ref.toUpperCase()]) : null;
     const existingMember = await one(db, "SELECT 1 FROM members WHERE gym_id = $1 AND phone = $2 AND archived_at IS NULL", [g.id, b.phone]);
-    if (existingMember) return { ok: true, already_member: true };
+    // same answer as for anyone else: this public form must not tell who is a member
+    if (existingMember) return { ok: true };
     const existing = await one(db, "SELECT id FROM leads WHERE gym_id = $1 AND phone = $2 AND status NOT IN ('converted','lost')", [g.id, b.phone]);
     if (existing) {
       if (referrer) await db.query("UPDATE leads SET referred_by = coalesce(referred_by, $2) WHERE id = $1", [existing.id, referrer.id]);

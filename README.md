@@ -2,7 +2,8 @@
 
 Logiciel de gestion de salles de sport pensé pour le Liban : abonnements, paiements en dollars **et** en livres,
 entrée par QR code, cours collectifs, coaching privé, rappels WhatsApp, application membre aux couleurs de la salle,
-et une IA qui prédit qui va partir et répond aux membres en arabe, en arabizi, en anglais ou en français.
+et une IA qui prédit qui va partir et répond aux membres en arabe ou en anglais (y compris l'arabe écrit en lettres latines).
+Toute l'interface existe en anglais et en arabe, et rien d'autre.
 
 Une seule plateforme (multi-tenant) sert toutes les salles. Chaque salle part d'un **modèle** (salle classique,
 studio femmes, box CrossFit, club de boxe) puis se personnalise sans code : logo, couleur, formules et prix,
@@ -14,11 +15,11 @@ horaires et heures femmes, règles d'entrée, modules activés, équipe et rôle
 |---|---|
 | `server/` | API Node 22 + TypeScript, client PostgreSQL maison (TLS, SCRAM), IA (churn, RAG, assistant, bot WhatsApp), tâches de fond |
 | `web/` | Back-office React (réception, gérant, coach, plateforme) et application membre (PWA) |
-| `tests/` | 30 tests : API de bout en bout sur une vraie base PostgreSQL + tests unitaires |
+| `tests/` | 49 tests : API de bout en bout sur une vraie base PostgreSQL (39) + tests unitaires (10) |
 | `infra/` | Terraform AWS (ECS Fargate, RDS, ALB HTTPS, Secrets Manager, alarmes) + guide de déploiement |
 | `Dockerfile`, `docker-compose.yml` | Image de production et lancement local en une commande |
 | `.github/workflows/` | CI : typecheck + tests + build ; déploiement automatique sur `main` |
-| `gtm/` | Business plan, playbook commercial, **liste de 98 salles à démarcher**, page de vente, fiche à imprimer |
+| `gtm/` | Business plan, playbook commercial, **liste de 265 salles à démarcher**, affiche A4 (anglais + arabe), deux vidéos de présentation |
 | `docs/` | Description fonctionnelle et captures d'écran |
 
 ## Démarrer en local (5 minutes)
@@ -26,7 +27,7 @@ horaires et heures femmes, règles d'entrée, modules activés, équipe et rôle
 Avec Docker :
 ```bash
 docker compose up --build
-docker compose exec app node seed-demo.js     # deux salles de démo pleines de données réalistes
+docker compose exec app node seed-demo.js     # trois salles de démo pleines de données réalistes
 ```
 Puis ouvrir http://localhost:8080 :
 
@@ -35,6 +36,7 @@ Puis ouvrir http://localhost:8080 :
 | Vous (plateforme GMS) | admin@gms.local | admin12345 |
 | Propriétaire de la salle de démo | owner@demo.gms | demo12345 |
 | Réception de la salle de démo | reception@demo.gms | demo12345 |
+| Petite salle, niveau Essentiel (la démo à montrer hors de Beyrouth) | owner@demo-halba.gms | demo12345 |
 | Membre (application) | http://localhost:8080/m/demo — téléphone et PIN affichés par `seed-demo.js` | |
 
 Sans Docker (Node 22 + PostgreSQL 16) :
@@ -81,9 +83,25 @@ Voir **[infra/README.md](infra/README.md)** : environ 45 minutes la première fo
   qu'une salle ne peut ni lire ni scanner les membres d'une autre.
 - **IA sans boîte noire** : le modèle de churn (régression logistique) est entraîné sur l'historique de chaque salle,
   avec un modèle de départ tant qu'il n'y a pas assez de données, et chaque score est expliqué en phrases simples.
-  La recherche (RAG) comprend l'arabe, l'arabizi et l'anglais. Sans clé API, tout fonctionne en mode hors ligne ;
+  La recherche (RAG) comprend l'arabe, l'arabe écrit en lettres latines et l'anglais. Sans clé API, tout fonctionne en mode hors ligne ;
   avec une clé Anthropic (offre Elite), l'assistant répond librement dans la langue du membre.
 
 Ce qui n'a pas pu être fait ici : l'installation de Next.js et Prisma était bloquée dans cet environnement, d'où le
 choix d'une stack sans dépendances ; Terraform n'a pas pu être exécuté (à valider avec `terraform plan` chez vous) ;
 les polices (Archivo, IBM Plex Sans Arabic) se chargent depuis Google Fonts.
+
+## Simplification (v5, novembre 2026)
+
+Rien n'a été retiré du produit ; ce qui change, c'est ce qu'on voit par défaut.
+
+- **Trois niveaux par salle** (`settings.level`) : *Essential* (membres, entrée, paiements, WhatsApp), *Studio* (+ cours, coaching, app membre), *Everything* (+ boutique, dépenses, intéressés, conseils de suivi). Une nouvelle salle démarre en Essential. Le gérant change de niveau dans Settings → What you use, et peut toujours activer un outil isolé. Code : `server/templates.ts` (`levelModules`), `PUT /api/gym { level }`.
+- **Menu** : une entrée par tâche. Payments, Reports et Expenses sont regroupés sous « Money ». Sur téléphone : quatre entrées fixes et « More » (qui contient aussi le compte, la langue et la déconnexion).
+- **Today** : une phrase pour la journée, puis au plus trois choses à faire (encaisser, renouvellements de la semaine, membres qui ne viennent plus), chaque nom avec un message WhatsApp prêt. Les graphiques sont repliés en bas.
+- **Getting started** : cinq étapes observables (logo, prix, membres, premier paiement, première entrée). Le gérant les voit sur Today ; la plateforme les voit pour chaque salle (`server/services/setup.ts`).
+- **Entrée** : on tape un nom, un numéro ou on scanne. Le QR n'est plus obligatoire.
+- **Coupure internet** : l'entrée continue. Le poste garde une copie de la liste des membres (`GET /api/offline/members`), enregistre chaque entrée avec son heure réelle et l'envoie au retour de la connexion (`web/admin/offline.ts`, `web/public/staff-sw.js`). Les paiements ne sont jamais pris hors ligne : il leur faut un numéro de reçu.
+- **Arabe** : tous les écrans passent par `t()`. Le dictionnaire est dans `web/shared/i18n.ts` et `web/shared/ar-more.ts` (libanais simple, chiffres 0-9). Les noms de formules et de produits restent tels que la salle les a saisis.
+- **Plateforme** : « Needs you today » liste les salles qui doivent de l'argent, dont l'essai se termine, qui sont bloquées dans l'installation ou qui n'utilisent plus l'entrée, avec un message WhatsApp prêt pour le propriétaire.
+- **Site** (`web/site/`) : anglais et arabe (`site-ar.js`, lien direct `/?lang=ar`), section « Start simple », captures refaites.
+
+Ce qui reste en anglais : la référence d'API, l'écran plateforme (pour toi), et les textes de conseil « Focus now » calculés par le serveur (niveau Everything).

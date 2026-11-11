@@ -2,7 +2,7 @@
  * "Ask your gym" — an analyst for the owner that answers from the gym's own data.
  * With an Anthropic API key: the model picks tools (KPIs, revenue, members,
  * attendance, classes, coaches, churn, knowledge) and writes the answer in the
- * owner's language (English, Arabic, Arabizi or French).
+ * owner's language (English or Arabic, including Arabic typed in Latin letters).
  * Without a key: a deterministic intent router answers the most common questions,
  * so the feature still works in a demo or offline.
  */
@@ -142,7 +142,7 @@ async function attendance(gymId: string, days: number) {
 
 const SYSTEM = (gymName: string, today: string) => `You are the data analyst of "${gymName}", a gym in Lebanon, inside the GMS management software.
 Today is ${today}. Money is in USD unless stated. Answer the owner's question using ONLY the tools' data: never invent numbers.
-Reply in the language and script the owner used (English, French, Arabic, or Lebanese Arabizi). Be concise and practical:
+Reply in the language and script the owner used (English, Arabic, or Lebanese Arabizi). Be concise and practical:
 lead with the answer, give the key numbers, then 1–3 concrete actions the owner can take (e.g. who to call, which class to move).
 Use short bullet lists or a compact table when listing members. If data is missing, say what is missing.`;
 
@@ -225,6 +225,6 @@ async function offlineAnswer(gymId: string, question: string, today: string) {
     lines.push(`${k.at_risk} members are at high risk of leaving${k.mrr_at_risk ? ` (${fmtUsd(k.mrr_at_risk)}/month at stake)` : ""}. Outstanding balances: ${fmtUsd(k.outstanding_usd)}.`);
     lines.push(`Today: ${k.checkins_today} check-ins (average ${k.checkins_avg_30d}/day).`);
   }
-  lines.push("\n_Offline mode: connect an AI key in the server settings for free-form questions in Arabic, Arabizi, French or English._");
+  lines.push("\n_Offline mode: connect an AI key in the server settings for free-form questions in Arabic, Arabizi or English._");
   return { answer: lines.join("\n"), toolsUsed: used, mode: "offline" as const };
 }

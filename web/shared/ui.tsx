@@ -20,6 +20,7 @@ const P: Record<string, string> = {
   bell: "M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20a2 2 0 0 0 4 0",
   building: "M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M3 21h18M8 8h3M8 12h3M8 16h3",
   plus: "M12 5v14M5 12h14",
+  menu: "M4 7h16M4 12h16M4 17h16",
   code: "M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16",
   chevron: "M9 6l6 6-6 6",
   trophy: "M8 4h8v5a4 4 0 0 1-8 0V4zM8 6H5v1a3 3 0 0 0 3 3M16 6h3v1a3 3 0 0 1-3 3M12 13v4M8 21h8M9 17h6",
@@ -51,7 +52,7 @@ const P: Record<string, string> = {
 
 export function Icon({ name, ...rest }: { name: keyof typeof P | string } & React.SVGProps<SVGSVGElement>) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...rest}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...rest}>
       <path d={P[name] ?? ""} />
     </svg>
   );
@@ -179,6 +180,20 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
       ))}
     </div>
   );
+}
+
+/** A translated sentence whose {values} are emphasised: tx("{n} members owe {amount}", { n: 4, amount: "$90" }). */
+export function tx(s: string, vars: Record<string, React.ReactNode>): React.ReactNode[] {
+  return t(s).split(/(\{\w+\})/).map((part, i) => {
+    const m = part.match(/^\{(\w+)\}$/);
+    return m ? <strong key={i}><bdi>{vars[m[1]]}</bdi></strong> : part;
+  });
+}
+
+/** Opens WhatsApp with a message ready to send. The gym keeps its own number; nothing is sent automatically. */
+export function waLink(phone: string | null | undefined, text: string): string | undefined {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  return digits ? `https://wa.me/${digits}?text=${encodeURIComponent(text)}` : undefined;
 }
 
 export function Tabs<T extends string>({ value, tabs, onChange }: { value: T; tabs: { value: T; label: string }[]; onChange: (v: T) => void }) {

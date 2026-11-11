@@ -147,8 +147,9 @@ export function registerBusiness(r: Router) {
     return undefined;
   });
 
+  /** Coaches' activity and PT revenue; a coach gets only their own line (their earnings, never the gym's). */
   r.get("/api/reports/coaches", async (ctx) => {
-    const u = await requireStaff(ctx, ["owner", "manager"]);
+    const u = await requireStaff(ctx, ["owner", "manager", "coach"]);
     const today = await gymToday(db, u.gymId);
     const from = zDate.parse(ctx.query.get("from") ?? today.slice(0, 8) + "01");
     const to = zDate.parse(ctx.query.get("to") ?? today);
@@ -161,8 +162,8 @@ export function registerBusiness(r: Router) {
              (SELECT coalesce(round(sum(p.amount_usd), 2), 0) FROM payments p JOIN pt_packages pk ON pk.id = p.pt_package_id
                  WHERE pk.coach_id = us.id AND p.voided_at IS NULL AND p.paid_at::date BETWEEN $2 AND $3) AS pt_revenue,
              (SELECT count(DISTINCT pk.member_id) FROM pt_packages pk WHERE pk.coach_id = us.id AND pk.sessions_used < pk.sessions_total)::int AS active_clients
-        FROM users us WHERE us.gym_id = $1 AND us.active AND (us.role = 'coach' OR EXISTS (SELECT 1 FROM pt_packages pk WHERE pk.coach_id = us.id) OR EXISTS (SELECT 1 FROM class_sessions cs WHERE cs.coach_id = us.id))
-       ORDER BY pt_revenue DESC, name`, [u.gymId, from, to]).then((rows) =>
+        FROM users us WHERE us.gym_id = $1 AND us.active ${u.role === "coach" ? "AND us.id = $4" : ""} AND (us.role = 'coach' OR EXISTS (SELECT 1 FROM pt_packages pk WHERE pk.coach_id = us.id) OR EXISTS (SELECT 1 FROM class_sessions cs WHERE cs.coach_id = us.id))
+       ORDER BY pt_revenue DESC, name`, u.role === "coach" ? [u.gymId, from, to, u.id] : [u.gymId, from, to]).then((rows) =>
       rows.map((x) => ({ ...x, commission_usd: Math.round(Number(x.pt_revenue) * Number(x.commission_pct)) / 100 })));
   });
 

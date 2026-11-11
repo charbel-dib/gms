@@ -1,6 +1,6 @@
 /**
  * Member assistant — answers members on WhatsApp and in the member app, 24/7,
- * in Lebanese Arabic, Arabizi, English or French. Grounded on the gym's data (RAG)
+ * in Lebanese Arabic, Arabizi or English. Grounded on the gym's data (RAG)
  * and on the member's own membership; can list and book classes. Hands over to
  * reception when it cannot help or when the member asks for a person.
  */
@@ -35,7 +35,7 @@ function statusText(m: any): string {
   return `Hi ${m.first_name}! Your ${m.plan_name} membership is active until ${m.end_date} (${m.days_left} day(s) left).${visits}${bal}`;
 }
 
-export async function botReply(gymId: string, memberId: string | null, text: string, history: { role: "user" | "assistant"; content: string }[] = []): Promise<BotReply> {
+export async function botReply(gymId: string, memberId: string | null, text: string, history: { role: "user" | "assistant"; content: string }[] = [], opts: { test?: boolean } = {}): Promise<BotReply> {
   const msg = text.trim().slice(0, 1000);
   const useLlm = llmEnabled() && (await hasElite(db, gymId));
   if (HANDOFF.test(msg)) {
@@ -70,7 +70,7 @@ export async function botReply(gymId: string, memberId: string | null, text: str
       run: async () => { handoff = true; return { ok: true }; },
     },
   ];
-  if (memberId) {
+  if (memberId && !opts.test) {
     tools.push({
       name: "book_class",
       description: "Books the member into one of the upcoming classes listed in the context (by its id). Only call after the member clearly asked to book that class.",
@@ -87,7 +87,7 @@ export async function botReply(gymId: string, memberId: string | null, text: str
   }
 
   const system = `You are the friendly WhatsApp assistant of "${gym.name}", a gym in Lebanon. Local time: ${gym.now}.
-Reply in the SAME language and script as the member (Lebanese Arabic, Arabizi like "kifak", English or French). Keep replies short (1–4 sentences), warm, with at most one emoji.
+Reply in the SAME language and script as the member (Lebanese Arabic, Arabizi like "kifak", or English). Keep replies short (1–4 sentences), warm, with at most one emoji.
 Use ONLY the information below; never invent prices, hours or rules. If the answer is not there, call handoff_to_staff and say reception will follow up.
 ${member ? `MEMBER: ${JSON.stringify(member)}` : "The sender is not a registered member (a prospect): be welcoming and invite them for a visit."}
 GYM INFORMATION:

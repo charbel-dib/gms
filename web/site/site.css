@@ -29,8 +29,8 @@ h3 { font-size: 1.6rem; }
 p { margin: 0; }
 :focus-visible { outline: 3px solid var(--signal); outline-offset: 3px; border-radius: 4px; }
 .wrap { width: 100%; max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
-.skip { position: absolute; left: -9999px; top: 8px; background: var(--paper); padding: 8px 12px; z-index: 50; }
-.skip:focus { left: 8px; }
+.skip { position: absolute; top: -200px; inset-inline-start: 8px; background: var(--paper); padding: 8px 12px; z-index: 50; }
+.skip:focus { top: 8px; }
 section { padding: clamp(64px, 9vw, 120px) 0; }
 .sec-head { display: grid; gap: 14px; margin-bottom: 44px; }
 .sec-head p { color: var(--ink-2); max-width: 62ch; font-size: 1.15rem; }
@@ -65,7 +65,6 @@ section { padding: clamp(64px, 9vw, 120px) 0; }
 /* hero */
 .hero { background: var(--rubber); color: #fff; padding-top: clamp(48px, 7vw, 96px); position: relative; overflow: hidden; }
 /* rubber-floor tiles, barely visible */
-.hero::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px); background-size: 96px 96px; pointer-events: none; }
 .hero-in { position: relative; display: grid; grid-template-columns: 1.05fr 1fr; gap: clamp(32px, 5vw, 72px); align-items: center; }
 .hero h1 { font-size: clamp(2.7rem, 1.6rem + 4.6vw, 5.4rem); font-stretch: 64%; font-weight: 900; line-height: 0.96; max-width: 13ch; }
 .lede { margin-top: 24px; font-size: clamp(1.08rem, 1rem + 0.35vw, 1.25rem); color: #c9d0da; max-width: 52ch; }
@@ -204,7 +203,7 @@ legend { font-weight: 650; font-size: 0.95rem; margin-bottom: 8px; width: 100%; 
 .pill:has(input:checked) { border-color: var(--rubber); background: var(--rubber); color: #fff; }
 .pill input { accent-color: var(--signal); width: auto !important; min-height: 0 !important; margin: 0; }
 .opt { color: var(--muted); font-weight: 500; }
-.hp { position: absolute !important; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.hp { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .form-msg { min-height: 1.5em; font-weight: 650; }
 .form-msg.ok { color: var(--plate-green); }
 .form-msg.err { color: var(--plate-red); }
@@ -244,3 +243,22 @@ legend { font-weight: 650; font-size: 0.95rem; margin-bottom: 8px; width: 100%; 
 }
 .desk.live .desk-list { min-height: 344px; align-content: start; }
 .price b { color: var(--ink); }
+
+/* levels */
+.levels { padding-block: clamp(64px, 8vw, 112px); background: var(--paper); }
+.lv { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 0; border-top: 2px solid var(--rubber); }
+.lv article { padding: 28px 28px 32px 0; border-inline-end: 1px solid var(--line); margin-inline-end: 28px; }
+.lv article:last-child { border-inline-end: 0; margin-inline-end: 0; }
+.lv h3 { font-size: 1.9rem; font-stretch: 75%; font-weight: 800; }
+.lv-who { color: var(--ink-2); margin: 6px 0 16px; max-width: 30ch; }
+.lv ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.lv li { padding-inline-start: 18px; position: relative; }
+.lv li::before { content: ""; position: absolute; inset-inline-start: 0; top: 0.62em; width: 8px; height: 2px; background: var(--signal); }
+.lv-menu { margin-top: 20px; font-weight: 700; color: var(--signal-ink, var(--signal)); }
+button.lang { background: none; border: 0; cursor: pointer; font: inherit; color: inherit; padding: 0; font-family: "IBM Plex Sans Arabic", inherit; }
+[dir="rtl"] button.lang { font-family: inherit; }
+[dir="rtl"] body, [dir="rtl"] { font-family: "IBM Plex Sans Arabic", "Archivo", system-ui, sans-serif; }
+[dir="rtl"] .hero h1 { line-height: 1.15; font-stretch: 100%; max-width: 16ch; }
+[dir="rtl"] h2, [dir="rtl"] h3, [dir="rtl"] .logo { font-stretch: 100%; letter-spacing: 0; }
+[dir="rtl"] .lv article { padding: 28px 0 32px 28px; }
+@media (max-width: 900px) { .lv { grid-template-columns: 1fr; } .lv article { border-inline-end: 0; margin-inline-end: 0; border-bottom: 1px solid var(--line); padding-inline-end: 0; } }

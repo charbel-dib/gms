@@ -21,8 +21,10 @@
   --plate-red: #d1343f;
   --plate-blue: #2f6fcf;
   --plate-grey: #9aa3ae;
-  --series-1: #4b5fc9;
-  --series-2: #c2557a;
+  /* charts: rubber ink leads, chalk grey supports, the gym's brand marks the one bar or point that matters */
+  --series-1: #2b3546;
+  --series-2: #c5cbd3;
+  --series-accent: var(--brand);
   --radius-s: 6px;
   --radius-m: 10px;
   --radius-l: 16px;
@@ -50,7 +52,7 @@ body {
   font-variant-numeric: tabular-nums;
 }
 [dir="rtl"] body, body[dir="rtl"] { font-family: var(--font-ar); }
-h1, h2, h3, h4 { margin: 0; line-height: 1.15; font-weight: 700; }
+h1, h2, h3, h4 { margin: 0; line-height: 1.15; font-weight: 600; }
 p { margin: 0; }
 a { color: inherit; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -61,7 +63,7 @@ img, svg { display: block; max-width: 100%; }
 /* Condensed display numerals — like the stamped weight on a plate */
 .num-display {
   font-stretch: 72%;
-  font-weight: 750;
+  font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1;
 }
@@ -103,7 +105,7 @@ img, svg { display: block; max-width: 100%; }
   border-radius: var(--radius-s);
   border: 1px solid var(--line);
   background: var(--surface);
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   text-decoration: none;
   white-space: nowrap;
@@ -122,7 +124,7 @@ img, svg { display: block; max-width: 100%; }
 .btn svg { width: 1.1em; height: 1.1em; }
 
 .field { display: grid; gap: 6px; min-width: 0; }
-.field > span { font-size: var(--step--1); font-weight: 600; color: var(--ink-2); }
+.field > span { font-size: var(--step--1); font-weight: 500; color: var(--ink-2); }
 .field small { color: var(--muted); font-size: var(--step--1); }
 .input, select.input, textarea.input {
   width: 100%;
@@ -188,3 +190,4 @@ dialog.modal::backdrop { background: rgba(26, 34, 48, 0.42); }
 .toast.error { background: #6b1a21; }
 @keyframes toast-in { from { transform: translateY(8px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
+.field .segmented { justify-self: start; align-self: start; }

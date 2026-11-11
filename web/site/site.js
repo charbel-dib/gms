@@ -1,6 +1,7 @@
 /* GMS website: the reception demo in the hero, the product tour tabs, and the demo request form. */
 (() => {
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const AR = window.GMS_LANG === "ar";
 
   // ---- hero: three members check in, one after another ----
   const desk = document.querySelector(".desk");
@@ -19,10 +20,10 @@
         return;
       }
       scan.classList.add("reading");
-      scanText.textContent = `Reading ${names[i]}’s QR code…`;
+      scanText.textContent = AR ? `عم نقرا رمز ${rows[i].querySelector("b").textContent}…` : `Reading ${names[i]}’s QR code…`;
       setTimeout(() => {
         scan.classList.remove("reading");
-        scanText.textContent = "Scan a QR code, or type a name";
+        scanText.textContent = AR ? "امسح رمز QR، أو اكتب الاسم" : "Scan a QR code, or type a name";
         rows[i].classList.add("in");
         visitors += 1;
         count.textContent = String(visitors);
@@ -86,23 +87,24 @@
         el.setAttribute("aria-invalid", String(!ok));
         if (!ok && !firstBad) firstBad = el;
       }
-      if (firstBad) { out.textContent = "Fill in your name, your gym and a phone number."; out.classList.add("err"); firstBad.focus(); return; }
+      if (firstBad) { out.textContent = AR ? "اكتب اسمك، ناديك ورقم تلفون." : "Fill in your name, your gym and a phone number."; out.classList.add("err"); firstBad.focus(); return; }
       const data = Object.fromEntries(new FormData(form));
       const body = { name: data.name, gym_name: data.gym_name, phone: data.phone, city: data.city || null, members: data.members || null, message: data.message || null, website: data.website || "" };
       const btn = form.querySelector('button[type="submit"]');
       btn.disabled = true;
-      btn.textContent = "Sending…";
+      btn.textContent = AR ? "عم نبعت…" : "Sending…";
       try {
         const r = await fetch("/api/public/demo-requests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
         const j = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(j.message || "Something went wrong. Message us on WhatsApp instead.");
+        if (!r.ok) throw new Error(AR ? "صار في مشكلة. راسلنا عالواتساب." : j.message || "Something went wrong. Message us on WhatsApp instead.");
         form.classList.add("sent");
-        form.innerHTML = `<h3>Thanks, ${String(data.name).split(" ")[0].replace(/[<>&]/g, "")}!</h3><p style="color:var(--ink-2);max-width:40ch">We’ll message you on WhatsApp today to find a time for your demo.</p>`;
+        const first = String(data.name).split(" ")[0].replace(/[<>&]/g, "");
+        form.innerHTML = AR ? `<h3>شكراً ${first}</h3><p style="color:var(--ink-2);max-width:40ch">منراسلك عالواتساب اليوم لنتفق عوقت.</p>` : `<h3>Thanks, ${first}</h3><p style="color:var(--ink-2);max-width:40ch">We’ll message you on WhatsApp today to find a time.</p>`;
       } catch (err) {
         out.textContent = err.message;
         out.classList.add("err");
         btn.disabled = false;
-        btn.textContent = "Book my demo";
+        btn.textContent = AR ? "اطلب شهري المجاني" : "Ask for my free month";
       }
     });
   }

@@ -1,13 +1,15 @@
 /** GMS platform console (super-admin): onboard gyms, plans, billing status, demo data. */
 import { z } from "zod";
 import { db, one, many, audit } from "../db/index.ts";
-import { checkRateLimit, randomPassword, requireSuperadmin } from "../auth.ts";
+import { checkRateLimit, encryptSecret, randomPassword, requireSuperadmin } from "../auth.ts";
+import { config } from "../config.ts";
 import { bad, notFound, zDate, zId, zPhone, type Router } from "../http.ts";
 import { provisionGym } from "../services/provision.ts";
 import { TEMPLATES } from "../templates.ts";
 import { seedDemoActivity } from "../services/demo.ts";
 import { clampModules, PLAN_PRICES, type SaasPlan } from "../services/plans.ts";
-import { getTemplate } from "../templates.ts";
+import { getTemplate, levelModules } from "../templates.ts";
+import { setupSql } from "../services/setup.ts";
 
 const DEMO_STATUSES = ["new", "contacted", "demo_booked", "won", "lost"] as const;
 
@@ -49,11 +51,16 @@ export function registerAdmin(r: Router) {
   r.get("/api/admin/gyms", async (ctx) => {
     await requireSuperadmin(ctx);
     const rows = await many(db, `
-      SELECT g.id, g.slug, g.name, g.city, g.phone, g.saas_plan, g.saas_status, g.saas_price_usd, g.saas_paid_until, g.trial_ends_at, g.created_at,
+      SELECT g.id, g.slug, g.name, g.city, g.phone, g.saas_plan, g.saas_status, g.saas_price_usd, g.saas_paid_until, g.trial_ends_at, g.created_at, g.is_demo,
+             g.settings->'whatsapp'->>'phoneNumberId' AS wa_phone_number_id, g.settings->'whatsapp'->>'businessNumber' AS wa_business_number,
+             (g.settings->'whatsapp'->>'tokenEnc') IS NOT NULL AS wa_has_token,
              (SELECT count(*) FROM member_overview mo WHERE mo.gym_id = g.id AND mo.archived_at IS NULL AND mo.status IN ('active','expiring'))::int AS active_members,
              (SELECT count(*) FROM checkins c WHERE c.gym_id = g.id AND c.at > now() - interval '7 days')::int AS checkins_7d,
              (SELECT max(u.last_login_at) FROM users u WHERE u.gym_id = g.id) AS last_login,
-             (SELECT u.email FROM users u WHERE u.gym_id = g.id AND u.role = 'owner' ORDER BY created_at LIMIT 1) AS owner_email
+             (SELECT u.email FROM users u WHERE u.gym_id = g.id AND u.role = 'owner' ORDER BY created_at LIMIT 1) AS owner_email,
+             (SELECT u.phone FROM users u WHERE u.gym_id = g.id AND u.role = 'owner' ORDER BY created_at LIMIT 1) AS owner_phone,
+             (SELECT max(c.at) FROM checkins c WHERE c.gym_id = g.id) AS last_checkin,
+             g.settings->>'level' AS level, ${setupSql("g")} AS setup
         FROM gyms g ORDER BY g.created_at DESC`);
     const mrr = rows.filter((g) => g.saas_status === "active").reduce((s, g) => s + Number(g.saas_price_usd), 0);
     return { rows, totals: { gyms: rows.length, active: rows.filter((g) => g.saas_status === "active").length, trial: rows.filter((g) => g.saas_status === "trial").length, mrr } };
@@ -75,6 +82,7 @@ export function registerAdmin(r: Router) {
       brand_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#E4572E"),
       template: z.enum(TEMPLATES.map((t) => t.key) as [string, ...string[]]),
       saas_plan: z.enum(["starter", "pro", "elite"]).default("pro"),
+      level: z.enum(["essential", "studio", "full"]).default("essential"),
       owner_name: z.string().trim().min(2).max(80),
       owner_email: z.string().trim().email(),
       owner_phone: z.string().max(30).nullable().optional(),
@@ -85,6 +93,9 @@ export function registerAdmin(r: Router) {
     const password = randomPassword();
     const out = await db.tx(async (q) => {
       const ids = await provisionGym(q, { ...b, owner: { name: b.owner_name, email: b.owner_email, phone: b.owner_phone, password } });
+      // the owner replaces the temporary password at first sign-in; a gym with demo data is a demo gym
+      await q.query("UPDATE users SET must_change_password = true WHERE id = $1", [ids.ownerId]);
+      if (b.demo_data) await q.query("UPDATE gyms SET is_demo = true WHERE id = $1", [ids.gymId]);
       await audit(q, ids.gymId, su.id, "gym.create", "gym", ids.gymId, { template: b.template });
       return ids;
     });
@@ -107,7 +118,8 @@ export function registerAdmin(r: Router) {
     if (!g) throw notFound("gym");
     const plan: SaasPlan = b.saas_plan ?? g.saas_plan;
     // upgrading turns the plan's features on; downgrading turns the extra ones off
-    const base = b.saas_plan && b.saas_plan !== g.saas_plan ? { ...g.modules, ...getTemplate(g.settings?.template ?? "classic").modules } : g.modules;
+    // a change of plan re-applies the gym's chosen level: what the new plan allows comes on, nothing beyond the level
+    const base = b.saas_plan && b.saas_plan !== g.saas_plan ? { ...g.modules, ...levelModules(g.settings?.level ?? "full") } : g.modules;
     const nextModules = clampModules(plan, { ...base, ...(b.modules ?? {}) });
     if (b.saas_plan && b.saas_price_usd === undefined) b.saas_price_usd = PLAN_PRICES[plan];
     await db.query(
@@ -129,16 +141,52 @@ export function registerAdmin(r: Router) {
     if (!owner) throw notFound("owner");
     const password = randomPassword();
     const { hashPassword } = await import("../auth.ts");
-    await db.query("UPDATE users SET password_hash = $2, active = true WHERE id = $1", [owner.id, await hashPassword(password)]);
+    await db.query("UPDATE users SET password_hash = $2, active = true, must_change_password = true WHERE id = $1", [owner.id, await hashPassword(password)]);
     await db.query("DELETE FROM sessions WHERE user_id = $1", [owner.id]);
     await audit(db, id, su.id, "gym.reset_owner", "user", owner.id);
     return { email: owner.email, temporaryPassword: password };
   });
 
   r.post("/api/admin/gyms/:id/demo-data", async (ctx) => {
-    await requireSuperadmin(ctx);
+    const su = await requireSuperadmin(ctx);
     const id = zId.parse(ctx.params.id);
-    if (!(await one(db, "SELECT 1 FROM gyms WHERE id = $1", [id]))) throw notFound("gym");
+    const g = await one(db, "SELECT is_demo FROM gyms WHERE id = $1", [id]);
+    if (!g) throw notFound("gym");
+    // fake members and payments would mix with a real gym's records
+    if (!g.is_demo) throw bad("not_a_demo_gym", "Demo data can only be added to a gym created as a demo");
+    await audit(db, id, su.id, "gym.demo_data", "gym", id);
     return seedDemoActivity(id, { members: 120, days: 180 });
+  });
+
+  /**
+   * WhatsApp Cloud API number of a gym: set by GMS only. A number belongs to one gym
+   * (unique in the database too), and a gym's number is used with that gym's own token.
+   */
+  r.put("/api/admin/gyms/:id/whatsapp", async (ctx) => {
+    const su = await requireSuperadmin(ctx);
+    const id = zId.parse(ctx.params.id);
+    const b = await ctx.body(z.object({
+      phoneNumberId: z.string().trim().regex(/^\d{6,30}$/, "The phone number ID is the long number from Meta's WhatsApp Manager").nullable(),
+      businessNumber: z.string().trim().max(30).nullable().optional(),
+      token: z.string().trim().max(600).optional(), // write-only; "" removes it
+    }));
+    const g = await one(db, "SELECT settings FROM gyms WHERE id = $1", [id]);
+    if (!g) throw notFound("gym");
+    if (b.phoneNumberId) {
+      const other = await one(db, "SELECT name FROM gyms WHERE id <> $1 AND settings->'whatsapp'->>'phoneNumberId' = $2", [id, b.phoneNumberId]);
+      if (other) throw bad("number_taken", `This WhatsApp number is already connected to ${other.name}`);
+    }
+    const prev = g.settings?.whatsapp ?? {};
+    const next = {
+      phoneNumberId: b.phoneNumberId,
+      businessNumber: b.businessNumber !== undefined ? b.businessNumber : prev.businessNumber ?? null,
+      tokenEnc: b.token ? encryptSecret(b.token) : b.token === "" ? null : prev.tokenEnc ?? null,
+    };
+    if (next.phoneNumberId && !next.tokenEnc && next.phoneNumberId !== config.whatsapp.phoneNumberId) {
+      throw bad("token_required", "Add this number's access token: a gym's number never uses the GMS token");
+    }
+    await db.query("UPDATE gyms SET settings = jsonb_set(settings, '{whatsapp}', $2::jsonb) WHERE id = $1", [id, JSON.stringify(next)]);
+    await audit(db, id, su.id, "gym.whatsapp", "gym", id, { phoneNumberId: next.phoneNumberId, token: b.token === undefined ? "kept" : b.token ? "set" : "removed" });
+    return { ok: true, phoneNumberId: next.phoneNumberId, businessNumber: next.businessNumber, hasToken: !!next.tokenEnc };
   });
 }

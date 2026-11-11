@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { get, getGymOverride, post, setGymOverride, setUnauthorizedHandler } from "../shared/api.ts";
 import { Icon, Spinner, Status, Toasts, toastError, useDebounced } from "../shared/ui.tsx";
 import { getLang, setLang, t, useLang } from "../shared/i18n.ts";
+import { flush, refreshOfflineMembers, useConnection } from "./offline.ts";
 import { AppCtx, Link, brandInk, can, doCheckin, looksLikeQr, moduleOn, navigate, usePath, type Me } from "./app.tsx";
 import { TodayPage } from "./pages/today.tsx";
 import { CheckinPage } from "./pages/checkin.tsx";
@@ -20,10 +21,12 @@ import { ReportHost } from "./report.tsx";
 import { ShopPage } from "./pages/shop.tsx";
 import { MemberAppPage } from "./pages/memberapp.tsx";
 import { DevelopersPage } from "./pages/developers.tsx";
+import { AccountModal, ForcePasswordChange } from "./account.tsx";
 
 function Login({ onDone }: { onDone: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState<string | null>(null); // asked once the password is right and two-step sign-in is on
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   return (
@@ -35,10 +38,10 @@ function Login({ onDone }: { onDone: () => void }) {
           ))}
         </div>
         <div className="stack">
-          <h1>Run the gym, not the paperwork.</h1>
-          <p>Memberships, check-in, classes, payments in dollars or lira, WhatsApp reminders and an assistant that knows your numbers.</p>
+          <h1>{t("Run the gym, not the paperwork.")}</h1>
+          <p>{t("Memberships, check-in, classes, payments in dollars or lira, WhatsApp reminders and an assistant that knows your numbers.")}</p>
         </div>
-        <small style={{ color: "#7f8ba0" }}>GMS · Gym Management System</small>
+        <small style={{ color: "#7f8ba0" }}>{t("GMS · Gym Management System")}</small>
       </div>
       <div className="auth-form">
         <form onSubmit={async (e) => {
@@ -46,20 +49,26 @@ function Login({ onDone }: { onDone: () => void }) {
           setBusy(true);
           setErr("");
           try {
-            await post("/api/auth/login", { email, password });
+            await post("/api/auth/login", { email, password, ...(code !== null ? { code } : {}) });
             onDone();
           } catch (e: any) {
+            if (e.code === "code_required") { setCode(""); return; }
             setErr(e.message);
           } finally {
             setBusy(false);
           }
         }}>
-          <h2>Sign in</h2>
-          <label className="field"><span>Email</span><input className="input" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} autoFocus /></label>
-          <label className="field"><span>Password</span><input className="input" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+          <h2>{t("Sign in")}</h2>
+          <label className="field"><span>{t("Email")}</span><input className="input" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} autoFocus /></label>
+          <label className="field"><span>{t("Password")}</span><input className="input" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+          {code !== null && (
+            <label className="field"><span>{t("Code from your authenticator app")}</span>
+              <input className="input" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required autoFocus value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} />
+            </label>
+          )}
           {err && <p role="alert" style={{ color: "var(--plate-red)" }}>{err}</p>}
-          <button className="btn primary block" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
-          <p className="muted" style={{ fontSize: "0.85rem" }}>Forgot your password? Ask the gym owner, or GMS support, to reset it.</p>
+          <button className="btn primary block" disabled={busy}>{busy ? t("Signing in…") : t("Sign in")}</button>
+          <p className="muted" style={{ fontSize: "0.85rem" }}>{t("Forgot your password? Ask the gym owner, or GMS support, to reset it.")}</p>
         </form>
       </div>
     </div>
@@ -67,7 +76,7 @@ function Login({ onDone }: { onDone: () => void }) {
 }
 
 /** The scan bar: USB QR scanners type into it; staff can also search by name, phone or number. */
-function ScanBar() {
+function ScanBar({ canCheckin }: { canCheckin: boolean }) {
   const [q, setQ] = useState("");
   const [items, setItems] = useState<any[]>([]);
   const [sel, setSel] = useState(0);
@@ -116,8 +125,8 @@ function ScanBar() {
           if (e.key === "Enter") {
             const s = q.trim();
             if (!s) return;
-            if (looksLikeQr(s)) return checkin({ token: s });
-            if (/^\d{1,7}$/.test(s)) return checkin({ code: Number(s) });
+            if (canCheckin && looksLikeQr(s)) return checkin({ token: s });
+            if (canCheckin && /^\d{1,7}$/.test(s)) return checkin({ code: Number(s) });
             if (items[sel]) { navigate(`/members/${items[sel].id}`); setQ(""); setItems([]); }
           }
         }} />
@@ -126,9 +135,9 @@ function ScanBar() {
         <div className="suggest" role="listbox">
           {items.map((m, i) => (
             <button key={m.id} role="option" aria-selected={i === sel} onMouseDown={(e) => e.preventDefault()} onClick={() => { navigate(`/members/${m.id}`); setQ(""); setItems([]); }}>
-              <span className="who"><b>{m.first_name} {m.last_name}</b><small>#{m.code} · {m.phone ?? "no phone"}</small></span>
+              <span className="who"><b>{m.first_name} {m.last_name}</b><small>#{m.code} · {m.phone ?? t("no phone")}</small></span>
               <Status s={m.status} />
-              <span className="btn small" role="button" onClick={(e) => { e.stopPropagation(); checkin({ member_id: m.id }); }}>Check in</span>
+              {canCheckin && <span className="btn small" role="button" onClick={(e) => { e.stopPropagation(); checkin({ member_id: m.id }); }}>{t("Check in")}</span>}
             </button>
           ))}
         </div>
@@ -141,6 +150,7 @@ function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
   const path = usePath().split("?")[0];
   const lang = useLang();
   const gym = me.gym;
+  const staffRole = can(me, "owner", "manager", "reception");
   const [outbox, setOutbox] = useState(0);
   useEffect(() => {
     if (!gym || !can(me, "owner", "manager", "reception")) return;
@@ -150,37 +160,62 @@ function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
     return () => clearInterval(id);
   }, [gym?.id, path]);
 
-  const items: { to: string; label: string; icon: string; show: boolean; count?: number }[] = [
-    { to: "/", label: t("Today"), icon: "today", show: can(me, "owner", "manager", "reception") },
-    { to: "/checkin", label: t("Check-in"), icon: "scan", show: true },
+  // keep a copy of the member list on this device, so the desk still works if the internet drops
+  const conn = useConnection();
+  useEffect(() => {
+    if (!gym || !staffRole) return;
+    refreshOfflineMembers().then(flush);
+    const id = setInterval(refreshOfflineMembers, 10 * 60_000);
+    return () => clearInterval(id);
+  }, [gym?.id]);
+
+  const [account, setAccount] = useState(false);
+  // coaches check members in only where the gym allows it (Settings → Team)
+  const checkinOn = can(me, "owner", "manager", "reception") || !!gym?.settings?.staff?.coachCheckin;
+  // One entry per job, not per screen. Modules a gym has not switched on never appear.
+  const staff = can(me, "owner", "manager", "reception");
+  const items: { to: string; label: string; icon: string; show: boolean; count?: number; also?: string[] }[] = [
+    { to: "/", label: t("Today"), icon: "today", show: staff },
+    { to: "/checkin", label: t("Check-in"), icon: "scan", show: checkinOn },
     { to: "/members", label: t("Members"), icon: "users", show: true },
+    { to: "/payments", label: t("Money"), icon: "card", show: staff, also: ["/reports", "/expenses"] },
+    { to: "/messages", label: t("Messages"), icon: "message", show: moduleOn(me, "whatsapp") && staff, count: outbox },
     { to: "/classes", label: t("Classes"), icon: "calendar", show: moduleOn(me, "classes") },
     { to: "/coaching", label: t("Personal training"), icon: "dumbbell", show: moduleOn(me, "pt") },
-    { to: "/payments", label: t("Payments"), icon: "card", show: can(me, "owner", "manager", "reception") },
-    { to: "/shop", label: t("Shop"), icon: "bag", show: moduleOn(me, "shop") && can(me, "owner", "manager", "reception") },
-    { to: "/messages", label: t("Messages"), icon: "message", show: moduleOn(me, "whatsapp") && can(me, "owner", "manager", "reception"), count: outbox },
-    { to: "/insights", label: t("Insights"), icon: "spark", show: can(me, "owner", "manager") || (moduleOn(me, "ai") && can(me, "reception")) },
-    { to: "/reports", label: t("Reports"), icon: "chart", show: can(me, "owner", "manager") },
-    { to: "/leads", label: t("Leads"), icon: "lead", show: moduleOn(me, "leads") && can(me, "owner", "manager", "reception") },
+    { to: "/shop", label: t("Shop"), icon: "bag", show: moduleOn(me, "shop") && staff },
+    { to: "/insights", label: t("Follow-up"), icon: "spark", show: moduleOn(me, "ai") && staff },
+    { to: "/leads", label: t("Interested people"), icon: "lead", show: moduleOn(me, "leads") && staff },
     { to: "/app", label: t("Member app"), icon: "phone", show: moduleOn(me, "memberApp") && can(me, "owner", "manager") },
-    { to: "/expenses", label: t("Expenses"), icon: "receipt", show: moduleOn(me, "expenses") && can(me, "owner", "manager") },
     { to: "/settings", label: t("Settings"), icon: "settings", show: can(me, "owner", "manager") },
   ];
-  const active = (to: string) => (to === "/" ? path === "/" : path.startsWith(to));
+  const shown = items.filter((i) => i.show);
+  const [more, setMore] = useState(false);
+  useEffect(() => setMore(false), [path]);
+  const p0 = path.split("?")[0];
+  const active = (i: { to: string; also?: string[] }) => (i.to === "/" ? p0 === "/" : p0.startsWith(i.to) || !!i.also?.some((a) => p0.startsWith(a)));
+  const roleLabel = t({ superadmin: "GMS", owner: "Owner", manager: "Manager", reception: "Reception", coach: "Coach" }[me.user.role]);
+  const foot = (
+    <>
+      <button onClick={() => setAccount(true)}><Icon name="lock" /><span>{t("Your account")}</span></button>
+      <button onClick={() => setLang(getLang() === "ar" ? "en" : "ar")}><Icon name="globe" /><span>{getLang() === "ar" ? t("English") : "العربية"}</span></button>
+      <button onClick={async () => { await post("/api/auth/logout"); setGymOverride(null); location.href = "/login"; }}><Icon name="logout" /><span>{t("Sign out")}</span></button>
+    </>
+  );
   return (
     <div className="shell">
       <aside className="side">
         <div className="gym-id">
           <div className="logo">{gym?.has_logo ? <img src={`/api/public/gyms/${gym.slug}/logo`} alt="" /> : (gym?.name ?? "G")[0]}</div>
-          <div><b>{lang === "ar" && gym?.name_ar ? gym.name_ar : gym?.name}</b><small>{me.user.name} · {me.user.role}</small></div>
+          <div><b>{lang === "ar" && gym?.name_ar ? gym.name_ar : gym?.name}</b><small>{me.user.name}, {roleLabel}</small></div>
         </div>
-        <nav className="nav" aria-label="Main">
-          {items.filter((i) => i.show).map((i) => (
-            <Link key={i.to} to={i.to} aria-current={active(i.to) ? "page" : undefined}>
+        <nav className="nav" aria-label={t("Main")}>
+          {shown.map((i, n) => (
+            <Link key={i.to} to={i.to} className={n >= 4 ? "extra" : undefined} aria-current={active(i) ? "page" : undefined}>
               <Icon name={i.icon} /> <span>{i.label}</span>
               {!!i.count && <span className="count">{i.count}</span>}
             </Link>
           ))}
+          <button className="more-btn" aria-expanded={more} onClick={() => setMore(!more)}><Icon name="menu" /> <span>{t("More")}</span></button>
           {me.user.role === "superadmin" && (
             <>
               <div className="group">GMS</div>
@@ -188,18 +223,33 @@ function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
             </>
           )}
         </nav>
-        <div className="side-foot">
-          {can(me, "owner") && <Link to="/developers" className="side-link" aria-current={path === "/developers" ? "page" : undefined}><Icon name="code" width={16} height={16} style={{ display: "inline", verticalAlign: -3, marginInlineEnd: 6 }} />{t("API reference")}</Link>}
-          <button onClick={() => setLang(getLang() === "ar" ? "en" : "ar")}><Icon name="globe" width={16} height={16} style={{ display: "inline", verticalAlign: -3, marginInlineEnd: 6 }} />{getLang() === "ar" ? t("Switch to English") : t("Switch to Arabic")}</button>
-          <button onClick={async () => { await post("/api/auth/logout"); setGymOverride(null); location.href = "/login"; }}><Icon name="logout" width={16} height={16} style={{ display: "inline", verticalAlign: -3, marginInlineEnd: 6 }} />{t("Sign out")}</button>
-        </div>
+        <div className="side-foot">{foot}</div>
+        {more && (
+          <div className="more-sheet" role="dialog" aria-label={t("More")} onClick={() => setMore(false)}>
+            <div onClick={(e) => e.stopPropagation()}>
+              <b>{lang === "ar" && gym?.name_ar ? gym.name_ar : gym?.name}</b>
+              {shown.slice(4).map((i) => (
+                <Link key={i.to} to={i.to} aria-current={active(i) ? "page" : undefined}><Icon name={i.icon} /> <span>{i.label}</span>{!!i.count && <span className="count">{i.count}</span>}</Link>
+              ))}
+              <hr />
+              {foot}
+            </div>
+          </div>
+        )}
       </aside>
+      <AccountModal open={account} onClose={() => setAccount(false)} />
       <div className="main">
         <div className="topbar">
-          <ScanBar />
+          <ScanBar canCheckin={checkinOn} />
           <span style={{ flex: 1 }} />
-          {can(me, "owner", "manager", "reception") && <Link to="/members?new=1" className="btn primary"><Icon name="plus" />{t("Add member")}</Link>}
+          {can(me, "owner", "manager", "reception") && <Link to="/members?new=1" className="btn primary" aria-label={t("Add member")}><Icon name="plus" /><span className="btn-label">{t("Add member")}</span></Link>}
         </div>
+        {(!conn.online || conn.queued > 0) && (
+          <div className="offline" role="status">
+            <b>{conn.online ? t("Back online.") : t("No internet.")}</b>{" "}
+            {conn.online ? t("Sending {n} check-ins taken offline…", { n: conn.queued }) : conn.queued > 0 ? t("Check-in still works: {n} saved on this device, sent when the connection is back. Write payments down and record them later.", { n: conn.queued }) : t("Check-in still works from this device. Write payments down and record them once the connection is back.")}
+          </div>
+        )}
         {children}
       </div>
     </div>
@@ -212,7 +262,7 @@ function Routes({ me }: { me: Me }) {
   if (path === "/platform" && me.user.role === "superadmin") return <PlatformPage />;
   if (path.startsWith("/members/")) return <MemberPage id={path.split("/")[2]} />;
   switch (path) {
-    case "/": return can(me, "owner", "manager", "reception") ? <TodayPage /> : <CheckinPage />;
+    case "/": return can(me, "owner", "manager", "reception") ? <TodayPage /> : me.gym?.settings?.staff?.coachCheckin ? <CheckinPage /> : moduleOn(me, "pt") ? <CoachingPage /> : <ClassesPage />;
     case "/checkin": return <CheckinPage />;
     case "/members": return <MembersPage />;
     case "/classes": return <ClassesPage />;
@@ -227,7 +277,7 @@ function Routes({ me }: { me: Me }) {
     case "/settings": return <SettingsPage />;
     case "/developers": return can(me, "owner") ? <DevelopersPage /> : null;
     case "/app": return can(me, "owner", "manager") ? <MemberAppPage /> : null;
-    default: return <div className="page"><div className="empty"><b>This page does not exist.</b><Link className="btn" to="/">Go to Today</Link></div></div>;
+    default: return <div className="page"><div className="empty"><b>{t("This page does not exist.")}</b><Link className="btn" to="/">{t("Go to Today")}</Link></div></div>;
   }
 }
 
@@ -249,6 +299,8 @@ function Root() {
   useEffect(() => {
     setUnauthorizedHandler(() => setMe(null));
     load();
+    // lets the desk reopen the app without internet (see web/public/staff-sw.js)
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/staff-sw.js", { scope: "/" }).catch(() => {});
   }, [load]);
   useEffect(() => {
     const color = me?.gym?.brand_color ?? "#E4572E";
@@ -259,6 +311,7 @@ function Root() {
 
   if (me === undefined) return <div className="empty" style={{ minHeight: "100vh" }}><Spinner /></div>;
   if (me === null) return <Login onDone={load} />;
+  if (me.user.must_change_password) return <ForcePasswordChange name={me.user.name} onDone={load} />;
   if (me.user.role === "superadmin" && !me.gym) {
     return (
       <AppCtx.Provider value={{ me, reloadMe: load }}>
@@ -273,7 +326,7 @@ function Root() {
       <ReportHost />
       {me.user.role === "superadmin" && getGymOverride() && (
         <button className="btn dark small" style={{ position: "fixed", bottom: 16, insetInlineStart: 252, zIndex: 50 }} onClick={() => { setGymOverride(null); location.href = "/platform"; }}>
-          Leave {me.gym?.name}
+          {t("Leave")}{" "}{me.gym?.name}
         </button>
       )}
     </AppCtx.Provider>

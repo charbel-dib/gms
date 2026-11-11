@@ -35,7 +35,8 @@ export function gymWaCreds(settings: any): WaCreds | null {
       token = "";
     }
   }
-  token ||= config.whatsapp.token;
+  // the GMS token only ever sends from the GMS number: a gym's number needs that gym's own token
+  if (!token && phoneNumberId === config.whatsapp.phoneNumberId) token = config.whatsapp.token;
   return token ? { phoneNumberId, token } : null;
 }
 

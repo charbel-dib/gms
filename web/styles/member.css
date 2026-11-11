@@ -306,3 +306,4 @@ body.member .check input { width: 20px; height: 20px; accent-color: var(--brand)
 .i-arrow svg { animation: i-bob 1.4s ease-in-out infinite; }
 @keyframes i-bob { 50% { transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { .i-arrow svg { animation: none; } }
+a.m-tile { text-decoration: none; }

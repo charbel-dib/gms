@@ -172,14 +172,14 @@ export function registerEngage(r: Router) {
   /** Drafts a personal win-back WhatsApp for a member, from their churn reasons. */
   r.post("/api/ai/winback/:memberId", async (ctx) => {
     const u = await requireStaff(ctx, ["owner", "manager", "reception"]);
-    const b = await ctx.body(z.object({ lang: z.enum(["en", "ar", "arabizi", "fr"]).default("en") }));
+    const b = await ctx.body(z.object({ lang: z.enum(["en", "ar", "arabizi"]).default("en") }));
     const m = await one(db, `SELECT mo.*, cs.factors->'reasons' AS reasons, g.name AS gym_name FROM member_overview mo JOIN gyms g ON g.id = mo.gym_id
                               LEFT JOIN churn_scores cs ON cs.member_id = mo.id WHERE mo.id = $1 AND mo.gym_id = $2`, [zId.parse(ctx.params.memberId), u.gymId]);
     if (!m) throw notFound("member");
     let text: string;
     if (llmEnabled() && (await hasElite(db, u.gymId))) {
       const out = await runWithTools({
-        system: `You write short, warm WhatsApp messages for the staff of "${m.gym_name}", a gym in Lebanon. Output ONLY the message text (2–3 sentences, max one emoji), language: ${b.lang === "arabizi" ? "Lebanese Arabizi (latin letters, e.g. 'kifak')" : b.lang === "ar" ? "Lebanese Arabic" : b.lang === "fr" ? "French" : "English"}. Never mention data, scores or AI. No discount unless the context says so.`,
+        system: `You write short, warm WhatsApp messages for the staff of "${m.gym_name}", a gym in Lebanon. Output ONLY the message text (2–3 sentences, max one emoji), language: ${b.lang === "arabizi" ? "Lebanese Arabizi (latin letters, e.g. 'kifak')" : b.lang === "ar" ? "Lebanese Arabic" : "English"}. Never mention data, scores or AI. No discount unless the context says so.`,
         messages: [{ role: "user", content: `Member: ${m.first_name}. Plan: ${m.plan_name ?? "none"}, ends ${m.end_date ?? "-"} (${m.days_left ?? "-"} days left). Why we worry: ${JSON.stringify(m.reasons ?? [])}. Goal: bring them back this week in a caring, non-pushy way, invite them to a class or a free check-in with a coach.` }],
         tools: [],
         maxTokens: 220,
@@ -190,7 +190,6 @@ export function registerEngage(r: Router) {
         en: `Hi ${m.first_name}! We haven't seen you at ${m.gym_name} lately and we miss you 💪 Want us to book you a free session with a coach this week to get back on track?`,
         ar: `مرحبا ${m.first_name}! اشتقنالك بـ ${m.gym_name} 💪 بتحب نحجزلك جلسة مجانية مع مدرب هالجمعة لترجع عالروتين؟`,
         arabizi: `Hi ${m.first_name}! Eshta2nelak bi ${m.gym_name} 💪 Baddak nehjizlak session ma3 coach hal jem3a ta terja3 3al routine?`,
-        fr: `Salut ${m.first_name} ! On ne t'a pas vu à ${m.gym_name} ces derniers temps 💪 Tu veux qu'on te réserve une séance offerte avec un coach cette semaine ?`,
       };
       text = templates[b.lang as keyof typeof templates];
     }
@@ -222,9 +221,12 @@ export function registerEngage(r: Router) {
   });
   /** Lets staff test the member bot exactly as a member would see it. */
   r.post("/api/ai/bot-test", async (ctx) => {
-    const u = await requireStaff(ctx);
+    // the test shows a member's membership and balance: people who manage the bot only
+    const u = await requireStaff(ctx, ["owner", "manager"]);
     const b = await ctx.body(z.object({ text: z.string().trim().min(1).max(1000), member_id: zId.nullable().optional() }));
-    const [reply, sources] = await Promise.all([botReply(u.gymId, b.member_id ?? null, b.text), retrieve(u.gymId, b.text, 3)]);
+    if (b.member_id && !(await one(db, "SELECT 1 FROM members WHERE id = $1 AND gym_id = $2", [b.member_id, u.gymId]))) throw notFound("member");
+    // a test never books anything for the member
+    const [reply, sources] = await Promise.all([botReply(u.gymId, b.member_id ?? null, b.text, [], { test: true }), retrieve(u.gymId, b.text, 3)]);
     return { ...reply, sources: sources.map((s) => ({ title: s.doc.title, score: Math.round(s.score * 100) / 100 })) };
   });
 

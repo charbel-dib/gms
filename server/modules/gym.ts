@@ -1,12 +1,14 @@
 import { z } from "zod";
 import { db, one, many, audit } from "../db/index.ts";
 import {
-  checkRateLimit, clearRateLimit, createSession, destroySession, encryptSecret, hashPassword,
-  randomPassword, requireStaff, verifyPassword,
+  clearRateLimit, createSession, decryptSecret, destroySession, encryptSecret, endOtherSessions, guardLogin, hashPassword,
+  noteLoginFailure, randomPassword, requireStaff, verifyNobody, verifyPassword,
 } from "../auth.ts";
+import { matchStep, newSecret, otpauthUri } from "../services/totp.ts";
 import { bad, notFound, zCurrency, zId, type Router } from "../http.ts";
-import { TEMPLATES } from "../templates.ts";
+import { TEMPLATES, levelModules } from "../templates.ts";
 import { clampModules } from "../services/plans.ts";
+import { markPricesChecked, setupSql } from "../services/setup.ts";
 
 const GYM_PUBLIC_COLS = `id, slug, name, name_ar, tagline, brand_color, phone, whatsapp, email, instagram, address, city,
   timezone, default_currency, lbp_rate, locale, modules, settings, saas_plan, saas_status, trial_ends_at, saas_paid_until,
@@ -22,7 +24,7 @@ export function publicSettings(settings: any) {
 }
 
 export async function loadGym(gymId: string) {
-  const g = await one(db, `SELECT ${GYM_PUBLIC_COLS} FROM gyms WHERE id = $1`, [gymId]);
+  const g = await one(db, `SELECT ${GYM_PUBLIC_COLS}, ${setupSql("gyms")} AS setup FROM gyms WHERE id = $1`, [gymId]);
   if (!g) throw notFound("gym");
   g.settings = publicSettings(g.settings);
   return g;
@@ -31,6 +33,7 @@ export async function loadGym(gymId: string) {
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 
 const settingsSchema = z.object({
+  setup: z.object({ prices: z.boolean(), logoSkipped: z.boolean() }).partial().optional(),
   hours: z.array(z.object({ day: z.number().int().min(0).max(6), open: hhmm, close: hhmm, closed: z.boolean().optional() })).max(7).optional(),
   ladiesHours: z.array(z.object({ day: z.number().int().min(0).max(6), from: hhmm, to: hhmm })).max(21).optional(),
   checkin: z.object({
@@ -46,10 +49,16 @@ const settingsSchema = z.object({
     templateEn: z.string().max(1000),
     templateAr: z.string().max(1000),
   }).partial().optional(),
+  // the Cloud API number and its token are set by GMS (PUT /api/admin/gyms/:id/whatsapp)
   whatsapp: z.object({
-    phoneNumberId: z.string().max(40).nullable(),
     businessNumber: z.string().max(30).nullable(),
-    token: z.string().max(600).optional(), // write-only, stored encrypted
+  }).partial().optional(),
+  /** What each staff role may see and do, chosen by the gym. */
+  staff: z.object({
+    coachMembers: z.enum(["own", "all"]),
+    coachCheckin: z.boolean(),
+    receptionPaymentHistory: z.boolean(),
+    receptionMaxDiscountPct: z.number().int().min(0).max(100),
   }).partial().optional(),
   receiptFooter: z.string().max(300).optional(),
   push: z.object({
@@ -90,6 +99,7 @@ const gymUpdateSchema = z.object({
   lbp_rate: z.coerce.number().positive().max(10_000_000),
   locale: z.enum(["en", "ar"]),
   modules: z.record(z.string(), z.boolean()),
+  level: z.enum(["essential", "studio", "full"]),
   settings: settingsSchema,
 }).partial();
 
@@ -124,16 +134,32 @@ const staffSchema = z.object({
 export function registerGym(r: Router) {
   // ---------- auth ----------
   r.post("/api/auth/login", async (ctx) => {
-    const b = await ctx.body(z.object({ email: z.string().trim().toLowerCase().email(), password: z.string().min(1).max(200) }));
-    const key = `staff:${ctx.ip}:${b.email}`;
-    await checkRateLimit(key);
-    const u = await one(db, `SELECT u.id, u.gym_id, u.password_hash, u.active, g.saas_status FROM users u LEFT JOIN gyms g ON g.id = u.gym_id WHERE lower(u.email) = $1`, [b.email]);
-    if (!u || !u.active || !(await verifyPassword(b.password, u.password_hash))) throw bad("invalid_credentials", "Wrong email or password");
+    const b = await ctx.body(z.object({ email: z.string().trim().toLowerCase().email(), password: z.string().min(1).max(200), code: z.string().trim().max(10).optional() }));
+    // limited per account (any address) and per address (any account)
+    const keys = { account: `staff:${b.email}`, address: `staff-ip:${ctx.ip}` };
+    await guardLogin(keys);
+    const u = await one(db, `SELECT u.id, u.gym_id, u.password_hash, u.active, u.must_change_password, u.totp_enabled, u.totp_secret_enc, u.totp_last_step, g.saas_status
+                               FROM users u LEFT JOIN gyms g ON g.id = u.gym_id WHERE lower(u.email) = $1`, [b.email]);
+    // an unknown email takes as long as a wrong password, so the answer time doesn't tell which accounts exist
+    const passwordOk = u ? await verifyPassword(b.password, u.password_hash) : await verifyNobody(b.password);
+    if (!u || !u.active || !passwordOk) {
+      await noteLoginFailure(keys);
+      throw bad("invalid_credentials", "Wrong email or password");
+    }
     if (u.saas_status === "suspended") throw bad("gym_suspended", "This gym's subscription is suspended. Contact GMS support.");
-    await clearRateLimit(key);
+    if (u.totp_enabled) {
+      if (!b.code) throw bad("code_required", "Enter the 6-digit code from your authenticator app");
+      const step = matchStep(decryptSecret(u.totp_secret_enc), b.code.replace(/\s/g, ""));
+      if (step === null || (u.totp_last_step != null && step <= Number(u.totp_last_step))) {
+        await noteLoginFailure(keys);
+        throw bad("invalid_code", "This code is wrong or was already used. Wait for the next one.");
+      }
+      await db.query("UPDATE users SET totp_last_step = $2 WHERE id = $1", [u.id, step]);
+    }
+    await clearRateLimit(keys.account);
     await createSession(ctx, "staff", { userId: u.id, gymId: u.gym_id });
     await db.query("UPDATE users SET last_login_at = now() WHERE id = $1", [u.id]);
-    return { ok: true };
+    return { ok: true, mustChangePassword: u.must_change_password };
   });
 
   r.post("/api/auth/logout", async (ctx) => {
@@ -157,10 +183,53 @@ export function registerGym(r: Router) {
       if (e.code === "gym_required" && ctx.user) return { ...ctx.user, gymId: "" };
       throw e;
     });
-    const b = await ctx.body(z.object({ current: z.string(), next: z.string().min(8).max(100) }));
+    const b = await ctx.body(z.object({ current: z.string(), next: z.string().min(8, "Use at least 8 characters").max(100) }));
+    const keys = { account: `staff-pw:${u.id}`, address: `staff-ip:${ctx.ip}` };
+    await guardLogin(keys);
     const row = await one(db, "SELECT password_hash FROM users WHERE id = $1", [u.id]);
-    if (!(await verifyPassword(b.current, row.password_hash))) throw bad("invalid_credentials", "Current password is wrong");
-    await db.query("UPDATE users SET password_hash = $2 WHERE id = $1", [u.id, await hashPassword(b.next)]);
+    if (!(await verifyPassword(b.current, row.password_hash))) {
+      await noteLoginFailure(keys);
+      throw bad("invalid_credentials", "Current password is wrong");
+    }
+    if (b.next === b.current) throw bad("same_password", "Choose a password different from the current one");
+    await db.query("UPDATE users SET password_hash = $2, must_change_password = false WHERE id = $1", [u.id, await hashPassword(b.next)]);
+    // every other device is signed out; this one stays signed in
+    await endOtherSessions(ctx, "staff", u.id);
+    return { ok: true };
+  });
+
+  // ---------- two-step sign-in (authenticator app) ----------
+  const currentUser = (ctx: Parameters<typeof requireStaff>[0]) => requireStaff(ctx).catch((e) => {
+    if (e.code === "gym_required" && ctx.user) return { ...ctx.user, gymId: "" };
+    throw e;
+  });
+  /** Starts setup: a new secret, shown as a QR code to scan; nothing changes until a code confirms it. */
+  r.post("/api/auth/2fa/setup", async (ctx) => {
+    const u = await currentUser(ctx);
+    const secret = newSecret();
+    await db.query("UPDATE users SET totp_secret_enc = $2 WHERE id = $1 AND NOT totp_enabled", [u.id, encryptSecret(secret)]);
+    const uri = otpauthUri(secret, u.email);
+    return { secret, uri }; // the page draws the QR code
+  });
+  r.post("/api/auth/2fa/enable", async (ctx) => {
+    const u = await currentUser(ctx);
+    const b = await ctx.body(z.object({ code: z.string().trim().max(10) }));
+    const row = await one(db, "SELECT totp_secret_enc, totp_enabled FROM users WHERE id = $1", [u.id]);
+    if (row.totp_enabled) throw bad("already_enabled", "Two-step sign-in is already on");
+    if (!row.totp_secret_enc) throw bad("no_setup", "Start the setup first");
+    const step = matchStep(decryptSecret(row.totp_secret_enc), b.code.replace(/\s/g, ""));
+    if (step === null) throw bad("invalid_code", "This code is wrong. Check the time on your phone and try the next code.");
+    await db.query("UPDATE users SET totp_enabled = true, totp_last_step = $2 WHERE id = $1", [u.id, step]);
+    await audit(db, u.role === "superadmin" ? null : u.gymId || null, u.id, "user.2fa_on", "user", u.id);
+    return { ok: true };
+  });
+  r.post("/api/auth/2fa/disable", async (ctx) => {
+    const u = await currentUser(ctx);
+    const b = await ctx.body(z.object({ password: z.string().max(200) }));
+    const row = await one(db, "SELECT password_hash FROM users WHERE id = $1", [u.id]);
+    if (!(await verifyPassword(b.password, row.password_hash))) throw bad("invalid_credentials", "Password is wrong");
+    await db.query("UPDATE users SET totp_enabled = false, totp_secret_enc = NULL, totp_last_step = NULL WHERE id = $1", [u.id]);
+    await audit(db, u.role === "superadmin" ? null : u.gymId || null, u.id, "user.2fa_off", "user", u.id);
     return { ok: true };
   });
 
@@ -180,17 +249,19 @@ export function registerGym(r: Router) {
     for (const k of ["name", "name_ar", "tagline", "brand_color", "phone", "whatsapp", "email", "instagram", "address", "city", "default_currency", "lbp_rate", "locale"] as const) {
       if (b[k] !== undefined) add(k, b[k]);
     }
-    if (b.modules) add("modules", clampModules(current.saas_plan, { ...current.modules, ...b.modules }));
-    if (b.settings) {
+    if (b.level) add("modules", clampModules(current.saas_plan, { ...levelModules(b.level), ...(b.modules ?? {}) }));
+    else if (b.modules) add("modules", clampModules(current.saas_plan, { ...current.modules, ...b.modules }));
+    if (b.settings || b.level) {
       const next: any = { ...current.settings };
-      for (const [k, v] of Object.entries(b.settings)) {
+      if (b.level) next.level = b.level;
+      for (const [k, v] of Object.entries(b.settings ?? {})) {
         if (k === "whatsapp") {
           const wa = v as any;
           const prev = next.whatsapp ?? {};
           next.whatsapp = {
-            phoneNumberId: wa.phoneNumberId !== undefined ? wa.phoneNumberId : prev.phoneNumberId ?? null,
+            phoneNumberId: prev.phoneNumberId ?? null,
             businessNumber: wa.businessNumber !== undefined ? wa.businessNumber : prev.businessNumber ?? null,
-            tokenEnc: wa.token ? encryptSecret(wa.token) : wa.token === "" ? null : prev.tokenEnc ?? null,
+            tokenEnc: prev.tokenEnc ?? null,
           };
         } else if (v && typeof v === "object" && !Array.isArray(v)) next[k] = { ...(next[k] ?? {}), ...v };
         else next[k] = v;
@@ -252,14 +323,15 @@ export function registerGym(r: Router) {
   r.post("/api/staff", async (ctx) => {
     const u = await requireStaff(ctx, ["owner", "manager"]);
     const b = await ctx.body(staffSchema);
-    if (b.role === "owner" && u.role !== "owner" && u.role !== "superadmin") throw bad("forbidden_role", "Only an owner can add another owner");
+    // managers add reception and coaches; owners (and GMS) add managers and owners
+    if ((b.role === "owner" || b.role === "manager") && u.role === "manager") throw bad("forbidden_role", "Only the owner can add a manager or an owner");
     const password = b.password ?? randomPassword();
     const exists = await one(db, "SELECT 1 FROM users WHERE lower(email) = lower($1)", [b.email]);
     if (exists) throw bad("email_taken", "This email is already used by another account");
     const row = await one(
       db,
-      `INSERT INTO users (gym_id, email, name, phone, role, active, bio, color, commission_pct, password_hash)
-       VALUES ($1, lower($2), $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      `INSERT INTO users (gym_id, email, name, phone, role, active, bio, color, commission_pct, password_hash, must_change_password)
+       VALUES ($1, lower($2), $3, $4, $5, $6, $7, $8, $9, $10, true) RETURNING id`,
       [u.gymId, b.email, b.name, b.phone ?? null, b.role, b.active, b.bio ?? null, b.color ?? null, b.commission_pct, await hashPassword(password)],
     );
     await audit(db, u.gymId, u.id, "staff.create", "user", row.id, { role: b.role });
@@ -271,7 +343,10 @@ export function registerGym(r: Router) {
     const b = await ctx.body(staffSchema.partial().extend({ resetPassword: z.boolean().optional() }));
     const target = await one(db, "SELECT id, role FROM users WHERE id = $1 AND gym_id = $2", [zId.parse(ctx.params.id), u.gymId]);
     if (!target) throw notFound("staff member");
-    if ((target.role === "owner" || b.role === "owner") && u.role !== "owner" && u.role !== "superadmin") throw bad("forbidden_role", "Only an owner can change an owner");
+    // a manager can't take over another manager or an owner (reset their password, change their email or role)
+    if (u.role === "manager" && target.id !== u.id && (target.role === "owner" || target.role === "manager")) throw bad("forbidden_role", "Only the owner can change a manager or an owner");
+    if (u.role === "manager" && (b.role === "owner" || b.role === "manager") && target.role !== b.role) throw bad("forbidden_role", "Only the owner can make someone a manager or an owner");
+    if (target.id === u.id && b.role !== undefined && b.role !== u.role) throw bad("cannot_change_own_role", "You cannot change your own role");
     if (target.id === u.id && b.active === false) throw bad("cannot_deactivate_self", "You cannot deactivate your own account");
     let temporaryPassword: string | undefined;
     const sets: string[] = [];
@@ -279,12 +354,14 @@ export function registerGym(r: Router) {
     const add = (col: string, v: unknown) => { vals.push(v); sets.push(`${col} = $${vals.length}`); };
     for (const k of ["name", "phone", "role", "active", "bio", "color", "commission_pct"] as const) if (b[k] !== undefined) add(k, b[k]);
     if (b.email) add("email", b.email.toLowerCase());
-    if (b.resetPassword) {
-      temporaryPassword = randomPassword();
-      add("password_hash", await hashPassword(temporaryPassword));
+    if (b.resetPassword || b.password) {
+      // a password chosen by someone else: the person replaces it at first sign-in
+      temporaryPassword = b.password ? undefined : randomPassword();
+      add("password_hash", await hashPassword(b.password ?? temporaryPassword!));
+      add("must_change_password", true);
     }
     if (sets.length) await db.query(`UPDATE users SET ${sets.join(", ")} WHERE id = $1`, vals);
-    if (b.active === false || b.resetPassword) await db.query("DELETE FROM sessions WHERE user_id = $1", [target.id]);
+    if (b.active === false || b.resetPassword || b.password) await db.query("DELETE FROM sessions WHERE user_id = $1", [target.id]);
     await audit(db, u.gymId, u.id, "staff.update", "user", target.id, { fields: Object.keys(b) });
     return { ok: true, temporaryPassword };
   });
@@ -304,6 +381,7 @@ export function registerGym(r: Router) {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
       [u.gymId, p.name, p.name_ar ?? null, p.kind, p.duration_days, p.kind === "visits" ? p.visits : null, p.price, p.currency, p.includes_classes, p.gender_restriction ?? null, p.freeze_days_allowed, p.description ?? null, p.active, p.sort],
     );
+    await db.query(markPricesChecked, [u.gymId]);
     return row;
   });
 
@@ -318,6 +396,7 @@ export function registerGym(r: Router) {
       [zId.parse(ctx.params.id), u.gymId, p.name, p.name_ar ?? null, p.kind, p.duration_days, p.kind === "visits" ? p.visits : null, p.price, p.currency, p.includes_classes, p.gender_restriction ?? null, p.freeze_days_allowed, p.description ?? null, p.active, p.sort],
     );
     if (!row) throw notFound("plan");
+    await db.query(markPricesChecked, [u.gymId]);
     return row;
   });
 

@@ -16,8 +16,24 @@ before(async () => {
   ctx = await startTestServer();
   day = await beirutDates(ctx.db);
   admin = new Client(ctx.base);
-  await admin.ok("POST", "/api/auth/login", { email: "root@gms.test", password: "rootpass123" });
+  await signIn(admin, "root@gms.test", "rootpass123");
 });
+
+/**
+ * Signs a staff client in. Accounts whose password someone else chose must replace it first:
+ * the helper does it (and must_change_password is checked to block everything else until then).
+ */
+const ownPasswords = new Map<string, string>();
+async function signIn(c: Client, email: string, password: string) {
+  const r = await c.ok("POST", "/api/auth/login", { email, password: ownPasswords.get(email + "|" + password) ?? password });
+  if (r.mustChangePassword) {
+    assert.equal((await c.get("/api/gym")).data.error, "password_change_required");
+    const mine = password + "-mine";
+    await c.ok("POST", "/api/auth/password", { current: password, next: mine });
+    ownPasswords.set(email + "|" + password, mine);
+  }
+  return r;
+}
 
 after(async () => {
   ctx.server.close();
@@ -25,17 +41,17 @@ after(async () => {
 });
 
 test("platform admin onboards gyms from templates", async () => {
-  const a = await admin.ok("POST", "/api/admin/gyms", { name: "Alpha Gym", slug: "alpha", template: "classic", owner_name: "Alpha Owner", owner_email: "owner@alpha.test", city: "Beirut" });
+  const a = await admin.ok("POST", "/api/admin/gyms", { name: "Alpha Gym", slug: "alpha", template: "classic", owner_name: "Alpha Owner", owner_email: "owner@alpha.test", city: "Beirut", level: "full" });
   assert.ok(a.temporaryPassword);
   gymA = a.gymId;
-  const b = await admin.ok("POST", "/api/admin/gyms", { name: "Beta Box", slug: "beta", template: "crossfit", owner_name: "Beta Owner", owner_email: "owner@beta.test" });
+  const b = await admin.ok("POST", "/api/admin/gyms", { name: "Beta Box", slug: "beta", template: "crossfit", owner_name: "Beta Owner", owner_email: "owner@beta.test", level: "full" });
   gymB = b.gymId;
   const dup = await admin.post("/api/admin/gyms", { name: "X", slug: "alpha", template: "classic", owner_name: "X Y", owner_email: "x@x.test" });
   assert.equal(dup.status, 400);
   owner = new Client(ctx.base);
-  await owner.ok("POST", "/api/auth/login", { email: "owner@alpha.test", password: a.temporaryPassword });
+  await signIn(owner, "owner@alpha.test", a.temporaryPassword);
   ownerB = new Client(ctx.base);
-  await ownerB.ok("POST", "/api/auth/login", { email: "owner@beta.test", password: b.temporaryPassword });
+  await signIn(ownerB, "owner@beta.test", b.temporaryPassword);
   const list = await admin.ok("GET", "/api/admin/gyms");
   assert.equal(list.totals.gyms, 2);
 });
@@ -51,21 +67,26 @@ test("owner configures the gym; secrets never leave the server", async () => {
   const me = await owner.ok("GET", "/api/auth/me");
   assert.equal(me.user.role, "owner");
   assert.equal(me.gym.slug, "alpha");
+  // the WhatsApp Cloud API number and token are set by GMS, never by the gym
+  await admin.ok("PUT", `/api/admin/gyms/${gymA}/whatsapp`, { phoneNumberId: "1000200030004", token: "super-secret-token" });
   const g = await owner.ok("PUT", "/api/gym", {
     lbp_rate: 89500,
-    settings: { ladiesHours: [{ day: 0, from: "00:00", to: "23:59" }], whatsapp: { phoneNumberId: "PNID-ALPHA", token: "super-secret-token" }, checkin: { cooldownMinutes: 60 } },
+    settings: { ladiesHours: [{ day: 0, from: "00:00", to: "23:59" }], whatsapp: { phoneNumberId: "999", token: "owner-token", businessNumber: "+96170000000" }, checkin: { cooldownMinutes: 60 } },
   });
   assert.equal(g.settings.whatsapp.hasToken, true);
+  assert.equal(g.settings.whatsapp.phoneNumberId, "1000200030004", "the owner cannot change the number");
+  assert.equal(g.settings.whatsapp.businessNumber, "+96170000000");
   assert.equal(JSON.stringify(g).includes("super-secret"), false);
   assert.equal(JSON.stringify(g).includes("tokenEnc"), false);
-  // Remove the Cloud API token again so messages use click-to-send in tests
-  await owner.ok("PUT", "/api/gym", { settings: { whatsapp: { token: "", phoneNumberId: "PNID-ALPHA" }, ladiesHours: [] } });
+  // Remove the Cloud API number again so messages use click-to-send in tests
+  await admin.ok("PUT", `/api/admin/gyms/${gymA}/whatsapp`, { phoneNumberId: null, token: "" });
+  await owner.ok("PUT", "/api/gym", { settings: { ladiesHours: [] } });
   for (const p of await owner.ok("GET", "/api/plans")) plans[p.name] = p;
   assert.ok(plans["1 Month"] && plans["10 Visits"]);
   const staff = await owner.ok("POST", "/api/staff", { name: "Front Desk", email: "desk@alpha.test", role: "reception", password: "desk12345" });
   assert.ok(staff.id);
   reception = new Client(ctx.base);
-  await reception.ok("POST", "/api/auth/login", { email: "desk@alpha.test", password: "desk12345" });
+  await signIn(reception, "desk@alpha.test", "desk12345");
 });
 
 let m1: any;
@@ -193,7 +214,7 @@ test("personal training: package with payment, sessions consume the package", as
   const coach = await owner.ok("POST", "/api/staff", { name: "Coach Rami", email: "rami@alpha.test", role: "coach", password: "coach12345", commission_pct: 40 });
   const pk = await owner.ok("POST", "/api/pt/packages", { member_id: m1.id, coach_id: coach.id, sessions_total: 2, price: 60, currency: "USD", payment: { amount: 60, currency: "USD", method: "cash" } });
   const coachClient = new Client(ctx.base);
-  await coachClient.ok("POST", "/api/auth/login", { email: "rami@alpha.test", password: "coach12345" });
+  await signIn(coachClient, "rami@alpha.test", "coach12345");
   const s1 = await coachClient.ok("POST", "/api/pt/sessions", { package_id: pk.package.id, starts_at: new Date(Date.now() + 3600_000).toISOString() });
   await coachClient.ok("POST", "/api/pt/sessions", { package_id: pk.package.id, starts_at: new Date(Date.now() + 86400_000).toISOString() });
   const third = await coachClient.post("/api/pt/sessions", { package_id: pk.package.id, starts_at: new Date(Date.now() + 2 * 86400_000).toISOString() });
@@ -237,7 +258,7 @@ test("reception sees operations but not finances", async () => {
 
 test("member app: access via WhatsApp PIN, membership, class booking, assistant", async () => {
   const access = await reception.ok("POST", `/api/members/${m1.id}/app-access`);
-  assert.match(access.pin, /^\d{4}$/);
+  assert.match(access.pin, /^\d{6}$/);
   assert.match(access.whatsappLink, /^https:\/\/wa\.me\/9613123456/);
   const member = new Client(ctx.base);
   const bad = await member.post("/api/m/alpha/login", { phone: "03123456", pin: "0000" === access.pin ? "1111" : "0000" });
@@ -313,7 +334,13 @@ test("WhatsApp webhook: verification and inbound message gets a bot reply", asyn
   const c = new Client(ctx.base);
   const v = await c.get("/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=gms-verify&hub.challenge=abc123");
   assert.equal(v.data, "abc123");
-  const payload = { entry: [{ changes: [{ value: { metadata: { phone_number_id: "PNID-ALPHA" }, messages: [{ id: "wamid.1", from: "9613123456", type: "text", text: { body: "adesh se3er l ishtirak?" } }] } }] }] };
+  // Alpha is on Pro: messages stay click-to-send, but the number routes inbound messages to Alpha
+  await admin.ok("PUT", `/api/admin/gyms/${gymA}/whatsapp`, { phoneNumberId: "1000200030004", token: "alpha-token" });
+  // another gym can't take the same number
+  assert.equal((await admin.put(`/api/admin/gyms/${gymB}/whatsapp`, { phoneNumberId: "1000200030004", token: "beta-token" })).data.error, "number_taken");
+  // and a number never borrows the GMS token
+  assert.equal((await admin.put(`/api/admin/gyms/${gymB}/whatsapp`, { phoneNumberId: "5000600070008" })).data.error, "token_required");
+  const payload = { entry: [{ changes: [{ value: { metadata: { phone_number_id: "1000200030004" }, messages: [{ id: "wamid.1", from: "9613123456", type: "text", text: { body: "adesh se3er l ishtirak?" } }] } }] }] };
   await c.ok("POST", "/api/webhooks/whatsapp", payload);
   await new Promise((r) => setTimeout(r, 300));
   const msgs = await owner.ok("GET", "/api/messages");
@@ -340,9 +367,9 @@ test("security: cross-site POST is blocked; JSON is required; unknown routes 404
 });
 
 test("GMS plans: Starter cannot switch on Pro features; upgrading turns them on", async () => {
-  const g = await admin.ok("POST", "/api/admin/gyms", { name: "Small Gym", slug: "small", template: "classic", owner_name: "Small Owner", owner_email: "owner@small.test", saas_plan: "starter" });
+  const g = await admin.ok("POST", "/api/admin/gyms", { name: "Small Gym", slug: "small", template: "classic", owner_name: "Small Owner", owner_email: "owner@small.test", saas_plan: "starter", level: "full" });
   const c = new Client(ctx.base);
-  await c.ok("POST", "/api/auth/login", { email: "owner@small.test", password: g.temporaryPassword });
+  await signIn(c, "owner@small.test", g.temporaryPassword);
   let gym = await c.ok("GET", "/api/gym");
   assert.equal(gym.modules.classes, false);
   assert.equal(gym.modules.whatsapp, true);
@@ -360,7 +387,7 @@ test("suspended gyms are locked out", async () => {
   await admin.ok("PUT", `/api/admin/gyms/${gymB}`, { saas_status: "active" });
   // suspension signed everyone out: sign the owner back in for the next tests
   const reset = await admin.ok("POST", `/api/admin/gyms/${gymB}/reset-owner`);
-  await ownerB.ok("POST", "/api/auth/login", { email: reset.email, password: reset.temporaryPassword });
+  await signIn(ownerB, reset.email, reset.temporaryPassword);
 });
 
 // ---------------------------------------------------------------- receipts
@@ -615,7 +642,7 @@ test("API reference: every route is documented with its real schema; owners and 
     assert.equal((await reception.get("/api/docs.json")).status, 403);
     assert.equal((await new Client(ctx.base).get("/api/docs.json")).status, 401);
     const root = new Client(ctx.base);
-    await root.ok("POST", "/api/auth/login", { email: "root@gms.test", password: "rootpass123" });
+    await signIn(root, "root@gms.test", "rootpass123");
     assert.equal((await root.get("/api/docs.json")).status, 200);
   } finally {
     delete process.env.API_DOCS_FILE;
@@ -668,7 +695,7 @@ test("financial report: A4 HTML and a real Excel workbook", async () => {
 test("PT self-booking: coach hours, free slots, back-to-back booking within sessions left, cancellation limit", async () => {
   const coach = await owner.ok("POST", "/api/staff", { name: "Coach Nour", email: "nour@alpha.test", role: "coach", password: "coach12345" });
   const coachClient = new Client(ctx.base);
-  await coachClient.ok("POST", "/api/auth/login", { email: "nour@alpha.test", password: "coach12345" });
+  await signIn(coachClient, "nour@alpha.test", "coach12345");
   // every day 06:00–22:00 so the test works at any hour
   const windows = [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, start_time: "06:00", end_time: "22:00" }));
   await coachClient.ok("PUT", `/api/pt/availability/${coach.id}`, { windows });
@@ -865,6 +892,189 @@ test("referrals picked by reception: on a new member, on an existing member, and
   assert.equal((await reception.ok("GET", "/api/leads")).find((l: any) => l.id === lead.id).referred_by, sami.id);
 });
 
+test("access review: client address, login limits per account, 6-digit PINs, password changes", async () => {
+  const { clientIp } = await import("../server/http.ts");
+  const { config } = await import("../server/config.ts");
+  const fake = (xff: string) => ({ headers: { "x-forwarded-for": xff }, socket: { remoteAddress: "10.0.0.9" } }) as any;
+  const saved = { ...config };
+  try {
+    config.trustProxy = true;
+    config.trustProxyHops = 2; // CloudFront + load balancer
+    assert.equal(clientIp(fake("6.6.6.6, 203.0.113.7, 130.176.1.1")), "203.0.113.7", "a forged entry on the left is ignored");
+    assert.equal(clientIp(fake("203.0.113.7, 130.176.1.1")), "203.0.113.7");
+    assert.equal(clientIp(fake("130.176.1.1")), "10.0.0.9", "too few entries: the socket address");
+    config.trustProxyHops = 1; // load balancer alone
+    assert.equal(clientIp(fake("6.6.6.6, 203.0.113.7")), "203.0.113.7");
+  } finally {
+    Object.assign(config, saved);
+  }
+
+  // 10 wrong PINs lock that phone for 15 minutes, even with the right PIN, whatever the address
+  const m = await reception.ok("POST", "/api/members", { first_name: "Locked", last_name: "Out", phone: "70888111" });
+  const access = await reception.ok("POST", `/api/members/${m.id}/app-access`);
+  assert.match(access.pin, /^\d{6}$/);
+  const wrong = access.pin === "000000" ? "111111" : "000000";
+  for (let i = 0; i < 10; i++) assert.equal((await new Client(ctx.base).post("/api/m/alpha/login", { phone: "70888111", pin: wrong })).status, 400);
+  assert.equal((await new Client(ctx.base).post("/api/m/alpha/login", { phone: "70888111", pin: access.pin })).status, 429);
+  await ctx.db.query("DELETE FROM login_attempts");
+  const mc = new Client(ctx.base);
+  await mc.ok("POST", "/api/m/alpha/login", { phone: "70888111", pin: access.pin });
+  // a chosen PIN has 6 digits, and changing it signs out the other devices
+  const other = new Client(ctx.base);
+  await other.ok("POST", "/api/m/alpha/login", { phone: "70888111", pin: access.pin });
+  assert.equal((await mc.put("/api/m/pin", { current: access.pin, next: "4321" })).status, 400);
+  await mc.ok("PUT", "/api/m/pin", { current: access.pin, next: "482913" });
+  assert.equal((await other.get("/api/m/me")).status, 401);
+  assert.equal((await mc.get("/api/m/me")).status, 200);
+
+  // staff: an unknown email fails like a wrong password; a password change signs out the other devices
+  assert.equal((await new Client(ctx.base).post("/api/auth/login", { email: "nobody@alpha.test", password: "whatever1" })).data.error, "invalid_credentials");
+  const second = new Client(ctx.base);
+  await signIn(second, "desk@alpha.test", "desk12345");
+  const recPw = ownPasswords.get("desk@alpha.test|desk12345")!;
+  await reception.ok("POST", "/api/auth/password", { current: recPw, next: "desk-new-pass" });
+  ownPasswords.set("desk@alpha.test|desk12345", "desk-new-pass");
+  assert.equal((await second.get("/api/auth/me")).status, 401);
+  assert.equal((await reception.get("/api/auth/me")).status, 200);
+  await ctx.db.query("DELETE FROM login_attempts");
+
+  // the public invite form answers the same for members and strangers
+  const j1 = await new Client(ctx.base).ok("POST", "/api/public/gyms/alpha/join", { name: "Probe", phone: "70888111" });
+  const j2 = await new Client(ctx.base).ok("POST", "/api/public/gyms/alpha/join", { name: "Probe", phone: "70888999" });
+  assert.deepEqual(j1, j2);
+});
+
+test("access review: coaches, reception money, discounts, managers", async () => {
+  const coach = new Client(ctx.base);
+  await signIn(coach, "rami@alpha.test", "coach12345"); // Rita (m1) is Rami's PT client
+  const stranger = await reception.ok("POST", "/api/members", { first_name: "Not", last_name: "Rami's", phone: "70888222" });
+  // a coach finds their own members only, never money
+  const list = await coach.ok("GET", "/api/members?limit=500");
+  assert.ok(list.rows.some((x: any) => x.id === m1.id));
+  assert.ok(!list.rows.some((x: any) => x.id === stranger.id));
+  assert.ok(list.rows.every((x: any) => x.balance_usd === null));
+  assert.equal((await coach.get(`/api/members/${stranger.id}`)).status, 403);
+  const rita = await coach.ok("GET", `/api/members/${m1.id}`);
+  assert.deepEqual(rita.payments, []);
+  assert.deepEqual(rita.messages, []);
+  assert.equal(rita.balance_usd, null);
+  assert.ok(rita.memberships.length && rita.memberships.every((x: any) => x.price === undefined));
+  const payId = (await owner.ok("GET", `/api/members/${m1.id}`)).payments[0].id;
+  assert.equal((await coach.get(`/api/payments/${payId}/receipt`)).status, 403);
+  // check-in at the desk only where the gym allows it
+  assert.equal((await coach.post("/api/checkin", { member_id: m1.id })).status, 403);
+  await owner.ok("PUT", "/api/gym", { settings: { staff: { coachCheckin: true, coachMembers: "all" } } });
+  assert.equal((await coach.post("/api/checkin", { member_id: m1.id })).status, 200);
+  assert.equal((await coach.get(`/api/members/${stranger.id}`)).status, 200);
+  assert.ok((await coach.ok("GET", "/api/members?limit=500")).rows.some((x: any) => x.id === stranger.id));
+  await owner.ok("PUT", "/api/gym", { settings: { staff: { coachCheckin: false, coachMembers: "own" } } });
+  // their own earnings, nobody else's
+  const mine = await coach.ok("GET", "/api/reports/coaches");
+  assert.equal(mine.length, 1);
+  assert.equal(mine[0].name, "Coach Rami");
+  assert.ok((await owner.ok("GET", "/api/reports/coaches")).length > 1);
+  // the bot test is for owners and managers, and only on this gym's members
+  assert.equal((await coach.post("/api/ai/bot-test", { text: "my membership?", member_id: m1.id })).status, 403);
+  assert.equal((await reception.post("/api/ai/bot-test", { text: "my membership?" })).status, 403);
+  const foreign = await ownerB.ok("POST", "/api/members", { first_name: "Beta", last_name: "Member", phone: "70888333" });
+  assert.equal((await owner.post("/api/ai/bot-test", { text: "my membership?", member_id: foreign.id })).status, 404);
+
+  // reception: today's and yesterday's till by default, the history if the gym allows it
+  const today = day(0);
+  const p1 = await reception.ok("GET", "/api/payments?from=2000-01-01&to=2100-01-01");
+  assert.equal(p1.from, day(-1));
+  assert.equal(p1.to, today);
+  await owner.ok("PUT", "/api/gym", { settings: { staff: { receptionPaymentHistory: true } } });
+  assert.equal((await reception.ok("GET", "/api/payments?from=2000-01-01&to=2100-01-01")).from, "2000-01-01");
+  await owner.ok("PUT", "/api/gym", { settings: { staff: { receptionPaymentHistory: false } } });
+  assert.equal((await owner.ok("GET", "/api/payments?from=2000-01-01&to=2100-01-01")).from, "2000-01-01");
+
+  // discounts: reception up to 20% (the default), managers and owners above
+  const price = Number(plans["1 Month"].price);
+  const sell = (c: Client, phone: string, discount: number) => c.post("/api/members", { first_name: "Disc", last_name: phone, phone, membership: { plan_id: plans["1 Month"].id, discount } });
+  assert.equal((await sell(reception, "70888401", price * 0.2)).status, 200);
+  const tooMuch = await sell(reception, "70888402", price);
+  assert.equal(tooMuch.status, 403);
+  assert.match(tooMuch.data.message, /20%/);
+  assert.equal((await owner.ok("GET", "/api/members?q=70888402")).rows.length, 0, "nothing was created");
+  assert.equal((await sell(owner, "70888403", price)).status, 200);
+
+  // managers manage reception and coaches; managers and owners are the owner's
+  const mgr = await owner.ok("POST", "/api/staff", { name: "Maya Manager", email: "maya@alpha.test", role: "manager", password: "maya-pass-1" });
+  const manager = new Client(ctx.base);
+  await signIn(manager, "maya@alpha.test", "maya-pass-1"); // chosen by the owner: replaced at first sign-in
+  const mgr2 = await owner.ok("POST", "/api/staff", { name: "Sam Manager", email: "sam@alpha.test", role: "manager", password: "sam-pass-12" });
+  assert.equal((await manager.post("/api/staff", { name: "New Boss", email: "boss@alpha.test", role: "manager" })).data.error, "forbidden_role");
+  assert.equal((await manager.put(`/api/staff/${mgr2.id}`, { resetPassword: true })).data.error, "forbidden_role");
+  const desk2 = await manager.ok("POST", "/api/staff", { name: "Desk Two", email: "desk2@alpha.test", role: "reception" });
+  assert.ok(desk2.temporaryPassword);
+  assert.equal((await manager.put(`/api/staff/${desk2.id}`, { role: "manager" })).data.error, "forbidden_role");
+  const reset = await owner.ok("PUT", `/api/staff/${mgr.id}`, { resetPassword: true });
+  assert.ok(reset.temporaryPassword);
+  assert.equal((await manager.get("/api/auth/me")).status, 401, "a reset signs the person out");
+  const back = new Client(ctx.base);
+  const r = await back.ok("POST", "/api/auth/login", { email: "maya@alpha.test", password: reset.temporaryPassword });
+  assert.equal(r.mustChangePassword, true);
+  assert.equal((await back.get("/api/members")).data.error, "password_change_required");
+  await back.ok("POST", "/api/auth/password", { current: reset.temporaryPassword, next: "maya-own-pass" });
+  assert.equal((await back.get("/api/members")).status, 200);
+});
+
+test("access review: class capacity, PT packages, demo data, platform access log, two-step sign-in", async () => {
+  // a full class: reception can't move someone from the waitlist past capacity, a manager can on purpose
+  const type = (await owner.ok("GET", "/api/classes/types"))[0];
+  const s = await owner.ok("POST", "/api/classes/sessions", { class_type_id: type.id, starts_at: new Date(Date.now() + 5 * 86400_000).toISOString(), duration_min: 45, capacity: 1 });
+  const a = await reception.ok("POST", "/api/members", { first_name: "Cap", last_name: "One", phone: "70888501" });
+  const b = await reception.ok("POST", "/api/members", { first_name: "Cap", last_name: "Two", phone: "70888502" });
+  await reception.ok("POST", `/api/classes/sessions/${s.id}/bookings`, { member_id: a.id });
+  const w = await reception.ok("POST", `/api/classes/sessions/${s.id}/bookings`, { member_id: b.id });
+  assert.equal(w.status, "waitlist");
+  assert.equal((await reception.put(`/api/bookings/${w.booking.id}`, { status: "booked" })).data.error, "class_full");
+  assert.equal((await reception.put(`/api/bookings/${w.booking.id}`, { status: "booked", force: true })).data.error, "class_full");
+  assert.equal((await owner.ok("PUT", `/api/bookings/${w.booking.id}`, { status: "booked", force: true })).status, "booked");
+  // a class can't get a coach from another gym
+  const betaCoach = await ownerB.ok("POST", "/api/staff", { name: "Beta Coach", email: "bcoach@beta.test", role: "coach" });
+  assert.equal((await owner.put(`/api/classes/sessions/${s.id}`, { coach_id: betaCoach.id })).status, 404);
+
+  // a cancelled PT session comes back only if the package has a session left
+  const pk = (await owner.ok("GET", "/api/pt/packages")).find((p: any) => p.member_id === m1.id);
+  const sessions = (await owner.ok("GET", "/api/pt/sessions")).filter((x: any) => x.package_id === pk.id);
+  const cancelled = sessions.find((x: any) => x.status === "cancelled") ?? sessions[0];
+  if (cancelled.status !== "cancelled") await owner.ok("PUT", `/api/pt/sessions/${cancelled.id}`, { status: "cancelled" });
+  const fresh = (await owner.ok("GET", "/api/pt/packages")).find((p: any) => p.id === pk.id);
+  const planned = (await owner.ok("GET", "/api/pt/sessions")).filter((x: any) => x.package_id === pk.id && x.status === "scheduled").length;
+  const left = fresh.sessions_total - fresh.sessions_used - planned;
+  for (let i = 0; i < left; i++) await owner.ok("POST", "/api/pt/sessions", { package_id: pk.id, starts_at: new Date(Date.now() + (10 + i) * 86400_000).toISOString() });
+  assert.equal((await owner.put(`/api/pt/sessions/${cancelled.id}`, { status: "scheduled" })).data.error, "package_full");
+
+  // demo data only in demo gyms
+  assert.equal((await admin.post(`/api/admin/gyms/${gymA}/demo-data`)).data.error, "not_a_demo_gym");
+
+  // a platform admin opening a gym leaves one line in that gym's activity log
+  const asAdmin = new Client(ctx.base);
+  asAdmin.cookies = admin.cookies;
+  asAdmin.gymId = gymA;
+  await asAdmin.ok("GET", "/api/members?limit=1");
+  await asAdmin.ok("GET", "/api/members?limit=1");
+  const log = await owner.ok("GET", "/api/audit");
+  assert.equal(log.filter((x: any) => x.action === "platform.access").length, 1);
+
+  // two-step sign-in: set up, confirm with a code, then every sign-in needs a fresh code
+  const { codeAt, stepNow } = await import("../server/services/totp.ts");
+  const setup = await admin.ok("POST", "/api/auth/2fa/setup");
+  assert.match(setup.uri, /^otpauth:\/\/totp\/GMS:/);
+  assert.equal((await admin.post("/api/auth/2fa/enable", { code: "000000" === codeAt(setup.secret, stepNow()) ? "111111" : "000000" })).data.error, "invalid_code");
+  const step = stepNow();
+  await admin.ok("POST", "/api/auth/2fa/enable", { code: codeAt(setup.secret, step) });
+  const c = new Client(ctx.base);
+  assert.equal((await c.post("/api/auth/login", { email: "root@gms.test", password: "rootpass123" })).data.error, "code_required");
+  assert.equal((await c.post("/api/auth/login", { email: "root@gms.test", password: "rootpass123", code: codeAt(setup.secret, step) })).data.error, "invalid_code", "a code works once");
+  await c.ok("POST", "/api/auth/login", { email: "root@gms.test", password: "rootpass123", code: codeAt(setup.secret, step + 1) });
+  assert.equal((await c.ok("GET", "/api/auth/me")).user.totp_enabled, true);
+  await admin.ok("POST", "/api/auth/2fa/disable", { password: "rootpass123" });
+  await ctx.db.query("DELETE FROM login_attempts");
+});
+
 test("app install and website: per-gym page head and manifest, app icon, website on / for visitors, demo requests", async () => {
   // member page carries the gym's name and install tags; install route served too
   const page = await fetch(`${ctx.base}/m/alpha/install`).then((r) => r.text());
@@ -896,9 +1106,9 @@ test("app install and website: per-gym page head and manifest, app icon, website
   const path = await import("node:path");
   if (fs.existsSync(path.join(process.cwd(), "dist/public/site.html"))) {
     const visitor = await fetch(`${ctx.base}/`).then((r) => r.text());
-    assert.match(visitor, /Book a demo/);
+    assert.match(visitor, /Try it free/);
     const staff = await fetch(`${ctx.base}/`, { headers: { cookie: [...owner.cookies].map(([k, v]) => `${k}=${v}`).join("; ") } }).then((r) => r.text());
-    assert.doesNotMatch(staff, /Book a demo/);
+    assert.doesNotMatch(staff, /Try it free/);
   }
 
   // demo requests: validation, honeypot, platform admin sees them
@@ -912,4 +1122,49 @@ test("app install and website: per-gym page head and manifest, app icon, website
   assert.equal(list.find((x: any) => x.gym_name === "Pulse Fitness").phone, "+96170123456");
   await admin.ok("PUT", `/api/admin/demo-requests/${list[0].id}`, { status: "contacted", notes: "Called, demo Tuesday" });
   assert.equal((await owner.get("/api/admin/demo-requests")).status, 403);
+});
+
+test("levels: a new gym starts on Essential; the owner switches level and nothing is lost; setup progress is tracked", async () => {
+  const g = await admin.ok("POST", "/api/admin/gyms", { name: "Corner Gym", slug: "corner", template: "classic", owner_name: "Corner Owner", owner_email: "owner@corner.test", saas_plan: "pro" });
+  const c = new Client(ctx.base);
+  await signIn(c, "owner@corner.test", g.temporaryPassword);
+  let gym = await c.ok("GET", "/api/gym");
+  assert.equal(gym.settings.level, "essential");
+  assert.deepEqual([gym.modules.whatsapp, gym.modules.classes, gym.modules.pt, gym.modules.memberApp, gym.modules.shop, gym.modules.ai], [true, false, false, false, false, false]);
+  assert.deepEqual(gym.setup, { logo: false, prices: false, members: false, payment: false, checkin: false });
+
+  gym = await c.ok("PUT", "/api/gym", { level: "studio" });
+  assert.equal(gym.settings.level, "studio");
+  assert.deepEqual([gym.modules.classes, gym.modules.pt, gym.modules.memberApp, gym.modules.shop], [true, true, true, false]);
+  // a single tool can still be switched on by hand
+  gym = await c.ok("PUT", "/api/gym", { modules: { shop: true } });
+  assert.equal(gym.modules.shop, true);
+  gym = await c.ok("PUT", "/api/gym", { level: "essential" });
+  assert.equal(gym.modules.classes, false);
+
+  // confirming the example prices and adding a member move the getting-started list forward
+  gym = await c.ok("PUT", "/api/gym", { settings: { setup: { prices: true } } });
+  assert.equal(gym.setup.prices, true);
+  const m = await c.ok("POST", "/api/members", { first_name: "Nour", last_name: "Khoury", phone: "03 555 111", gender: "female" });
+  gym = await c.ok("GET", "/api/gym");
+  assert.equal(gym.setup.members, true);
+
+  // the platform sees the same progress, and the level
+  const list = await admin.ok("GET", "/api/admin/gyms");
+  const row = list.rows.find((r: any) => r.slug === "corner");
+  assert.equal(row.level, "essential");
+  assert.equal(row.setup.members, true);
+  assert.equal(row.setup.payment, false);
+
+  // a check-in taken while offline keeps its real time when it is sent later
+  const plans = await c.ok("GET", "/api/plans");
+  await c.ok("POST", `/api/members/${m.id}/memberships`, { plan_id: plans[0].id });
+  const at = new Date(Date.now() - 3 * 3600_000).toISOString();
+  const r = await c.ok("POST", "/api/checkin", { member_id: m.id, at });
+  assert.equal(r.result, "ok");
+  const today = await c.ok("GET", "/api/checkins");
+  assert.ok(Math.abs(new Date(today[0].at).getTime() - new Date(at).getTime()) < 2000);
+  const off = await c.ok("GET", "/api/offline/members");
+  assert.equal(off.length, 1);
+  assert.ok(off[0].qr_token);
 });

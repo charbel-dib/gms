@@ -29,7 +29,7 @@ fs.cpSync(path.join(root, "server/db/migrations"), path.join(out, "migrations"),
 // the GMS website (served on "/" to visitors): static HTML, CSS, JS and screenshots
 fs.copyFileSync(path.join(root, "web/site/site.html"), path.join(pub, "site.html"));
 fs.mkdirSync(path.join(pub, "site"), { recursive: true });
-for (const f of ["site.css", "site.js"]) fs.copyFileSync(path.join(root, "web/site", f), path.join(pub, "site", f));
+for (const f of ["site.css", "site.js", "site-ar.js"]) fs.copyFileSync(path.join(root, "web/site", f), path.join(pub, "site", f));
 if (fs.existsSync(path.join(root, "web/site/img"))) fs.cpSync(path.join(root, "web/site/img"), path.join(pub, "site/img"), { recursive: true });
 
 const webOptions = {

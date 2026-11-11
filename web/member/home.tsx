@@ -143,16 +143,16 @@ export function HomeView({ me, go, openProduct }: { me: any; go: (v: View) => vo
             </Section>
           )}
 
-          <button className="m-week" onClick={() => go("progress")}>
+          <button className="m-week" onClick={() => me.features.badges && go("progress")}>
             <Ring value={d.week.visits} goal={d.week.goal} size={70}><b>{d.week.visits}</b><small>/{d.week.goal}</small></Ring>
             <span className="grow">
               <b>{d.week.visits >= d.week.goal ? t("Weekly goal reached!") : t("{n} more this week", { n: d.week.goal - d.week.visits })}</b>
               <small>{t("{n} visits this month", { n: d.month.visits })}{d.month.lastMonthSamePoint > 0 ? ` · ${d.month.visits >= d.month.lastMonthSamePoint ? "▲" : "▼"} ${t("vs last month")}` : ""}</small>
             </span>
-            {d.streak > 0 && <span className="m-streak" title={t("week streak")}><Icon name="flame" width={18} height={18} /><b>{d.streak}</b><small>{t("wk")}</small></span>}
+            {me.features.badges && d.streak > 0 && <span className="m-streak" title={t("week streak")}><Icon name="flame" width={18} height={18} /><b>{d.streak}</b><small>{t("wk")}</small></span>}
           </button>
 
-          {d.challenge && (
+          {me.features.challenges && d.challenge && (
             <button className="m-challenge" onClick={() => go("progress")}>
               <span className="m-challenge-top"><Icon name="trophy" width={18} height={18} /><b className="grow" dir="auto">{d.challenge.title}</b>
                 {d.challenge.rank && <span className="m-tag">#{d.challenge.rank}{d.challenge.participants ? ` / ${d.challenge.participants}` : ""}</span>}</span>
@@ -193,6 +193,7 @@ export function HomeView({ me, go, openProduct }: { me: any; go: (v: View) => vo
           {me.gym.pushEnabled && <NotifyCard />}
 
           <div className="m-tiles">
+            {me.gym.whatsapp && <a className="m-tile" href={`https://wa.me/${String(me.gym.whatsapp).replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><Icon name="whatsapp" width={22} height={22} /><b>{t("Message the gym")}</b><small>{t("On WhatsApp")}</small></a>}
             {me.features.ai && <button className="m-tile" onClick={() => go("ask")}><Icon name="message" width={22} height={22} /><b>{t("Ask the gym")}</b><small>{t("Prices, hours, your membership")}</small></button>}
             {me.features.referrals && <button className="m-tile" onClick={() => go("me")}><Icon name="gift" width={22} height={22} /><b>{t("Invite a friend")}</b><small>{t("Share your link")}</small></button>}
             {me.features.badges && <button className="m-tile" onClick={() => go("progress")}><Icon name="trophy" width={22} height={22} /><b>{d.badges ?? 0} {t("badges")}</b><small>{t("See your progress")}</small></button>}

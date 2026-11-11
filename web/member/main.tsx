@@ -59,7 +59,7 @@ function Login({ gym, onDone, onJoin }: { gym: any; onDone: () => void; onJoin?:
         <label className="stack-s"><span className="m-muted">{t("PIN")}</span><input className="m-input pin" type="password" inputMode="numeric" autoComplete="current-password" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} required /></label>
         {err && <p className="m-error" role="alert">{err}</p>}
         <button className="m-btn block" disabled={busy} style={{ minHeight: 52 }}>{busy ? "…" : t("Sign in")}</button>
-        <p className="m-muted" style={{ fontSize: "0.9rem" }}>{t("Ask reception for your PIN")}{gym.whatsapp ? <> · <a href={`https://wa.me/${gym.whatsapp.replace(/\D/g, "")}`}>WhatsApp</a></> : null}</p>
+        <p className="m-muted" style={{ fontSize: "0.9rem" }}>{t("Ask reception for your PIN")}{gym.whatsapp ? <> · <a href={`https://wa.me/${gym.whatsapp.replace(/\D/g, "")}`}>{t("WhatsApp")}</a></> : null}</p>
         {onJoin && <button type="button" className="m-link" onClick={onJoin}>{t("Not a member yet? Leave your number")}</button>}
         {!isInstalled() && <button type="button" className="m-btn ghost block" onClick={() => setInstall(true)}><Icon name="phone" width={18} height={18} style={{ marginInlineEnd: 8 }} />{t("Install the app on this phone")}</button>}
       </form>
@@ -71,23 +71,23 @@ function Login({ gym, onDone, onJoin }: { gym: any; onDone: () => void; onJoin?:
 /** Opened from a friend's invite link: leave your name and number, reception calls you. */
 function Join({ gym, refCode, onSignIn }: { gym: any; refCode: string | null; onSignIn: () => void }) {
   const [f, setF] = useState({ name: "", phone: "", interest: "" });
-  const [done, setDone] = useState<null | "ok" | "member">(null);
+  const [done, setDone] = useState<null | "ok">(null);
   const [busy, setBusy] = useState(false);
   return (
     <div className="m-app">
       <GymTop gym={gym} />
       {done ? (
         <div className="m-login">
-          <h1>{done === "member" ? t("You're already a member!") : t("Thanks! 🙌")}</h1>
-          <p className="m-muted">{done === "member" ? t("Sign in with your phone and the PIN from reception.") : t("{gym} will call you soon. You can also message them on WhatsApp.", { gym: gym.name })}</p>
-          {gym.whatsapp && done === "ok" && <a className="m-btn block" href={`https://wa.me/${gym.whatsapp.replace(/\D/g, "")}`}><Icon name="whatsapp" width={18} height={18} style={{ marginInlineEnd: 6 }} />WhatsApp</a>}
+          <h1>{t("Thanks! 🙌")}</h1>
+          <p className="m-muted">{t("{gym} will call you soon. You can also message them on WhatsApp.", { gym: gym.name })}</p>
+          {gym.whatsapp && done === "ok" && <a className="m-btn block" href={`https://wa.me/${gym.whatsapp.replace(/\D/g, "")}`}><Icon name="whatsapp" width={18} height={18} style={{ marginInlineEnd: 6 }} />{t("WhatsApp")}</a>}
           <button className="m-btn ghost block" onClick={onSignIn}>{t("Sign in")}</button>
         </div>
       ) : (
         <form className="m-login" onSubmit={async (e) => {
           e.preventDefault();
           setBusy(true);
-          try { const r = await post(`/api/public/gyms/${slug}/join`, { ...f, interest: f.interest || null, ref: refCode }); setDone(r.already_member ? "member" : "ok"); } catch (err) { toastError(err); } finally { setBusy(false); }
+          try { await post(`/api/public/gyms/${slug}/join`, { ...f, interest: f.interest || null, ref: refCode }); setDone("ok"); } catch (err) { toastError(err); } finally { setBusy(false); }
         }}>
           <h1>{refCode ? t("A friend invited you to {gym}", { gym: gym.name }) : t("Join {gym}", { gym: gym.name })}</h1>
           <p className="m-muted" style={{ margin: 0 }}>{t("Leave your name and number: the gym will call you to plan a visit.")}</p>

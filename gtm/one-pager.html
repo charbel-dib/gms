@@ -1,72 +1,115 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>GMS — one-pager</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Sans+Arabic:wght@400;600&display=swap">
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GMS: gym software made for Lebanon</title>
+<!--
+  The GMS poster. Two A4 pages: English, then Arabic.
+  Print from the browser (A4, no margins, background graphics on), or run:
+    npx playwright pdf gtm/one-pager.html gtm/GMS-one-pager.pdf
+  The QR code opens WhatsApp with a message to GMS.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap">
 <style>
-/* Printable A4 handout for gym visits. Replace the WhatsApp number at the bottom, then: Print → Save as PDF. */
-@page { size: A4; margin: 0; }
-* { box-sizing: border-box; }
-html, body { overflow: hidden; }
-body { margin: 0; width: 210mm; height: 296mm; font-family: "Archivo", sans-serif; color: #1a2230; background: #f4f5f2; }
-.top { background: #1a2230; color: #fff; padding: 14mm 14mm 10mm; position: relative; overflow: hidden; }
-.mark { font-weight: 800; font-stretch: 75%; font-size: 20pt; display: flex; gap: 8px; align-items: center; }
-.mark i { width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle, #1a2230 0 20%, #e4572e 21%); }
-h1 { font-size: 40pt; font-stretch: 66%; font-weight: 800; line-height: .95; margin: 8mm 0 4mm; max-width: 120mm; }
-.top p { color: #b9c2cf; font-size: 11pt; max-width: 120mm; margin: 0; }
-.ar { font-family: "IBM Plex Sans Arabic", sans-serif; direction: rtl; text-align: left; color: #8f9aab !important; margin-top: 3mm !important; }
-.plates { position: absolute; right: 16mm; top: 24mm; display: flex; gap: 3px; align-items: center; }
-.plates span { width: 9mm; border-radius: 3px; }
-.plates::after { content: ""; position: absolute; left: -12mm; right: -12mm; height: 3mm; top: calc(50% - 1.5mm); background: linear-gradient(#cfd5dd, #8d97a5); border-radius: 2mm; z-index: 0; }
-.plates span { position: relative; z-index: 1; }
-.body { padding: 8mm 14mm 0; display: grid; gap: 5mm; }
-.status { display: grid; grid-template-columns: repeat(4, 1fr); background: #fff; border: 1px solid #dde1e6; border-radius: 6px; }
-.status div { padding: 3.5mm; border-right: 1px solid #dde1e6; font-size: 8.5pt; color: #4b5566; }
-.status div:last-child { border: 0; }
-.status b { display: flex; gap: 6px; align-items: center; color: #1a2230; font-size: 10pt; }
-.status b i { width: 11px; height: 11px; border-radius: 50%; background: radial-gradient(circle, #fff 0 20%, var(--c) 21%); }
-.feat { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm 8mm; }
-.feat h3 { margin: 0 0 1mm; font-size: 12.5pt; font-stretch: 85%; }
-.feat p { margin: 0; font-size: 9.5pt; color: #4b5566; line-height: 1.45; }
-.shot { border-radius: 6px; overflow: hidden; border: 1px solid #dde1e6; height: 50mm; }
-.shot img { width: 100%; height: 100%; object-fit: cover; object-position: left top; display: block; }
-.price { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
-.price div { background: #fff; border: 1px solid #dde1e6; border-radius: 6px; padding: 4mm; font-size: 8.5pt; color: #4b5566; }
-.price div.pick { border: 2px solid #e4572e; }
-.price b { display: block; color: #1a2230; font-size: 10.5pt; }
-.price .amt { font-size: 22pt; font-stretch: 66%; font-weight: 800; color: #1a2230; }
-.cta { display: flex; justify-content: space-between; align-items: center; background: #1a2230; color: #fff; border-radius: 6px; padding: 5mm 6mm; }
-.cta b { font-size: 13pt; }
-.cta span { color: #b9c2cf; font-size: 9.5pt; }
-.contact { font-size: 13pt; font-weight: 800; color: #fff; text-align: right; }
-</style></head>
+  @page { size: A4; margin: 0; }
+  :root { --rubber: #1a2230; --paper: #ffffff; --chalk: #f4f4f1; --ink: #1a2230; --ink-2: #4a5568; --signal: #e4572e; --green: #2e8b57; --yellow: #d99a00; --line: #dcdcd6; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #888; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: "Archivo", system-ui, sans-serif; color: var(--ink); }
+  .sheet { width: 210mm; height: 297mm; background: var(--chalk); margin: 0 auto 8mm; display: grid; grid-template-rows: auto auto 1fr auto; overflow: hidden; page-break-after: always; }
+  @media print { html, body { background: none; } .sheet { margin: 0; } }
+
+  .top { background: var(--rubber); color: #fff; padding: 12mm 15mm 0; }
+  .brand { display: flex; align-items: center; justify-content: space-between; font-size: 10.5pt; color: #b9c2d0; }
+  .logo { display: inline-flex; align-items: center; gap: 2.4mm; font-weight: 900; font-stretch: 75%; font-size: 19pt; color: #fff; letter-spacing: 0.02em; }
+  .logo i { display: inline-block; width: 1.5mm; height: 6mm; border-radius: 0.4mm; }
+  .logo i:nth-child(1) { background: var(--green); height: 4.4mm; } .logo i:nth-child(2) { background: var(--yellow); height: 6mm; } .logo i:nth-child(3) { background: var(--signal); height: 5mm; }
+  .logo .mark { display: inline-flex; align-items: flex-end; gap: 0.7mm; }
+  h1 { margin: 9mm 0 0; font-size: 45pt; line-height: 0.95; font-weight: 900; font-stretch: 64%; max-width: 150mm; letter-spacing: -0.005em; }
+  .lede { margin: 6mm 0 0; font-size: 12.5pt; line-height: 1.45; color: #d5dbe5; max-width: 128mm; }
+  /* the screen rises out of the dark band into the page */
+  .shot { margin: 8mm 0 -30mm; border-radius: 3mm 3mm 0 0; overflow: hidden; box-shadow: 0 6mm 14mm rgba(0, 0, 0, 0.35); background: #fff; position: relative; z-index: 2; }
+  .shot .bar { height: 5.5mm; background: #eceae4; display: flex; align-items: center; gap: 1.4mm; padding: 0 3mm; }
+  .shot .bar b { width: 2mm; height: 2mm; border-radius: 50%; background: #c9c6bd; }
+  .shot img { display: block; width: 100%; height: 66mm; object-fit: cover; object-position: top left; }
+
+  .body { padding: 37mm 15mm 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; align-content: start; }
+  .body div { padding: 0 6mm 0 0; border-inline-end: 0.3mm solid var(--line); margin-inline-end: 6mm; }
+  .body div:last-child { border: 0; margin: 0; padding: 0; }
+  .body h2 { margin: 0 0 2mm; font-size: 17pt; font-weight: 800; font-stretch: 78%; line-height: 1.05; }
+  .body p { margin: 0; font-size: 10.5pt; line-height: 1.45; color: var(--ink-2); }
+
+  .also { padding: 0 15mm 8mm; font-size: 10pt; color: var(--ink-2); line-height: 1.5; align-self: end; }
+  .also b { color: var(--ink); font-weight: 600; }
+
+  .offer { background: var(--signal); color: #fff; padding: 8mm 15mm 9mm; display: grid; grid-template-columns: 1fr auto; gap: 10mm; align-items: center; }
+  .offer h3 { margin: 0; font-size: 21pt; font-weight: 900; font-stretch: 70%; line-height: 1; }
+  .offer p { margin: 3mm 0 0; font-size: 11.5pt; line-height: 1.4; max-width: 110mm; }
+  .offer .tel { margin-top: 4mm; font-size: 15pt; font-weight: 700; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; display: inline-block; }
+  .qr { background: #fff; padding: 2.5mm; border-radius: 2mm; width: 34mm; }
+  .qr img { display: block; width: 100%; }
+  .qr span { display: block; text-align: center; font-size: 7.5pt; color: var(--ink); margin-top: 1mm; font-weight: 600; }
+
+  /* Arabic page */
+  [dir="rtl"] { font-family: "IBM Plex Sans Arabic", "Archivo", sans-serif; }
+  [dir="rtl"] h1 { font-stretch: 100%; font-weight: 700; font-size: 38pt; line-height: 1.22; letter-spacing: 0; }
+  [dir="rtl"] .body h2, [dir="rtl"] .offer h3 { font-stretch: 100%; font-weight: 700; line-height: 1.25; }
+  [dir="rtl"] .offer h3 { font-size: 23pt; }
+  [dir="rtl"] .shot img { object-position: top right; }
+  [dir="rtl"] .body div { padding: 0 0 0 6mm; }
+  [dir="rtl"] .body div:last-child { padding: 0; }
+  [dir="rtl"] .logo { font-family: "Archivo", sans-serif; }
+</style>
+</head>
 <body>
-<div class="top">
-  <div class="mark"><i></i>GMS</div>
-  <div class="plates" aria-hidden="true"><span style="height:30mm;background:#d1343f"></span><span style="height:27mm;background:#2f6fcf"></span><span style="height:23mm;background:#d99a00"></span><span style="height:19mm;background:#2e8b57"></span></div>
-  <h1>Run the gym, not the paperwork.</h1>
-  <p>The gym software made for Lebanon: memberships, payments in dollars and lira, QR entry, classes, WhatsApp reminders, and an assistant that tells you who is about to leave.</p>
-  <p class="ar">اشتراكات، دفع بالدولار والليرة، دخول بالـ QR، حصص، وتذكير عالواتساب. كلّو بمكان واحد.</p>
-</div>
-<div class="body">
-  <div class="shot"><img src="landing/img/today.webp" alt=""></div>
-  <div class="status">
-    <div style="--c:#2e8b57"><b><i></i>Active</b>Let them in.</div>
-    <div style="--c:#d99a00"><b><i></i>Ending soon</b>Remind with a smile.</div>
-    <div style="--c:#d1343f"><b><i></i>Expired</b>Refused at the door.</div>
-    <div style="--c:#2f6fcf"><b><i></i>Frozen</b>End date moves by itself.</div>
-  </div>
-  <div class="feat">
-    <div><h3>QR entry in one second</h3><p>Dates, visits left, unpaid balance and ladies-only hours checked automatically. No more expired members walking in.</p></div>
-    <div><h3>Dollars and lira, Whish and OMT</h3><p>Each payment at your rate of the day, numbered receipts, and a cash drawer you can count in both currencies.</p></div>
-    <div><h3>WhatsApp reminders, ready to send</h3><p>Renewals, win-backs and class changes prepared for you. One tap sends them from your own WhatsApp.</p></div>
-    <div><h3>Know who is about to leave</h3><p>Learns from your own members, explains why, and drafts a personal message in Arabizi, Arabic, English or French.</p></div>
-    <div><h3>Your own member app</h3><p>Your name and colour, entry QR, class booking with waitlist, programs from coaches. No App Store needed.</p></div>
-    <div><h3>Your real profit</h3><p>Rent, salaries, generator and diesel next to revenue, with coach commissions calculated for you.</p></div>
-  </div>
-  <div class="price">
-    <div><b>Starter</b><span class="amt">$29</span>/month<br>Members, payments, QR entry, reminders, reports.</div>
-    <div class="pick"><b>Pro</b><span class="amt">$59</span>/month<br>+ classes, personal training, member app, at-risk prediction.</div>
-    <div><b>Elite</b><span class="amt">$99</span>/month<br>+ automatic WhatsApp and AI assistant in Arabic and Arabizi.</div>
-  </div>
-  <div class="cta"><div><b>30-day free trial with your own members.</b><br><span>We import your Excel, set your prices and train your reception on site.</span></div><div class="contact">WhatsApp<br>+961 70 141 207</div></div>
-</div>
-</body></html>
+
+<section class="sheet" lang="en">
+  <header class="top">
+    <div class="brand"><span class="logo"><span class="mark"><i></i><i></i><i></i></span>GMS</span><span>Gym software made for Lebanon</span></div>
+    <h1>Know who’s in, who paid and who’s about to leave.</h1>
+    <p class="lede">One screen instead of the notebook, the Excel file and messages typed one by one. In English and Arabic, on the desk’s computer or on a phone.</p>
+    <div class="shot"><div class="bar"><b></b><b></b><b></b></div><img src="img/today-en.png" alt="The Today screen of a small gym: a sentence for the day and three things to do"></div>
+  </header>
+  <main class="body">
+    <div><h2>The door</h2><p>Type a name or scan a code. Expired or unpaid shows in colour before they are through the door. It keeps working when the internet drops.</p></div>
+    <div><h2>The cash</h2><p>Dollars or lira at your rate, Whish, OMT or cash. A numbered receipt for every payment, and the drawer counted at the end of the day.</p></div>
+    <div><h2>The reminders</h2><p>Each morning, who owes, who ends this week and who stopped coming. One tap opens WhatsApp with the message written, from your own number.</p></div>
+  </main>
+  <p class="also">Start with these three. <b>Classes, personal training, a members’ app with your gym’s name, a shop and your real profit</b> are there the day you want them.</p>
+  <footer class="offer">
+    <div>
+      <h3>One month free, with your own members</h3>
+      <p>We import your Excel file or your notebook, train your team at your gym, and you use it for real. No payment, no commitment.</p>
+      <span class="tel">WhatsApp +961 70 141 207</span>
+    </div>
+    <div class="qr"><img src="img/qr-whatsapp.svg" alt="QR code that opens WhatsApp"><span>Scan to message us</span></div>
+  </footer>
+</section>
+
+<section class="sheet" lang="ar" dir="rtl">
+  <header class="top">
+    <div class="brand"><span class="logo"><span class="mark"><i></i><i></i><i></i></span>GMS</span><span>برنامج للنوادي الرياضية معمول للبنان</span></div>
+    <h1>اعرف مين جوّا، مين دفع، ومين عم يفلّ.</h1>
+    <p class="lede">شاشة وحدة بدل الدفتر وملف الـ Excel والرسائل اللي بتنكتب وحدة وحدة. بالعربي والإنكليزي، عكمبيوتر الاستقبال أو عالتلفون.</p>
+    <div class="shot"><div class="bar"><b></b><b></b><b></b></div><img src="img/today-ar.png" alt="شاشة اليوم لنادي صغير"></div>
+  </header>
+  <main class="body">
+    <div><h2>الباب</h2><p>اكتب الاسم أو امسح الرمز. الاشتراك الخالص أو اللي عليه مصاري بيبيّن بلون قبل ما يفوت. وبيضل شغّال حتى لو قطع الإنترنت.</p></div>
+    <div><h2>الصندوق</h2><p>دولار أو ليرة عسعرك، Whish أو OMT أو كاش. إيصال مرقّم لكل دفعة، وجردة الجارور آخر النهار.</p></div>
+    <div><h2>التذكير</h2><p>كل صبح: مين عليه مصاري، مين بيخلص اشتراكه هالجمعة، ومين بطّل يجي. كبسة وحدة بتفتح الواتساب والرسالة مكتوبة، من رقمك.</p></div>
+  </main>
+  <p class="also">بلّش بهالتلاتة. <b>الحصص، التدريب الخاص، تطبيق للمشتركين باسم ناديك، المتجر والربح الحقيقي</b> موجودين يوم اللي بدك ياهم.</p>
+  <footer class="offer">
+    <div>
+      <h3>شهر ببلاش، مع مشتركينك الحقيقيين</h3>
+      <p>منستورد ملف الـ Excel أو الدفتر، مندرّب فريقك بناديك، وبتستعمله عالحقيقة. بلا دفع وبلا التزام.</p>
+      <span class="tel">WhatsApp +961 70 141 207</span>
+    </div>
+    <div class="qr"><img src="img/qr-whatsapp.svg" alt="رمز QR بيفتح الواتساب"><span>امسح لتراسلنا</span></div>
+  </footer>
+</section>
+
+</body>
+</html>

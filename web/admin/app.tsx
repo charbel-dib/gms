@@ -1,9 +1,10 @@
 /** App-wide state: current user & gym, router, check-in results. */
 import React, { createContext, useContext, useSyncExternalStore } from "react";
 import { post } from "../shared/api.ts";
+import { checkinOffline, flush, isNetworkError, setOnline } from "./offline.ts";
 
 export interface Me {
-  user: { id: string; name: string; email: string; role: "superadmin" | "owner" | "manager" | "reception" | "coach"; gym_id: string | null };
+  user: { id: string; name: string; email: string; role: "superadmin" | "owner" | "manager" | "reception" | "coach"; gym_id: string | null; must_change_password?: boolean; totp_enabled?: boolean };
   gym: any | null;
 }
 
@@ -58,7 +59,18 @@ export function useCheckins() {
   return { last: l, feed: f };
 }
 export async function doCheckin(ref: { token?: string; code?: number; member_id?: string }) {
-  const r = await post<CheckinResult>("/api/checkin", ref);
+  let r: CheckinResult;
+  try {
+    r = await post<CheckinResult>("/api/checkin", ref);
+    setOnline(true);
+    flush();
+  } catch (e) {
+    // no internet: decide from the copy on this device, and send it later
+    const off = isNetworkError(e) ? checkinOffline(ref) : null;
+    if (!off) throw e;
+    setOnline(false);
+    r = off as CheckinResult;
+  }
   last = { ...r, at: Date.now() };
   feed = [last, ...feed].slice(0, 30);
   ckSubs.forEach((f) => f());

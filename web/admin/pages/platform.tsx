@@ -1,9 +1,41 @@
 /** GMS platform console for the GMS operator (super-admin). */
 import React, { useState } from "react";
 import { get, post, put, setGymOverride } from "../../shared/api.ts";
-import { Field, Icon, Loader, Modal, toast, useAction, useAsync } from "../../shared/ui.tsx";
+import { Field, Icon, Loader, Modal, toast, useAction, useAsync, waLink } from "../../shared/ui.tsx";
 import { fmtDate, money, relDays } from "../../shared/i18n.ts";
-import { navigate } from "../app.tsx";
+import { navigate, useApp } from "../app.tsx";
+import { AccountModal } from "../account.tsx";
+
+const STEP_LABEL: Record<string, string> = { logo: "logo", prices: "prices", members: "members", payment: "first payment", checkin: "first check-in" };
+const today = () => new Date().toISOString().slice(0, 10);
+const daysUntil = (d: string) => Math.round((new Date(String(d).slice(0, 10) + "T00:00:00Z").getTime() - new Date(today() + "T00:00:00Z").getTime()) / 86400_000);
+
+/**
+ * What needs the operator today, worked out from the gym list: who owes, whose trial is ending,
+ * who is stuck setting up, who went quiet. Demo gyms are left out.
+ */
+function needs(rows: any[]) {
+  const out: { g: any; kind: "money" | "trial" | "setup" | "quiet"; text: string; msg: string }[] = [];
+  for (const g of rows.filter((x) => !x.is_demo && x.saas_status !== "suspended")) {
+    const missing = Object.entries(g.setup ?? {}).filter(([, v]) => !v).map(([k]) => STEP_LABEL[k] ?? k);
+    if (g.saas_status === "past_due" || (g.saas_status === "active" && g.saas_paid_until && daysUntil(g.saas_paid_until) < 0)) {
+      out.push({ g, kind: "money", text: g.saas_paid_until ? `Paid until ${fmtDate(g.saas_paid_until)}: ${money(g.saas_price_usd)} is due` : `${money(g.saas_price_usd)} is due`, msg: `Hello, this is Charbel from GMS. A reminder that this month's GMS subscription for ${g.name} (${money(g.saas_price_usd)}) is due. Thank you!` });
+    } else if (g.saas_status === "active" && g.saas_paid_until && daysUntil(g.saas_paid_until) <= 5) {
+      out.push({ g, kind: "money", text: `Renews in ${daysUntil(g.saas_paid_until)} days (${money(g.saas_price_usd)})`, msg: `Hello, this is Charbel from GMS. Your GMS subscription for ${g.name} renews on ${fmtDate(g.saas_paid_until)} (${money(g.saas_price_usd)}).` });
+    }
+    if (g.saas_status === "trial" && g.trial_ends_at && daysUntil(g.trial_ends_at) <= 7) {
+      const d = daysUntil(g.trial_ends_at);
+      out.push({ g, kind: "trial", text: d < 0 ? `Free month ended ${-d} days ago` : `Free month ends in ${d} days`, msg: `Hello, this is Charbel from GMS. Your free month for ${g.name} ${d < 0 ? "has ended" : `ends on ${fmtDate(g.trial_ends_at)}`}. How is it going? I can pass by or call to answer any question.` });
+    }
+    if (missing.length) {
+      out.push({ g, kind: "setup", text: `Still to do: ${missing.join(", ")}`, msg: `Hello, this is Charbel from GMS. I saw ${g.name} is not fully set up yet (${missing.join(", ")}). Want me to do it with you? It takes ten minutes.` });
+    } else if (g.checkins_7d === 0) {
+      out.push({ g, kind: "quiet", text: `No check-in for a week${g.last_checkin ? ` (last one ${relDays(g.last_checkin)})` : ""}`, msg: `Hello, this is Charbel from GMS. I noticed ${g.name} has not used check-in this week. Is anything blocking you? I'm here to help.` });
+    }
+  }
+  const order = { money: 0, trial: 1, quiet: 2, setup: 3 };
+  return out.sort((a, b) => order[a.kind] - order[b.kind]);
+}
 
 const STATUS_PLATE: Record<string, string> = { active: "ok", trial: "warn", past_due: "denied", suspended: "frozen" };
 
@@ -11,25 +43,55 @@ export function PlatformPage() {
   const state = useAsync(() => get("/api/admin/gyms"), []);
   const templates = useAsync(() => get("/api/admin/templates"), []);
   const [creating, setCreating] = useState(false);
-  const [f, setF] = useState<any>({ template: "classic", saas_plan: "pro", brand_color: "#E4572E", demo_data: false });
+  const [f, setF] = useState<any>({ template: "classic", level: "essential", saas_plan: "starter", brand_color: "#E4572E", demo_data: false });
   const [created, setCreated] = useState<any>(null);
   const [edit, setEdit] = useState<any>(null);
+  const [wa, setWa] = useState<any>(null);
+  const [account, setAccount] = useState(false);
+  const { me } = useApp();
   const { busy, run } = useAction();
   return (
     <div className="page">
       <div className="page-head">
-        <div><h1>GMS platform</h1><p>Your clients: onboard a gym in two minutes from a template, then adapt it with them.</p></div>
+        <div><h1>Your gyms</h1><p>Who needs you today, then every gym you look after.</p></div>
         <div className="row">
-          <a className="btn" href="/?site=1" target="_blank" rel="noreferrer"><Icon name="globe" />Website</a>
-          <button className="btn" onClick={() => navigate("/developers")}><Icon name="code" />API reference</button>
-          <button className="btn" onClick={async () => { await post("/api/auth/logout"); location.href = "/login"; }}><Icon name="logout" />Sign out</button>
+          <a className="btn ghost small" href="/?site=1" target="_blank" rel="noreferrer">Website</a>
+          <button className="btn ghost small" onClick={() => navigate("/developers")}>API reference</button>
+          <button className="btn ghost small" onClick={() => setAccount(true)}>Your account</button>
+          <button className="btn ghost small" onClick={async () => { await post("/api/auth/logout"); location.href = "/login"; }}>Sign out</button>
           <button className="btn primary" onClick={() => setCreating(true)}><Icon name="plus" />New gym</button>
         </div>
       </div>
+      {!me.user.totp_enabled && (
+        <div className="panel" style={{ padding: "12px 16px", borderColor: "var(--plate-yellow, #d99a00)" }}>
+          <b>Turn on two-step sign-in.</b> This account can open every gym's data: a password alone is not enough protection. <button className="btn small" onClick={() => setAccount(true)}>Set it up</button>
+        </div>
+      )}
+      <AccountModal open={account} onClose={() => setAccount(false)} />
       <DemoRequests />
       <Loader state={state}>
         {(d: any) => (
           <>
+            {(() => {
+              const list = needs(d.rows);
+              return (
+                <section className="panel" style={{ marginBottom: 24 }}>
+                  <header><h2>Needs you today<span className="muted">{list.length}</span></h2></header>
+                  {list.length ? (
+                    <div className="list">
+                      {list.map((n, i) => (
+                        <div key={i}>
+                          <span className="plate" data-s={n.kind === "money" ? "denied" : n.kind === "setup" ? "frozen" : "warn"} />
+                          <span className="grow who"><b>{n.g.name}</b><small>{n.text}</small></span>
+                          {waLink(n.g.owner_phone ?? n.g.phone, n.msg) ? <a className="btn small" href={waLink(n.g.owner_phone ?? n.g.phone, n.msg)} target="_blank" rel="noreferrer"><Icon name="whatsapp" />Message the owner</a> : <span className="muted">no phone on file</span>}
+                          {n.kind === "money" || n.kind === "trial" ? <button className="btn small" onClick={() => setEdit({ ...n.g })}>Billing</button> : <button className="btn small" onClick={() => { setGymOverride(n.g.id); location.href = "/"; }}>Open</button>}
+                        </div>
+                      ))}
+                    </div>
+                  ) : <div className="body muted">Nothing. Every gym is paid up, set up and checking members in.</div>}
+                </section>
+              );
+            })()}
             <div className="figures">
               <div className="figure"><span className="label">Gyms</span><span className="value num-display">{d.totals.gyms}</span></div>
               <div className="figure"><span className="label">Paying</span><span className="value num-display">{d.totals.active}</span></div>
@@ -37,15 +99,17 @@ export function PlatformPage() {
               <div className="figure"><span className="label">Monthly recurring revenue</span><span className="value num-display">{money(d.totals.mrr)}</span></div>
             </div>
             <div className="table-wrap"><table className="data">
-              <thead><tr><th>Gym</th><th>Status</th><th>Plan</th><th>Active members</th><th>Check-ins 7d</th><th>Last sign-in</th><th /></tr></thead>
+              <thead><tr><th>Gym</th><th>Status</th><th>Plan</th><th>Set up</th><th>Active members</th><th>Check-ins, 7 days</th><th>Last sign-in</th><th /></tr></thead>
               <tbody>{d.rows.map((g: any) => (
                 <tr key={g.id}>
-                  <td><span className="who"><b>{g.name}</b><small>/{g.slug} · {g.city ?? ""} · {g.owner_email}</small></span></td>
+                  <td><span className="who"><b>{g.name}{g.is_demo && <span className="tag" style={{ marginInlineStart: 6 }}>demo</span>}</b><small>/{g.slug} · {g.city ?? ""} · {g.owner_email}</small></span></td>
                   <td><span className="status"><span className="plate" data-s={STATUS_PLATE[g.saas_status]} />{g.saas_status.replace("_", " ")}</span>{g.saas_status === "trial" && g.trial_ends_at && <small className="muted"> until {fmtDate(g.trial_ends_at)}</small>}</td>
-                  <td style={{ textTransform: "capitalize" }}>{g.saas_plan} · {money(g.saas_price_usd)}</td>
+                  <td><span style={{ textTransform: "capitalize" }}>{g.saas_plan}</span>, {money(g.saas_price_usd)}<br /><small className="muted">{g.level ?? "full"} level</small></td>
+                  <td>{(() => { const v = Object.values(g.setup ?? {}); const done = v.filter(Boolean).length; return done === v.length ? <span className="muted">done</span> : <b>{done} of {v.length}</b>; })()}</td>
                   <td>{g.active_members}</td><td>{g.checkins_7d}</td><td className="ink-2">{relDays(g.last_login)}</td>
                   <td className="r">
                     <button className="btn small" onClick={() => setEdit({ ...g })}>Billing</button>{" "}
+                    <button className="btn small" onClick={() => setWa({ id: g.id, name: g.name, phoneNumberId: g.wa_phone_number_id ?? "", businessNumber: g.wa_business_number ?? "", hasToken: g.wa_has_token, token: "" })}><Icon name="whatsapp" />{g.wa_phone_number_id ? "Connected" : "WhatsApp"}</button>{" "}
                     <button className="btn small primary" onClick={() => { setGymOverride(g.id); location.href = "/"; }}>Open</button>
                   </td>
                 </tr>
@@ -68,6 +132,14 @@ export function PlatformPage() {
             </label>
           ))}</div>
         </Field>
+        <Field label="What they see at the start" hint="Start small. The owner can switch more on later in Settings.">
+          <div className="grid-2" style={{ gridTemplateColumns: "repeat(3, minmax(0,1fr))" }}>{([["essential", "Essential", "Members, door, cash, WhatsApp"], ["studio", "Studio", "+ classes, training, member app"], ["full", "Everything", "+ shop, expenses, follow-up"]] as const).map(([k, title, desc]) => (
+            <label key={k} className="panel check" style={{ padding: 14, alignItems: "flex-start", borderColor: f.level === k ? "var(--brand)" : undefined }}>
+              <input type="radio" name="lvl" checked={f.level === k} onChange={() => setF({ ...f, level: k, saas_plan: k !== "essential" && f.saas_plan === "starter" ? "pro" : f.saas_plan })} />
+              <span className="who"><b>{title}</b><small style={{ whiteSpace: "normal" }}>{desc}</small></span>
+            </label>
+          ))}</div>
+        </Field>
         <div className="grid-2">
           <Field label="Gym name"><input className="input" value={f.name ?? ""} onChange={(e) => setF({ ...f, name: e.target.value, slug: f.slugTouched ? f.slug : e.target.value.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) })} /></Field>
           <Field label="Web address" hint={`${location.host}/m/${f.slug || "…"}`}><input className="input" value={f.slug ?? ""} onChange={(e) => setF({ ...f, slug: e.target.value, slugTouched: true })} /></Field>
@@ -75,17 +147,36 @@ export function PlatformPage() {
           <Field label="Brand colour"><input type="color" value={f.brand_color} onChange={(e) => setF({ ...f, brand_color: e.target.value })} style={{ width: 54, height: 40, border: 0, background: "none" }} /></Field>
           <Field label="Owner name"><input className="input" value={f.owner_name ?? ""} onChange={(e) => setF({ ...f, owner_name: e.target.value })} /></Field>
           <Field label="Owner email (login)"><input className="input" type="email" value={f.owner_email ?? ""} onChange={(e) => setF({ ...f, owner_email: e.target.value })} /></Field>
-          <Field label="GMS plan"><select className="input" value={f.saas_plan} onChange={(e) => setF({ ...f, saas_plan: e.target.value })}><option value="starter">Starter · $29/month</option><option value="pro">Pro · $59/month</option><option value="elite">Elite · $99/month</option></select></Field>
+          <Field label="Owner WhatsApp" hint="Used for your follow-up messages"><input className="input" value={f.owner_phone ?? ""} onChange={(e) => setF({ ...f, owner_phone: e.target.value })} placeholder="+961 71 234 567" /></Field>
+          <Field label="GMS plan" hint={f.level !== "essential" && f.saas_plan === "starter" ? "Starter does not include classes, training or the member app" : undefined}><select className="input" value={f.saas_plan} onChange={(e) => setF({ ...f, saas_plan: e.target.value })}><option value="starter">Starter · $29/month</option><option value="pro">Pro · $59/month</option><option value="elite">Elite · $99/month</option></select></Field>
         </div>
         <label className="check"><input type="checkbox" checked={f.demo_data} onChange={(e) => setF({ ...f, demo_data: e.target.checked })} /> Fill with realistic demo data (for sales demos only)</label>
       </Modal>
 
       {created && (
         <Modal title="Gym created" open onClose={() => setCreated(null)} footer={<button className="btn primary" onClick={() => setCreated(null)}>Done</button>}>
-          <p>Send these to the owner. They should change the password after the first sign-in.</p>
+          <p>Send these to the owner. They choose their own password at the first sign-in.</p>
           <p>Login: <b>{created.ownerEmail}</b></p>
           <p>Temporary password: <b className="num-display" style={{ fontSize: "1.6rem", userSelect: "all" }}>{created.temporaryPassword}</b></p>
           <p>Sign-in page: <b>{location.origin}</b></p>
+        </Modal>
+      )}
+
+      {wa && (
+        <Modal title={`WhatsApp · ${wa.name}`} open onClose={() => setWa(null)}
+          footer={<>
+            {wa.hasToken && <button className="btn danger" disabled={busy} onClick={async () => { if (await run(() => put(`/api/admin/gyms/${wa.id}/whatsapp`, { phoneNumberId: null, token: "" }), "Disconnected")) { setWa(null); state.reload(); } }}>Disconnect</button>}
+            <button className="btn primary" disabled={busy} onClick={async () => {
+              const r = await run(() => put(`/api/admin/gyms/${wa.id}/whatsapp`, { phoneNumberId: wa.phoneNumberId.trim() || null, businessNumber: wa.businessNumber.trim() || null, ...(wa.token ? { token: wa.token } : {}) }), "Saved");
+              if (r) { setWa(null); state.reload(); }
+            }}>Save</button></>}>
+          <p className="ink-2" style={{ marginTop: 0 }}>The gym's own WhatsApp Business number on Meta's Cloud API. A number can belong to one gym only, and it always sends with that gym's token.</p>
+          <div className="grid-2">
+            <Field label="Phone number ID (Meta)"><input className="input" inputMode="numeric" value={wa.phoneNumberId} onChange={(e) => setWa({ ...wa, phoneNumberId: e.target.value })} /></Field>
+            <Field label="Business number"><input className="input" value={wa.businessNumber} onChange={(e) => setWa({ ...wa, businessNumber: e.target.value })} placeholder="+961 …" /></Field>
+          </div>
+          <Field label="Access token" hint={wa.hasToken ? "A token is saved (hidden). Paste a new one to replace it." : "Stored encrypted; never shown again."}><input className="input" type="password" value={wa.token} onChange={(e) => setWa({ ...wa, token: e.target.value })} /></Field>
+          <p className="muted" style={{ fontSize: "0.85rem" }}>Webhook URL for Meta: <code>{location.origin}/api/webhooks/whatsapp</code></p>
         </Modal>
       )}
 
