@@ -78,7 +78,7 @@ function Join({ gym, refCode, onSignIn }: { gym: any; refCode: string | null; on
       <GymTop gym={gym} />
       {done ? (
         <div className="m-login">
-          <h1>{t("Thanks! 🙌")}</h1>
+          <h1>{t("Thanks")}</h1>
           <p className="m-muted">{t("{gym} will call you soon. You can also message them on WhatsApp.", { gym: gym.name })}</p>
           {gym.whatsapp && done === "ok" && <a className="m-btn block" href={`https://wa.me/${gym.whatsapp.replace(/\D/g, "")}`}><Icon name="whatsapp" width={18} height={18} style={{ marginInlineEnd: 6 }} />{t("WhatsApp")}</a>}
           <button className="m-btn ghost block" onClick={onSignIn}>{t("Sign in")}</button>

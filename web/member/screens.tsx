@@ -241,7 +241,7 @@ export function ShopView({ openProduct, refreshKey }: { openProduct: (p: any) =>
       <div className="m-grid">
         {items.map((p: any) => (
           <button key={p.id} className="m-product" onClick={() => openProduct(p)} disabled={false}>
-            <Thumb src={p.has_image ? `/api/public/products/${p.id}/image` : null} />
+            <Thumb src={p.has_image ? `/api/public/products/${p.id}/image` : null} label={nameOf(p)} />
             <b dir="auto">{nameOf(p)}</b>
             <span className="m-price">{money(p.price, p.currency)}</span>
             {!p.in_stock ? <small className="m-muted">{t("out of stock")}</small> : p.low ? <small className="m-warn">{t("Few left")}</small> : null}
@@ -510,14 +510,14 @@ export function ProgressView({ onBack }: { onBack: () => void }) {
 
       {d.challenges.map((c: any) => (
         <section key={c.id} className="m-card m-pt">
-          <div className="row"><Icon name="trophy" width={20} height={20} /><b className="grow" dir="auto">{c.title}</b>{c.progress >= c.target && <span className="m-tag ok">{t("Done!")}</span>}</div>
+          <div className="row"><Icon name="trophy" width={20} height={20} /><b className="grow" dir="auto">{c.title}</b>{c.progress >= c.target && <span className="m-tag ok">{t("Done")}</span>}</div>
           {c.description && <p className="m-muted" style={{ margin: 0 }} dir="auto">{c.description}</p>}
           <Bar value={c.progress} goal={c.target} />
-          <small className="m-muted">{Math.min(c.progress, c.target)} / {c.target} {c.metric === "classes" ? t("classes") : t("days")} · {fmtDate(c.starts_on)} → {fmtDate(c.ends_on)}{c.reward ? ` · 🎁 ${c.reward}` : ""}</small>
+          <small className="m-muted">{Math.min(c.progress, c.target)} / {c.target} {c.metric === "classes" ? t("classes") : t("days")} · {fmtDate(c.starts_on)} → {fmtDate(c.ends_on)}{c.reward ? ` · ${t("Prize")}: ${c.reward}` : ""}</small>
           {c.leaderboard && c.leaderboard.top.length > 0 && (
             <ol className="m-board">
               {c.leaderboard.top.map((r: any, i: number) => (
-                <li key={i} className={r.me ? "me" : ""}><span className="rank">{r.rank}</span><span className="grow">{r.me ? t("You") : r.name}</span><b>{r.score}</b>{r.done && <span aria-label={t("Done!")}>✓</span>}</li>
+                <li key={i} className={r.me ? "me" : ""}><span className="rank">{r.rank}</span><span className="grow">{r.me ? t("You") : r.name}</span><b>{r.score}</b>{r.done && <span aria-label={t("Done")}>✓</span>}</li>
               ))}
               {c.leaderboard.me && !c.leaderboard.top.some((r: any) => r.me) && <li className="me"><span className="rank">{c.leaderboard.me.rank}</span><span className="grow">{t("You")}</span><b>{c.leaderboard.me.score}</b></li>}
             </ol>

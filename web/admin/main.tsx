@@ -242,7 +242,7 @@ function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
         <div className="topbar">
           <ScanBar canCheckin={checkinOn} />
           <span style={{ flex: 1 }} />
-          {can(me, "owner", "manager", "reception") && <Link to="/members?new=1" className="btn primary" aria-label={t("Add member")}><Icon name="plus" /><span className="btn-label">{t("Add member")}</span></Link>}
+          {can(me, "owner", "manager", "reception") && !path.startsWith("/members") && <Link to="/members?new=1" className="btn primary" aria-label={t("Add member")}><Icon name="plus" /><span className="btn-label">{t("Add member")}</span></Link>}
         </div>
         {(!conn.online || conn.queued > 0) && (
           <div className="offline" role="status">

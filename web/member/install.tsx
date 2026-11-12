@@ -86,7 +86,7 @@ export function InstallGuide({ gym, link, onSignIn }: { gym: any; link: string; 
     return (
       <div className="i-done">
         <span className="i-check">✓</span>
-        <b>{t("Installed!")}</b>
+        <b>{t("Installed")}</b>
         <p className="m-muted">{t("Open {gym} from your home screen and sign in with your phone and PIN.", { gym: gym.name })}</p>
       </div>
     );

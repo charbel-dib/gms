@@ -390,7 +390,7 @@ export const arMore: Record<string, string> = {
   "Copy this link": "انسخ هالرابط",
   "You're using the app.": "إنت عم تستعمل التطبيق.",
   "Continue": "كمّل",
-  "Installed!": "تثبّت!",
+  "Installed": "تثبّت",
   "Open {gym} from your home screen and sign in with your phone and PIN.": "افتح {gym} من الشاشة الرئيسية وادخل برقم تلفونك والرقم السري.",
   "{app}'s browser can't install apps. Open this page in {browser} first.": "متصفح {app} ما بيثبّت تطبيقات. افتح هالصفحة بـ {browser} أول.",
   "This app": "هالتطبيق",
@@ -892,4 +892,7 @@ export const arMore: Record<string, string> = {
   "Get your reminders on Telegram, and ask the gym anything there.": "خلّي التذكيرات توصلك عالتلغرام، واسأل النادي أي شي هونيك.",
   "Connect Telegram": "وصّل تلغرام",
   "English": "English",
+  "Offer": "عرض",
+  "Event": "نشاط",
+  "Prize": "الجائزة",
 };

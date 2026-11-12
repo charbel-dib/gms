@@ -102,7 +102,7 @@ export function HomeView({ me, go, openProduct }: { me: any; go: (v: View) => vo
   return (
     <div className="m-body">
       <div className="m-hello-row">
-        <h1 className="m-hello">{greeting()}, {m.first_name}</h1>
+        <h1 className="m-hello">{greeting()}{getLang() === "ar" ? "، " : ", "}{m.first_name}</h1>
       </div>
 
       <button className="pass-mini" data-s={m.status} onClick={() => setPass(true)} aria-label={t("Show my pass")}>
@@ -146,7 +146,7 @@ export function HomeView({ me, go, openProduct }: { me: any; go: (v: View) => vo
           <button className="m-week" onClick={() => me.features.badges && go("progress")}>
             <Ring value={d.week.visits} goal={d.week.goal} size={70}><b>{d.week.visits}</b><small>/{d.week.goal}</small></Ring>
             <span className="grow">
-              <b>{d.week.visits >= d.week.goal ? t("Weekly goal reached!") : t("{n} more this week", { n: d.week.goal - d.week.visits })}</b>
+              <b>{d.week.visits >= d.week.goal ? t("Weekly goal reached") : t("{n} more this week", { n: d.week.goal - d.week.visits })}</b>
               <small>{t("{n} visits this month", { n: d.month.visits })}{d.month.lastMonthSamePoint > 0 ? ` · ${d.month.visits >= d.month.lastMonthSamePoint ? "▲" : "▼"} ${t("vs last month")}` : ""}</small>
             </span>
             {me.features.badges && d.streak > 0 && <span className="m-streak" title={t("week streak")}><Icon name="flame" width={18} height={18} /><b>{d.streak}</b><small>{t("wk")}</small></span>}
@@ -157,7 +157,7 @@ export function HomeView({ me, go, openProduct }: { me: any; go: (v: View) => vo
               <span className="m-challenge-top"><Icon name="trophy" width={18} height={18} /><b className="grow" dir="auto">{d.challenge.title}</b>
                 {d.challenge.rank && <span className="m-tag">#{d.challenge.rank}{d.challenge.participants ? ` / ${d.challenge.participants}` : ""}</span>}</span>
               <Bar value={d.challenge.progress} goal={d.challenge.target} />
-              <small className="m-muted">{Math.min(d.challenge.progress, d.challenge.target)} / {d.challenge.target} {d.challenge.metric === "classes" ? t("classes") : t("days")} · {t("ends")} {fmtDate(d.challenge.ends_on, { day: "numeric", month: "short" })}{d.challenge.reward ? ` · 🎁 ${d.challenge.reward}` : ""}</small>
+              <small className="m-muted">{Math.min(d.challenge.progress, d.challenge.target)} / {d.challenge.target} {d.challenge.metric === "classes" ? t("classes") : t("days")} · {t("ends")} {fmtDate(d.challenge.ends_on, { day: "numeric", month: "short" })}{d.challenge.reward ? ` · ${t("Prize")}: ${d.challenge.reward}` : ""}</small>
             </button>
           )}
 
@@ -166,7 +166,8 @@ export function HomeView({ me, go, openProduct }: { me: any; go: (v: View) => vo
               <div className="m-scroll">
                 {d.offers.map((o: any) => (
                   <button key={o.id} className="m-offer" onClick={() => setOffer(o)}>
-                    <span className="m-offer-img">{o.has_image ? <img src={`/api/public/offers/${o.id}/image`} alt="" loading="lazy" /> : <Icon name={o.kind === "event" ? "calendar" : "tag"} width={30} height={30} />}{o.badge && <span className="m-badge">{o.badge}</span>}</span>
+                    {o.has_image ? <span className="m-offer-img"><img src={`/api/public/offers/${o.id}/image`} alt="" loading="lazy" />{o.badge && <span className="m-badge">{o.badge}</span>}</span>
+                      : <span className="m-offer-img word" aria-hidden="true"><span dir="auto">{o.badge || (o.kind === "event" ? t("Event") : t("Offer"))}</span></span>}
                     <b dir="auto">{o.title}</b>
                     {o.ends_on && <small className="m-muted">{t("Until")} {fmtDate(o.ends_on, { day: "numeric", month: "short" })}</small>}
                   </button>
@@ -180,7 +181,7 @@ export function HomeView({ me, go, openProduct }: { me: any; go: (v: View) => vo
               <div className="m-scroll">
                 {d.featured.map((p: any) => (
                   <button key={p.id} className="m-product small" onClick={() => openProduct(p.id)}>
-                    <Thumb src={p.has_image ? `/api/public/products/${p.id}/image` : null} icon={p.kind === "bundle" ? "gift" : "bag"} />
+                    <Thumb src={p.has_image ? `/api/public/products/${p.id}/image` : null} icon={p.kind === "bundle" ? "gift" : "bag"} label={getLang() === "ar" && p.name_ar ? p.name_ar : p.name} />
                     <b dir="auto">{getLang() === "ar" && p.name_ar ? p.name_ar : p.name}</b>
                     <small>{money(p.price, p.currency)}{!p.in_stock ? ` · ${t("out of stock")}` : ""}</small>
                   </button>

@@ -38,6 +38,10 @@
   --step-3: 1.85rem;
   --step-4: 2.6rem;
   --step-5: 3.6rem;
+  /* motion: strong ease-out for anything answering a tap, iOS drawer curve for sheets */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -109,9 +113,10 @@ img, svg { display: block; max-width: 100%; }
   cursor: pointer;
   text-decoration: none;
   white-space: nowrap;
-  transition: background-color 0.12s, border-color 0.12s;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.14s var(--ease-out);
 }
 .btn:hover { border-color: var(--muted); }
+.btn:active:not(:disabled) { transform: scale(0.97); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn.primary { background: var(--brand); color: var(--brand-ink); border-color: transparent; }
 .btn.primary:hover { background: color-mix(in srgb, var(--brand) 88%, black); }
@@ -144,7 +149,7 @@ textarea.input { min-height: 96px; resize: vertical; }
 @media (max-width: 640px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
 
 .segmented { display: inline-flex; background: var(--line-2); border-radius: var(--radius-s); padding: 3px; gap: 2px; }
-.segmented button { border: 0; background: transparent; padding: 6px 12px; border-radius: 4px; font-weight: 600; font-size: var(--step--1); cursor: pointer; color: var(--ink-2); }
+.segmented button { border: 0; background: transparent; padding: 6px 12px; border-radius: 4px; font-weight: 600; font-size: var(--step--1); cursor: pointer; color: var(--ink-2); transition: background-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease; }
 .segmented button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(26, 34, 48, 0.12); }
 
 /* ---------- tables ---------- */
@@ -181,13 +186,23 @@ kbd { font: inherit; font-size: 0.75em; padding: 1px 6px; border: 1px solid var(
 dialog.modal { border: 0; padding: 0; border-radius: var(--radius-l); box-shadow: var(--shadow-pop); width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px); background: var(--surface); color: var(--ink); }
 dialog.modal.wide { width: min(820px, calc(100vw - 32px)); }
 dialog.modal::backdrop { background: rgba(26, 34, 48, 0.42); }
+/* a modal grows a little from the centre; it has no trigger to grow from */
+dialog.modal[open] { animation: modal-in 0.2s var(--ease-out); }
+dialog.modal[open]::backdrop { animation: fade-in 0.2s ease; }
+@keyframes modal-in { from { opacity: 0; transform: scale(0.96); } }
+@keyframes fade-in { from { opacity: 0; } }
 .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 18px 22px 0; }
 .modal-head h2 { font-size: var(--step-2); }
 .modal-body { padding: 18px 22px; display: grid; gap: 14px; }
 .modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 0 22px 20px; }
 .toasts { position: fixed; inset-inline-end: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 1000; }
-.toast { background: var(--rubber); color: #fff; padding: 12px 16px; border-radius: var(--radius-m); box-shadow: var(--shadow-pop); display: flex; gap: 10px; align-items: center; max-width: 380px; animation: toast-in 0.18s ease-out; }
+.toast { background: var(--rubber); color: #fff; padding: 12px 16px; border-radius: var(--radius-m); box-shadow: var(--shadow-pop); display: flex; gap: 10px; align-items: center; max-width: 380px; animation: toast-in 0.24s var(--ease-out); }
 .toast.error { background: #6b1a21; }
-@keyframes toast-in { from { transform: translateY(8px); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
+@keyframes toast-in { from { transform: translateY(100%); opacity: 0; } }
+/* reduced motion: nothing moves, but things still fade so a change is visible */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  dialog.modal[open], .toast { animation: fade-in 0.15s ease !important; }
+  .btn:active:not(:disabled) { transform: none; }
+}
 .field .segmented { justify-self: start; align-self: start; }

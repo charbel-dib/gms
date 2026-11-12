@@ -42,6 +42,8 @@ const STATUS_PLATE: Record<string, string> = { active: "ok", trial: "warn", past
 
 // the names gyms see on the website; the internal keys stay starter/pro/elite
 const PLAN_NAMES = { starter: "Essential", pro: "Studio", elite: "Complete" } as const;
+const PLAN_LEVEL: Record<string, string> = { starter: "essential", pro: "studio", elite: "full" };
+const LEVEL_NAMES: Record<string, string> = { essential: "Essential", studio: "Studio", full: "Complete" };
 
 /**
  * The GMS bot on Telegram, set up once for every gym: paste the token from @BotFather.
@@ -55,10 +57,9 @@ function TelegramSetup() {
   const d: any = s.data;
   if (!d) return null;
   return (
-    <section className="panel" style={{ marginBottom: 24 }}>
+    <section className="panel" style={{ marginTop: 24 }}>
       <header>
-        <h2>Telegram</h2>
-        {d.connected ? <span className="muted">@{d.username} · {d.members} members, {d.staff} staff connected</span> : <span className="muted">not set up</span>}
+        <h2>Telegram<span className="muted">{d.connected ? `@${d.username}, ${d.members} members and ${d.staff} staff connected` : "not set up yet"}</span></h2>
         <button className="btn small ghost" onClick={() => setOpen(!open)}>{open ? "Close" : d.connected ? "Manage" : "Set up"}</button>
       </header>
       {open && (
@@ -131,7 +132,6 @@ export function PlatformPage() {
               { value: "current", label: `Your gyms${d.view === "current" ? ` (${d.rows.length})` : ""}` },
               { value: "archived", label: `Archived (${d.totals.archived})` },
             ]} />
-            {d.view === "current" && <TelegramSetup />}
             {d.view === "current" && (() => {
               const list = needs(d.rows);
               return (
@@ -187,18 +187,19 @@ export function PlatformPage() {
                 <tr key={g.id}>
                   <td><span className="who"><b>{g.name}{g.is_demo && <span className="tag" style={{ marginInlineStart: 6 }}>demo</span>}</b><small>/{g.slug} · {g.city ?? ""} · {g.owner_email}</small></span></td>
                   <td><span className="status"><span className="plate" data-s={STATUS_PLATE[g.saas_status]} />{g.saas_status.replace("_", " ")}</span>{g.saas_status === "trial" && g.trial_ends_at && <small className="muted"> until {fmtDate(g.trial_ends_at)}</small>}</td>
-                  <td><span>{PLAN_NAMES[g.saas_plan as keyof typeof PLAN_NAMES] ?? g.saas_plan}</span>, {money(g.saas_price_usd)}<br /><small className="muted">{g.level ?? "full"} level</small></td>
+                  <td><span>{PLAN_NAMES[g.saas_plan as keyof typeof PLAN_NAMES] ?? g.saas_plan}</span>, {money(g.saas_price_usd)}{(g.level ?? "full") !== PLAN_LEVEL[g.saas_plan] && <><br /><small className="muted">runs the {LEVEL_NAMES[g.level ?? "full"] ?? g.level} level</small></>}</td>
                   <td>{(() => { const v = Object.values(g.setup ?? {}); const done = v.filter(Boolean).length; return done === v.length ? <span className="muted">done</span> : <b>{done} of {v.length}</b>; })()}</td>
                   <td>{g.active_members}</td><td>{g.checkins_7d}</td><td className="ink-2">{relDays(g.last_login)}</td>
                   <td className="r">
                     <button className="btn small" onClick={() => setEdit({ ...g })}>Billing</button>{" "}
                     <button className="btn small" onClick={() => setWa({ id: g.id, name: g.name, phoneNumberId: g.wa_phone_number_id ?? "", businessNumber: g.wa_business_number ?? "", hasToken: g.wa_has_token, token: "" })}><Icon name="whatsapp" />{g.wa_phone_number_id ? "Connected" : "WhatsApp"}</button>{" "}
                     <button className="btn small" onClick={() => setArchiving({ ...g, reason: "", other: "" })}>Archive</button>{" "}
-                    <button className="btn small primary" onClick={() => { setGymOverride(g.id); location.href = "/"; }}>Open</button>
+                    <button className="btn small dark" onClick={() => { setGymOverride(g.id); location.href = "/"; }}>Open</button>
                   </td>
                 </tr>
               ))}</tbody>
             </table></div>}
+            {d.view === "current" && <TelegramSetup />}
           </>
         )}
       </Loader>
@@ -337,7 +338,7 @@ const DEMO_STATUS: Record<string, { label: string; plate: string }> = {
   won: { label: "Signed", plate: "ok" }, lost: { label: "Lost", plate: "expired" },
 };
 
-/** Requests sent from the "Book a demo" form of the GMS website. */
+/** Requests sent from the "Try it free" form of the GMS website. */
 function DemoRequests() {
   const state = useAsync(() => get("/api/admin/demo-requests"), []);
   const { run } = useAction();
@@ -365,7 +366,7 @@ function DemoRequests() {
                 </tr>
               ))}</tbody>
             </table></div>
-          ) : <div className="body muted">No requests yet. They arrive here from the “Book a demo” form on the website.</div>}
+          ) : <div className="body muted">No requests yet. They arrive here from the “Try it free” form on the website.</div>}
         </section>
       )}
     </Loader>

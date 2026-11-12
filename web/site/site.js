@@ -1,42 +1,92 @@
-/* GMS website: the check-in demo in the hero, and the request form asked one question at a time. */
+/* GMS website: the check-in desk in the hero, and the request form asked one question at a time. */
 (() => {
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   // the language can change while the page is open (the العربية button), so it is read each time
   const tr = (en, ar) => (window.GMS_LANG === "ar" ? ar : en);
 
-  // ---- hero: three members check in, one after another ----
+  // ---- hero: the desk keeps receiving people, newest on top, three rows always on screen ----
+  // The three rows in the HTML are what shows without JavaScript or with reduced motion.
+  const PEOPLE = [
+    { s: "ok", av: "MR", en: ["Maya Rizk", "6 months, 2 months left", "Welcome in"], ar: ["مايا رزق", "6 أشهر، باقي شهرين", "أهلا وسهلا"] },
+    { s: "warn", av: "KS", en: ["Karim Saab", "1 month, ends Friday", "Reminder ready on WhatsApp"], ar: ["كريم صعب", "شهر، بيخلص الجمعة", "التذكير جاهز عالواتساب"] },
+    { s: "ok", av: "HS", en: ["Hadi Salameh", "Paid $35 today", "Welcome in"], ar: ["هادي سلامة", "دفع 35$ اليوم", "أهلا وسهلا"] },
+    { s: "bad", av: "JK", en: ["Joe Khoury", "1 year, owes $45", "Collect $45 or 4,028,000 LBP"], ar: ["جو خوري", "سنة، عليه 45$", "اقبض 45$ أو 4,028,000 ل.ل."] },
+    { s: "ok", av: "RH", en: ["Rita Haddad", "3 months, 23 days left", "Welcome in"], ar: ["ريتا حداد", "3 أشهر، باقي 23 يوم", "أهلا وسهلا"] },
+    { s: "warn", av: "LN", en: ["Layal Najjar", "Student, ends tomorrow", "Reminder ready on WhatsApp"], ar: ["ليال نجار", "شهر طلاب، بيخلص بكرا", "التذكير جاهز عالواتساب"] },
+  ];
   const desk = document.querySelector(".desk");
-  const rows = [...document.querySelectorAll("#deskList li")];
+  const list = document.getElementById("deskList");
   const scanText = document.getElementById("scanText");
   const scan = document.querySelector(".desk-scan");
   const count = document.getElementById("inCount");
-  if (desk && rows.length && !reduce) {
-    desk.classList.add("live");
+  const pause = document.getElementById("deskPause");
+  if (desk && list && !reduce) {
+    const row = (p) => {
+      const [name, plan, verdict] = tr(p.en, p.ar);
+      const li = document.createElement("li");
+      li.dataset.s = p.s;
+      li.innerHTML = '<span class="who"><span class="av"></span><span><b></b><small></small></span></span><span class="verdict"><span class="plate"></span><span></span></span>';
+      li.querySelector(".av").textContent = p.av;
+      li.querySelector("b").textContent = name;
+      li.querySelector("small").textContent = plan;
+      li.querySelector(".verdict > span:last-child").textContent = verdict;
+      li.dataset.k = String(PEOPLE.indexOf(p));
+      return li;
+    };
+    let next = 0, visitors = 41, timer = 0, running = false, paused = false, onScreen = false;
     const idle = () => tr("Type a name or scan a code", "اكتب اسم أو امسح رمز");
-    let i = 0, visitors = 41;
+    // start from three people already in, so the desk is never empty
+    const fill = () => {
+      const shown = [...list.children].map((li) => li.dataset.k).filter(Boolean).map(Number);
+      const keys = shown.length === 3 ? shown : [3, 2, 1];
+      list.replaceChildren(...keys.map((k) => row(PEOPLE[k])));
+      if (!shown.length) next = 4;
+    };
+    fill();
+    desk.classList.add("live");
     const step = () => {
-      if (i === rows.length) {
-        // pause on the full desk, then start again
-        setTimeout(() => { rows.forEach((r) => r.classList.remove("in")); i = 0; visitors = 41; count.textContent = String(visitors); setTimeout(step, 600); }, 4200);
-        return;
-      }
-      const name = rows[i].querySelector("b").textContent;
+      if (!running) return;
+      const p = PEOPLE[next % PEOPLE.length];
+      next += 1;
       scan.classList.add("reading");
-      scanText.textContent = name;
-      setTimeout(() => {
+      scanText.textContent = tr(p.en[0], p.ar[0]);
+      timer = setTimeout(() => {
         scan.classList.remove("reading");
         scanText.textContent = idle();
-        rows[i].classList.add("in");
+        const li = row(p);
+        li.classList.add("arrive");
+        list.querySelector(".arrive")?.classList.remove("arrive");
+        list.prepend(li);
+        // the rows already there slide down by the height of the newcomer
+        const h = li.offsetHeight + 8;
+        [...list.children].slice(1).forEach((r) => r.animate([{ transform: `translateY(${-h}px)` }, { transform: "none" }], { duration: 450, easing: "cubic-bezier(0.23, 1, 0.32, 1)" }));
+        list.lastElementChild?.remove();
         count.textContent = String(++visitors);
-        i += 1;
-        setTimeout(step, 1500);
+        timer = setTimeout(step, 2200);
       }, 900);
     };
-    // start only when the desk is on screen
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) { io.disconnect(); setTimeout(step, 500); }
+    const sync = () => {
+      const go = onScreen && !paused && !document.hidden;
+      if (go && !running) { running = true; timer = setTimeout(step, 700); }
+      if (!go && running) { running = false; clearTimeout(timer); scan.classList.remove("reading"); scanText.textContent = idle(); }
+    };
+    new IntersectionObserver((e) => { onScreen = e.some((x) => x.isIntersecting); sync(); }).observe(desk);
+    document.addEventListener("visibilitychange", sync);
+    if (pause) {
+      pause.hidden = false;
+      pause.addEventListener("click", () => {
+        paused = !paused;
+        pause.setAttribute("aria-pressed", String(paused));
+        pause.textContent = paused ? tr("Play", "كمّل") : tr("Pause", "وقّف");
+        sync();
+      });
+    }
+    // after a language switch, rebuild the rows in the new language
+    document.addEventListener("gms:lang", () => {
+      fill();
+      if (!scan.classList.contains("reading")) scanText.textContent = idle();
+      if (pause) pause.textContent = paused ? tr("Play", "كمّل") : tr("Pause", "وقّف");
     });
-    io.observe(desk);
   }
   const clock = document.getElementById("clock");
   if (clock) {
@@ -60,6 +110,7 @@
   form.classList.add("js");
 
   const show = (n, focus = true) => {
+    form.dataset.dir = n < at ? "back" : "fwd";
     at = n;
     steps.forEach((s, k) => s.classList.toggle("on", k === n));
     bar.style.width = `${((n + 1) / steps.length) * 100}%`;

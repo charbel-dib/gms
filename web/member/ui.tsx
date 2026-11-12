@@ -87,6 +87,9 @@ export function greeting() {
   return h < 5 ? t("Good evening") : h < 12 ? t("Good morning") : h < 18 ? t("Good afternoon") : t("Good evening");
 }
 
-export function Thumb({ src, icon = "bag", alt = "" }: { src?: string | null; icon?: string; alt?: string }) {
-  return src ? <img className="m-thumb" src={src} alt={alt} loading="lazy" /> : <span className="m-thumb empty"><Icon name={icon} width={26} height={26} /></span>;
+/** A product picture, or, when the gym has not added one, the product's first word set large on the gym's colour. */
+export function Thumb({ src, icon = "bag", alt = "", label }: { src?: string | null; icon?: string; alt?: string; label?: string }) {
+  if (src) return <img className="m-thumb" src={src} alt={alt} loading="lazy" />;
+  const word = (label ?? "").trim().split(/\s+/)[0];
+  return <span className="m-thumb empty" aria-hidden="true">{word ? <span className="m-thumb-word" data-long={word.length > 7 ? "" : undefined} dir="auto">{word}</span> : <Icon name={icon} width={26} height={26} />}</span>;
 }

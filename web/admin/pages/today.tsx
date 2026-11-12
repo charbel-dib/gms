@@ -71,6 +71,7 @@ export function TodayPage() {
           if (Number(k.outstanding_usd) > 0 && owingRows.length) {
             todos.push(
               <li key="owe">
+                <span className="todo-ic" data-k="owe" aria-hidden="true"><Icon name="card" /></span>
                 <div><h3>{tx("Collect {amount} still owed", { amount: money(k.outstanding_usd) })}</h3><p>{t("Ask at their next visit, or send a reminder now.")}</p></div>
                 <People rows={owingRows} total={Number(owing.data?.total ?? 0)} text={msg.owes} more="/members?balance=1" />
               </li>,
@@ -79,6 +80,7 @@ export function TodayPage() {
           if (d.expiring.length) {
             todos.push(
               <li key="renew">
+                <span className="todo-ic" data-k="renew" aria-hidden="true"><Icon name="calendar" /></span>
                 <div><h3>{tx("{n} memberships end this week", { n: k.expiring_7d || d.expiring.length })}</h3><p>{t("A reminder before the last day is what brings most people back.")}</p></div>
                 <People rows={d.expiring.slice(0, 4)} total={d.expiring.length} text={msg.renew} more="/members?status=expiring" />
               </li>,
@@ -87,6 +89,7 @@ export function TodayPage() {
           if (awayRows.length) {
             todos.push(
               <li key="away">
+                <span className="todo-ic" data-k="away" aria-hidden="true"><Icon name="clock" /></span>
                 <div><h3>{tx("{n} members stopped coming", { n: Number(away.data?.total ?? awayRows.length) })}</h3><p>{t("A personal message this week is the cheapest way to keep them.")}</p></div>
                 <People rows={awayRows} total={Number(away.data?.total ?? 0)} text={msg.away} more="/members?risk=1" />
               </li>,
@@ -109,7 +112,7 @@ export function TodayPage() {
 
               <section className="todo" aria-labelledby="todo-h">
                 <h2 id="todo-h">{t("To do today")}</h2>
-                {todos.length ? <ol>{todos}</ol> : <p className="todo-none">{t("Nothing urgent. Everyone is paid up and nobody is about to leave.")}</p>}
+                {todos.length ? <ul>{todos}</ul> : <p className="todo-none">{t("Nothing urgent. Everyone is paid up and nobody is about to leave.")}</p>}
               </section>
 
               <section className="figures" style={{ gridTemplateColumns: `repeat(${showMoney ? 3 : 2}, minmax(0,1fr))` }}>

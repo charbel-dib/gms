@@ -35,39 +35,39 @@
 
 <main id="main">
 <!-- the reception desk: where the software earns its money -->
-<section class="hero">
+<section class="hero" data-enter>
   <div class="wrap hero-in">
     <div class="hero-copy">
       <h1>Know who’s in, who paid and who stopped coming.</h1>
-      <p class="lede">Simple software for gyms in Lebanon. The desk checks members in, takes dollars or lira, and sends renewal reminders from your own WhatsApp.</p>
+      <p class="lede">Gym software made for Lebanon, in Arabic and English. The desk checks members in, takes dollars or lira, and sends renewal reminders from your own WhatsApp.</p>
       <div class="hero-cta">
         <a class="btn big" href="#start">Try it free for a month</a>
         <a class="btn ghost big" href="#prices">See the prices</a>
       </div>
-      <p class="hero-note">We bring in your members from Excel or your notebook.</p>
+      <p class="hero-note">From $19 a month, and the first month is free. We bring in your members from Excel or your notebook.</p>
     </div>
 
-    <div class="desk" aria-label="Example: three members checking in at the desk">
+    <div class="desk" aria-label="Example: members checking in at the desk">
       <div class="desk-head">
         <span class="desk-title">Check-in</span>
-        <span class="desk-clock" id="clock">18:42</span>
+        <span class="desk-right"><span class="desk-clock" id="clock">18:42</span><button class="desk-pause" id="deskPause" type="button" hidden>Pause</button></span>
       </div>
       <div class="desk-scan" aria-hidden="true">
         <span class="scan-frame"><i></i></span>
         <span class="scan-text" id="scanText">Type a name or scan a code</span>
       </div>
       <ol class="desk-list" id="deskList">
+        <li data-s="bad">
+          <span class="who"><span class="av">JK</span><span><b>Joe Khoury</b><small>1 year, owes $45</small></span></span>
+          <span class="verdict"><span class="plate"></span><span>Collect $45 or 4,028,000 LBP</span></span>
+        </li>
         <li data-s="ok">
-          <span class="who"><span class="av">RH</span><span><b>Rita Haddad</b><small>3 months, 23 days left</small></span></span>
-          <span class="verdict"><span class="plate"></span>Welcome in</span>
+          <span class="who"><span class="av">HS</span><span><b>Hadi Salameh</b><small>Paid $35 today</small></span></span>
+          <span class="verdict"><span class="plate"></span><span>Welcome in</span></span>
         </li>
         <li data-s="warn">
           <span class="who"><span class="av">KS</span><span><b>Karim Saab</b><small>1 month, ends Friday</small></span></span>
-          <span class="verdict"><span class="plate"></span>Reminder ready on WhatsApp</span>
-        </li>
-        <li data-s="bad">
-          <span class="who"><span class="av">JK</span><span><b>Joe Khoury</b><small>1 year, owes $45</small></span></span>
-          <span class="verdict"><span class="plate"></span>Collect $45 or 4,028,000 LBP</span>
+          <span class="verdict"><span class="plate"></span><span>Reminder ready on WhatsApp</span></span>
         </li>
       </ol>
       <div class="desk-foot"><span><b id="inCount">41</b> in today</span><span><b>$1,180</b> taken today</span></div>
@@ -78,7 +78,7 @@
 <!-- what it does: three jobs, one screen -->
 <section class="does" id="how">
   <div class="wrap">
-    <h2>Three jobs, one screen.</h2>
+    <h2>What the desk does all day.</h2>
     <div class="jobs">
       <div><h3>The door</h3><p>Type a name or scan a code. Green, they’re in. Red, the membership has ended or money is owed.</p></div>
       <div><h3>The cash</h3><p>Dollars or lira at your rate, by cash, Whish or OMT. A numbered receipt each time, and the drawer counted at night.</p></div>
@@ -97,7 +97,7 @@
 <!-- prices: the three levels of the product -->
 <section class="prices" id="prices">
   <div class="wrap">
-    <h2>Pay for what you use.</h2>
+    <h2>Three plans, month to month.</h2>
     <p class="sub">First month free. No setup fee, no contract. Paid by Whish, OMT or cash.</p>
     <div class="plans">
       <article class="plan">
@@ -130,8 +130,8 @@
         <p class="price"><b>$49</b> a month</p>
         <ul>
           <li>Everything in Studio</li>
-          <li>WhatsApp reminders sent automatically</li>
-          <li>An assistant that answers members on WhatsApp, day and night</li>
+          <li>Reminders that go out on their own</li>
+          <li>An assistant that answers members’ messages, day and night</li>
           <li>Shop and stock</li>
         </ul>
       </article>
