@@ -11,3 +11,8 @@ infra/terraform/.terraform.lock.hcl.bak
 infra/terraform/*.tfplan
 
 *.tgz
+
+# load tests
+scripts/loadtest/members.json
+loadtest-results/
+gms-loadtest-kit*.json

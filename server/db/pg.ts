@@ -452,6 +452,8 @@ export class Pool implements Queryable {
   private idle: Connection[] = [];
   private total = 0;
   private waiters: ((c: Connection) => void)[] = [];
+  /** How busy the pool is right now: open connections, idle ones, and callers waiting for one. */
+  stats() { return { max: this.cfg.max ?? 10, open: this.total, idle: this.idle.length, waiting: this.waiters.length }; }
   private timer: NodeJS.Timeout;
   private closed = false;
 

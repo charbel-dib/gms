@@ -22,6 +22,7 @@ import { registerKpis } from "./modules/kpis.ts";
 import { registerPtBooking } from "./modules/ptbook.ts";
 import { registerCommunity } from "./modules/community.ts";
 import { registerTelegram } from "./modules/telegram.ts";
+import { registerLoadtest } from "./modules/loadtest.ts";
 import { startJobs, stopJobs } from "./jobs.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -41,6 +42,7 @@ registerKpis(router);
 registerPtBooking(router);
 registerCommunity(router);
 registerTelegram(router);
+registerLoadtest(router);
 
 router.get("/healthz", async () => {
   await db.query("SELECT 1");

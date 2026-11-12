@@ -67,10 +67,10 @@ export function registerAdmin(r: Router) {
              (SELECT u.phone FROM users u WHERE u.gym_id = g.id AND u.role = 'owner' ORDER BY created_at LIMIT 1) AS owner_phone,
              (SELECT max(c.at) FROM checkins c WHERE c.gym_id = g.id) AS last_checkin,
              g.settings->>'level' AS level, ${setupSql("g")} AS setup, g.archived_at, g.archived_reason
-        FROM gyms g WHERE (g.archived_at IS NOT NULL) = $1
+        FROM gyms g WHERE (g.archived_at IS NOT NULL) = $1 AND NOT (g.is_demo AND g.slug LIKE 'load-%')
        ORDER BY ${archived ? "g.archived_at" : "g.created_at"} DESC`, [archived]);
-    const archivedCount = Number((await one(db, "SELECT count(*) AS n FROM gyms WHERE archived_at IS NOT NULL"))?.n ?? 0);
-    const mrr = rows.filter((g) => g.saas_status === "active").reduce((s, g) => s + Number(g.saas_price_usd), 0);
+    const archivedCount = Number((await one(db, "SELECT count(*) AS n FROM gyms WHERE archived_at IS NOT NULL AND NOT (is_demo AND slug LIKE 'load-%')"))?.n ?? 0);
+    const mrr = rows.filter((g) => g.saas_status === "active" && !g.is_demo).reduce((s, g) => s + Number(g.saas_price_usd), 0);
     return { rows, totals: { gyms: rows.length, active: rows.filter((g) => g.saas_status === "active").length, trial: rows.filter((g) => g.saas_status === "trial").length, mrr: archived ? 0 : mrr, archived: archivedCount } };
   });
 

@@ -1,5 +1,5 @@
 /** GMS platform console for the GMS operator (super-admin). */
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { api, get, post, put, setGymOverride } from "../../shared/api.ts";
 import { Field, Icon, Loader, Modal, Tabs, toast, useAction, useAsync, waLink } from "../../shared/ui.tsx";
 import { fmtDate, money, relDays } from "../../shared/i18n.ts";
@@ -200,6 +200,7 @@ export function PlatformPage() {
               ))}</tbody>
             </table></div>}
             {d.view === "current" && <TelegramSetup />}
+            {d.view === "current" && <LoadTest />}
           </>
         )}
       </Loader>
@@ -337,6 +338,59 @@ const DEMO_STATUS: Record<string, { label: string; plate: string }> = {
   new: { label: "New", plate: "warn" }, contacted: { label: "Contacted", plate: "frozen" }, demo_booked: { label: "Demo booked", plate: "ok" },
   won: { label: "Signed", plate: "ok" }, lost: { label: "Lost", plate: "expired" },
 };
+
+/**
+ * Load test: fake gyms "load-01"… with members and history, then a kit of tokens for scripts/loadtest/run.mjs.
+ * The fake gyms never show in the list above and are not counted in revenue.
+ */
+function LoadTest() {
+  const [st, setSt] = useState<any>(null);
+  const [form, setForm] = useState({ gyms: 50, members: 1700, days: 150 });
+  const [busy, setBusy] = useState("");
+  const load = () => get<any>("/api/loadtest/status").then(setSt, () => {});
+  useEffect(() => { load(); }, []);
+  const phase = st?.progress?.phase ?? "idle";
+  const running = phase === "seeding" || phase === "deleting";
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(load, 5000);
+    return () => clearInterval(id);
+  }, [running]);
+  const run = async (what: string, fn: () => Promise<unknown>) => {
+    setBusy(what);
+    try { await fn(); await load(); } catch (e: any) { toast(e?.message ?? String(e)); } finally { setBusy(""); }
+  };
+  const kit = () => run("kit", async () => {
+    const res = await fetch("/api/admin/loadtest/kit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ members_per_gym: 300 }) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? "Could not make the kit");
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement("a");
+    a.href = url; a.download = "gms-loadtest-kit.json"; a.click();
+    URL.revokeObjectURL(url);
+  });
+  const n = st?.db?.load_gyms ?? 0;
+  const p = st?.progress ?? {};
+  return (
+    <section className="panel" style={{ marginTop: 24 }}>
+      <header><h2>Load test<span className="muted">{n ? `${n} test gyms in the database (${st.db.size})` : "no test gyms"}</span></h2></header>
+      <div className="body stack-s">
+        <p className="ink-2" style={{ fontSize: "0.92rem" }}>Creates fake gyms named load-01, load-02… with members and months of history, so you can see how the server holds up under the traffic of many gyms. They are hidden from your gym list and from revenue. Delete them when you are done.</p>
+        {running && <p><b>{phase === "seeding" ? "Creating test gyms" : "Deleting test gyms"}: {p.done ?? 0} of {p.total ?? "?"}</b>{p.seconds ? ` (${Math.round(p.seconds / 60)} min so far)` : ""}</p>}
+        {phase === "failed" && <p style={{ color: "var(--plate-red)" }}>Stopped with an error: {p.error}. Start again: gyms already made are kept.</p>}
+        {st && <p className="muted" style={{ fontSize: "0.85rem" }}>Server now: task {st.task}, {st.rssMb} MB memory, CPU {st.cpuPct}%, database pool {st.pool.open}/{st.pool.max} open, {st.pool.waiting} waiting, {st.db.connections} database connections.</p>}
+        <div className="row" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end" }}>
+          <Field label="Gyms"><input type="number" min={1} max={60} value={form.gyms} onChange={(e) => setForm({ ...form, gyms: Number(e.target.value) })} style={{ width: 90 }} /></Field>
+          <Field label="Members per gym"><input type="number" min={50} max={2500} value={form.members} onChange={(e) => setForm({ ...form, members: Number(e.target.value) })} style={{ width: 110 }} /></Field>
+          <Field label="Days of history"><input type="number" min={14} max={200} value={form.days} onChange={(e) => setForm({ ...form, days: Number(e.target.value) })} style={{ width: 100 }} /></Field>
+          <button className="btn" disabled={!!busy || running} onClick={() => run("seed", () => post("/api/admin/loadtest/seed", form))}>Create test gyms</button>
+          <button className="btn" disabled={!!busy || running || !n} onClick={kit}>{busy === "kit" ? "Making the kit…" : "Download test kit"}</button>
+          <button className="btn ghost" disabled={!!busy || running || !n} onClick={() => confirm(`Delete the ${n} test gyms and everything in them?`) && run("delete", () => api("/api/admin/loadtest", { method: "DELETE" }))}>Delete test gyms</button>
+          <button className="btn ghost" onClick={load}>Refresh</button>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 /** Requests sent from the "Try it free" form of the GMS website. */
 function DemoRequests() {
