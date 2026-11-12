@@ -426,6 +426,19 @@ export function SettingsView({ me, onBack, onPrefs, onLogout }: { me: any; onBac
         </div></div>
       </Section>
 
+      {me.features?.telegram && (
+        <Section title={t("Telegram")}>
+          {me.telegram_linked ? (
+            <p className="m-muted">{t("Connected. Your reminders come on Telegram, and you can ask the gym's assistant there.")}</p>
+          ) : (
+            <div className="m-stack-s">
+              <p className="m-muted">{t("Get your reminders on Telegram, and ask the gym anything there.")}</p>
+              <button className="m-btn" onClick={async () => { try { const r = await post<any>("/api/m/telegram"); location.href = r.url; } catch (e) { toastError(e); } }}>{t("Connect Telegram")}</button>
+            </div>
+          )}
+        </Section>
+      )}
+
       <Section title={t("Language")}>
         <div className="m-seg">
           <button className={getLang() === "en" ? "on" : ""} onClick={() => setLang("en")}>{t("English")}</button>

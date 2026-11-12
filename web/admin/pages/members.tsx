@@ -3,6 +3,7 @@ import { get, getGymOverride, post, put } from "../../shared/api.ts";
 import { Empty, Field, Icon, Loader, Modal, Segmented, Status, Tabs, initials, toast, toastError, useAction, useAsync, useDebounced } from "../../shared/ui.tsx";
 import { fmtDate, fmtTime, money, getLang, relDays, t } from "../../shared/i18n.ts";
 import { qrSvg } from "../../shared/qr.ts";
+import { MemberTelegram } from "../telegram.tsx";
 import { Link, can, doCheckin, moduleOn, navigate, usePath, useApp } from "../app.tsx";
 import { PaymentFields, ReferrerPicker, SaleFields, emptyPayment, emptySale, toPaymentBody, toSaleBody } from "./forms.tsx";
 import { openReceipt } from "../receipt.tsx";
@@ -311,6 +312,7 @@ export function MemberPage({ id }: { id: string }) {
                       </div>
                     </div>
                   </section>
+                  {can(me, "owner", "manager", "reception") && <MemberTelegram memberId={m.id} name={m.first_name} />}
                   {m.churn && ["active", "expiring", "expired"].includes(m.status) && (
                     <section className="panel">
                       <header><h2>{t("Attendance")}</h2><Status s={m.churn.score >= 0.6 ? "expired" : m.churn.score >= 0.4 ? "expiring" : "active"} label={m.churn.score >= 0.6 ? t("Stopped coming") : m.churn.score >= 0.4 ? t("Coming less") : t("Coming regularly")} /></header>

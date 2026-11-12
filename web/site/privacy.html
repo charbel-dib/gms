@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Privacy and terms · GMS</title>
+  <meta name="description" content="How GMS handles your gym's data and your members' data, and the terms of the service.">
+  <meta name="theme-color" content="#1a2230">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="/site/site.css">
+  <style>
+    .legal { background: var(--paper); padding: clamp(40px, 6vw, 80px) 0 96px; }
+    .legal .wrap { max-width: 760px; }
+    .legal h1 { font-size: clamp(2.2rem, 1.6rem + 2.4vw, 3.4rem); }
+    .legal .date { color: var(--muted); margin-top: 10px; }
+    .legal nav.toc { margin-top: 24px; display: flex; gap: 20px; flex-wrap: wrap; font-weight: 600; }
+    .legal h2 { font-size: 1.9rem; margin-top: 56px; padding-top: 24px; border-top: 2px solid var(--ink); }
+    .legal h3 { font-size: 1.2rem; margin-top: 28px; }
+    .legal p, .legal li { color: var(--ink-2); line-height: 1.6; max-width: 68ch; }
+    .legal p { margin-top: 10px; }
+    .legal ul { margin: 10px 0 0; padding-inline-start: 22px; display: grid; gap: 6px; }
+    .legal [lang="ar"] { font-family: "IBM Plex Sans Arabic", "Archivo", system-ui, sans-serif; }
+    .legal [lang="ar"] h1, .legal [lang="ar"] h2, .legal [lang="ar"] h3 { font-stretch: 100%; letter-spacing: 0; line-height: 1.35; }
+    html[lang="ar"] .legal article[lang="en"], html[lang="en"] .legal article[lang="ar"] { display: none; }
+  </style>
+</head>
+<body>
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="logo" href="/" aria-label="GMS home"><span class="logo-mark" aria-hidden="true"><i></i><i></i><i></i></span>GMS</a>
+    <div class="nav-cta">
+      <button class="link lang" id="langBtn" type="button" lang="ar">العربية</button>
+      <a class="btn" href="/#start">Try it free</a>
+    </div>
+  </div>
+</header>
+
+<main class="legal">
+  <div class="wrap">
+
+<article lang="en" dir="ltr">
+  <h1>Privacy and terms</h1>
+  <p class="date">Last updated: 12 November 2026</p>
+  <nav class="toc" aria-label="On this page"><a href="#privacy">Privacy</a><a href="#terms">Terms for gyms</a><a href="#contact">Contact</a></nav>
+
+  <h2 id="privacy">Privacy</h2>
+  <p>GMS is software that gyms use to run their memberships, check-in, payments and messages. It is run by Charbel Dib. This page explains what data GMS keeps, why, and what you can ask for.</p>
+
+  <h3>Two kinds of data</h3>
+  <ul>
+    <li><b>A gym’s data about its members.</b> The gym decides what it records and why. GMS keeps it on the gym’s behalf and uses it only to run the service for that gym.</li>
+    <li><b>Data about people who contact GMS</b>, for example through the free-month form: your name, the gym’s name, your phone number, your town and what you tell us. We use it only to reply to you and to set up your gym.</li>
+  </ul>
+
+  <h3>What a gym usually records</h3>
+  <p>Name, phone number, gender, and if the gym chooses: birth date, notes and tags. Then memberships, payments and receipts, check-ins, class bookings, personal training sessions, and the messages the gym sends. Members who use the gym’s app also have a PIN, stored in a form nobody can read back.</p>
+
+  <h3>What we do, and don’t do, with it</h3>
+  <ul>
+    <li>We use it to run GMS for the gym: show it to the gym’s team, send the reminders the gym sets up, produce its reports.</li>
+    <li>Each gym sees only its own data. Gyms never see each other’s members.</li>
+    <li>We don’t sell data, we don’t show ads, and we don’t use members’ data for our own marketing.</li>
+  </ul>
+
+  <h3>Who else handles it</h3>
+  <ul>
+    <li><b>Amazon Web Services</b> hosts GMS and its database, in Paris, France.</li>
+    <li><b>Telegram</b> and <b>WhatsApp</b> carry the messages, when a member connects their Telegram or when the gym sends a WhatsApp message.</li>
+    <li><b>Anthropic</b>, only for gyms on the Complete plan: the text of a question asked to the gym’s assistant, with the information needed to answer it, is sent to Anthropic’s AI model to write the reply. Under Anthropic’s terms for business customers, this data is not used to train its models.</li>
+    <li>The website loads its fonts from Google Fonts.</li>
+  </ul>
+
+  <h3>How long we keep it</h3>
+  <p>As long as the gym uses GMS. When a gym leaves, its account is archived: nobody can sign in, and the data is kept so the gym can come back. When the gym asks, we delete it for good. Backups are kept for 14 days, then erased.</p>
+
+  <h3>How it is protected</h3>
+  <ul>
+    <li>Every connection is encrypted (HTTPS).</li>
+    <li>Passwords and PINs are stored hashed. Messaging tokens are stored encrypted.</li>
+    <li>Each person on a gym’s team has their own account and role, and important actions are logged.</li>
+  </ul>
+
+  <h3>If you are a member of a gym</h3>
+  <ul>
+    <li>To see, correct or delete what your gym recorded about you, ask your gym. If you can’t reach them, contact us and we will help.</li>
+    <li>To stop messages on Telegram, send <b>/stop</b> to the bot. For WhatsApp, tell your gym.</li>
+  </ul>
+
+  <h3>Cookies</h3>
+  <p>GMS uses cookies only to keep you signed in. Your language choice is remembered on your device. There are no advertising or tracking cookies.</p>
+
+  <h2 id="terms">Terms for gyms</h2>
+
+  <h3>The free month</h3>
+  <p>The first month is free, with your own members. Nothing is charged automatically when it ends. To continue, you choose a plan; if you don’t, your account is archived.</p>
+
+  <h3>Prices and payment</h3>
+  <ul>
+    <li>Essential $19, Studio $29, Complete $49 a month, per gym. Paid in US dollars by Whish, OMT or cash.</li>
+    <li>Pay for a year and get two months free.</li>
+    <li>Your price stays the same while you use GMS. If prices change, we tell you at least 30 days before.</li>
+  </ul>
+
+  <h3>Late payment</h3>
+  <p>If a payment is late, we remind you. If it is still unpaid after 15 days, we may suspend the account: nobody can sign in, but nothing is deleted. It opens again once paid.</p>
+
+  <h3>Stopping</h3>
+  <p>You can stop at the end of any paid month. A month already started is not refunded. Before you leave, you can export your members to Excel at any time.</p>
+
+  <h3>Your data, your members</h3>
+  <ul>
+    <li>Your gym’s data stays yours.</li>
+    <li>You are responsible for recording only what you need, and for messaging only your own members, who agreed to hear from you.</li>
+    <li>No bulk messages to people who are not your members.</li>
+  </ul>
+
+  <h3>The service</h3>
+  <p>We work to keep GMS running and your data safe, and we fix problems as fast as we can. We can’t promise it will never stop: when the internet drops at your gym, check-in keeps working on the desk’s device, and payments are recorded once it is back. GMS is not responsible for indirect losses. In any case, our responsibility is limited to what you paid us in the last three months.</p>
+
+  <h3>Changes</h3>
+  <p>If these terms change, we tell you before, and the date at the top of this page changes.</p>
+
+  <h2 id="contact">Contact</h2>
+  <p>WhatsApp: <a href="https://wa.me/96170141207">+961 70 141 207</a></p>
+</article>
+
+<article lang="ar" dir="rtl">
+  <h1>الخصوصية والشروط</h1>
+  <p class="date">آخر تحديث: 12 تشرين الثاني 2026</p>
+  <nav class="toc" aria-label="بهالصفحة"><a href="#privacy-ar">الخصوصية</a><a href="#terms-ar">شروط النوادي</a><a href="#contact-ar">التواصل</a></nav>
+
+  <h2 id="privacy-ar">الخصوصية</h2>
+  <p>GMS برنامج بتستعمله النوادي الرياضية لتدير الاشتراكات، الدخول، الدفعات والرسائل. بيديره شربل ديب. هالصفحة بتشرح شو البيانات اللي بيحتفظ فيها GMS، ليش، وشو فيك تطلب.</p>
+
+  <h3>نوعين من البيانات</h3>
+  <ul>
+    <li><b>بيانات النادي عن مشتركينه.</b> النادي بيقرر شو بيسجّل وليش. GMS بيحتفظ فيها عن النادي، وما بيستعملها إلا ليشغّل الخدمة لهالنادي.</li>
+    <li><b>بيانات الناس اللي بيتواصلوا مع GMS</b>، مثلاً من طلب الشهر المجاني: اسمك، اسم النادي، رقم تلفونك، بلدتك وشو بتخبّرنا. منستعملها بس لنرد عليك ونجهّز ناديك.</li>
+  </ul>
+
+  <h3>شو بيسجّل النادي عادةً</h3>
+  <p>الاسم، رقم التلفون، الجنس، وإذا النادي بده: تاريخ الميلاد، ملاحظات ووسوم. وبعدين الاشتراكات، الدفعات والإيصالات، الدخول، حجوزات الحصص، جلسات التدريب الخاص، والرسائل اللي بيبعتها النادي. المشتركين اللي بيستعملوا تطبيق النادي عندهم كمان رقم سري، محفوظ بطريقة ما حدا بيقدر يقراه.</p>
+
+  <h3>شو منعمل فيها، وشو ما منعمل</h3>
+  <ul>
+    <li>منستعملها لنشغّل GMS للنادي: نفرجيها لفريق النادي، نبعت التذكيرات اللي بيحددها النادي، ونطلّع تقاريره.</li>
+    <li>كل نادي بيشوف بياناته بس. ما في نادي بيشوف مشتركين نادي تاني.</li>
+    <li>ما منبيع بيانات، ما منعرض إعلانات، وما منستعمل بيانات المشتركين لتسويقنا.</li>
+  </ul>
+
+  <h3>مين كمان بيتعامل معها</h3>
+  <ul>
+    <li><b>Amazon Web Services</b> بيستضيف GMS وقاعدة بياناته، بباريس، فرنسا.</li>
+    <li><b>تلغرام</b> و<b>واتساب</b> بيوصّلوا الرسائل، لما المشترك يوصل تلغرامه أو لما النادي يبعت رسالة واتساب.</li>
+    <li><b>Anthropic</b>، بس للنوادي بباقة «الكامل»: نص السؤال اللي بينسأل لمساعد النادي، مع المعلومات اللازمة للجواب، بينبعت لنموذج الذكاء الاصطناعي عند Anthropic ليكتب الرد. حسب شروط Anthropic لزبائن الشركات، هالبيانات ما بتنستعمل لتدريب نماذجها.</li>
+    <li>الموقع بيحمّل خطوطه من Google Fonts.</li>
+  </ul>
+
+  <h3>قديش منحتفظ فيها</h3>
+  <p>طول ما النادي عم يستعمل GMS. لما النادي يترك، حسابه بيتأرشف: ما حدا بيقدر يدخل، والبيانات بتضل محفوظة إذا النادي حب يرجع. لما النادي يطلب، منمحيها نهائياً. النسخ الاحتياطية بتضل 14 يوم وبعدين بتنمحى.</p>
+
+  <h3>كيف هي محمية</h3>
+  <ul>
+    <li>كل اتصال مشفّر (HTTPS).</li>
+    <li>كلمات السر والأرقام السرية محفوظة بطريقة ما بتنقرا. رموز الرسائل محفوظة مشفّرة.</li>
+    <li>كل شخص بفريق النادي عنده حسابه ودوره، والعمليات المهمة بتتسجل.</li>
+  </ul>
+
+  <h3>إذا إنت مشترك بنادي</h3>
+  <ul>
+    <li>لتشوف، تصحّح أو تمحي شو سجّل عنك ناديك، اطلب من ناديك. إذا ما قدرت توصلهم، تواصل معنا ومنساعدك.</li>
+    <li>لتوقّف الرسائل عالتلغرام، ابعت <b>/stop</b> للبوت. للواتساب، خبّر ناديك.</li>
+  </ul>
+
+  <h3>الكوكيز</h3>
+  <p>GMS بيستعمل الكوكيز بس ليخليك مسجّل دخول. اللغة اللي بتختارها بتنحفظ عجهازك. ما في كوكيز للإعلانات أو للتتبّع.</p>
+
+  <h2 id="terms-ar">شروط النوادي</h2>
+
+  <h3>الشهر المجاني</h3>
+  <p>أول شهر ببلاش، مع مشتركينك الحقيقيين. ما في شي بينقطع لحالو لما يخلص. لتكمّل، بتختار باقة؛ وإذا ما اخترت، حسابك بيتأرشف.</p>
+
+  <h3>الأسعار والدفع</h3>
+  <ul>
+    <li>الأساسي 19$، ستوديو 29$، الكامل 49$ بالشهر، لكل نادي. الدفع بالدولار عبر Whish أو OMT أو كاش.</li>
+    <li>ادفع سنة وخود شهرين ببلاش.</li>
+    <li>سعرك بيضل نفسه طول ما عم تستعمل GMS. إذا تغيّرت الأسعار، منخبّرك قبل 30 يوم عالأقل.</li>
+  </ul>
+
+  <h3>التأخير بالدفع</h3>
+  <p>إذا تأخرت دفعة، منذكّرك. إذا ضلت مش مدفوعة بعد 15 يوم، فينا نوقّف الحساب: ما حدا بيقدر يدخل، بس ما في شي بينمحى. بيرجع يفتح بعد الدفع.</p>
+
+  <h3>التوقيف</h3>
+  <p>فيك توقّف بآخر أي شهر مدفوع. الشهر اللي بلّش ما بيرجع حقه. قبل ما تترك، فيك تصدّر مشتركينك عالـ Excel أي وقت.</p>
+
+  <h3>بياناتك ومشتركينك</h3>
+  <ul>
+    <li>بيانات ناديك بتضل إلك.</li>
+    <li>إنت مسؤول تسجّل بس اللي بتحتاجه، وتراسل بس مشتركينك اللي قبلوا يوصلهم منك.</li>
+    <li>ممنوع الرسائل الجماعية لناس مش مشتركين عندك.</li>
+  </ul>
+
+  <h3>الخدمة</h3>
+  <p>منشتغل لنخلي GMS شغّال وبياناتك بأمان، ومنصلّح المشاكل بأسرع ما فينا. ما فينا نوعد إنه ما رح يوقف أبداً: لما يقطع الإنترنت بالنادي، تسجيل الدخول بيضل شغّال عجهاز الاستقبال، والدفعات بتتسجل لما يرجع. GMS مش مسؤول عن الخسائر غير المباشرة. وبكل الأحوال، مسؤوليتنا محدودة باللي دفعتلنا ياه بآخر تلات أشهر.</p>
+
+  <h3>التغييرات</h3>
+  <p>إذا تغيّرت هالشروط، منخبّرك قبل، وبيتغيّر التاريخ بأول هالصفحة.</p>
+
+  <h2 id="contact-ar">التواصل</h2>
+  <p>واتساب: <a href="https://wa.me/96170141207" dir="ltr">+961 70 141 207</a></p>
+</article>
+
+  </div>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <a class="logo" href="/"><span class="logo-mark" aria-hidden="true"><i></i><i></i><i></i></span>GMS</a>
+    <nav aria-label="Footer"><a href="/#prices">Prices</a><a href="/login">Log in</a></nav>
+  </div>
+</footer>
+<script src="/site/privacy.js" defer></script>
+</body>
+</html>

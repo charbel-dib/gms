@@ -31,7 +31,7 @@ async function makeGym(slug: string, name: string, nameAr: string, template: str
     provisionGym(q, { slug, name, name_ar: nameAr, template, brand_color: color, city, saas_plan: plan, level, phone: "+96171000000", owner: { name: "Demo Owner", email: `owner@${slug}.gms`, password: "demo12345" } }),
   );
   await db.query(`INSERT INTO users (gym_id, email, name, password_hash, role) VALUES ($1, $2, 'Reception Desk', $3, 'reception')`, [gymId, `reception@${slug}.gms`, await hashPassword("demo12345")]);
-  await db.query(`UPDATE gyms SET address = $2, instagram = $3, tagline = $4, settings = settings || $5::jsonb || '{"setup":{"prices":true,"logoSkipped":true}}'::jsonb, saas_status = 'active', saas_paid_until = current_date + 30 WHERE id = $1`,
+  await db.query(`UPDATE gyms SET address = $2, instagram = $3, tagline = $4, settings = settings || $5::jsonb || '{"setup":{"prices":true,"logoSkipped":true}}'::jsonb, saas_status = 'active', is_demo = true, saas_paid_until = current_date + 30 WHERE id = $1`,
     [gymId, extra.address, extra.instagram, extra.tagline, JSON.stringify(extra.settings ?? {})]);
   if (priceFactor !== 1) await db.query("UPDATE plans SET price = greatest(5, round(price * $2)) WHERE gym_id = $1", [gymId, priceFactor]);
   const stats = await seedDemoActivity(gymId, { members, days: 200, seed: slug.length * 97 });

@@ -4,9 +4,10 @@ import { Empty, Field, Icon, Loader, Modal, Segmented, Tabs, toast, useAction, u
 import { WEEKDAYS, fmtDate, money, t } from "../../shared/i18n.ts";
 import { qrSvg } from "../../shared/qr.ts";
 import { Link, can, moduleOn, useApp } from "../app.tsx";
+import { MyTelegram } from "../telegram.tsx";
 
 type Tab = "gym" | "plans" | "staff" | "rules" | "modules" | "more";
-type More = "whatsapp" | "app" | "notifications" | "audit";
+type More = "whatsapp" | "telegram" | "app" | "notifications" | "audit";
 
 /**
  * Five tabs an owner actually visits, in the order they set a gym up.
@@ -20,6 +21,7 @@ export function SettingsPage() {
   const moreTabs: { value: More; label: string }[] = [
     { value: "notifications", label: t("Reminders") },
     { value: "whatsapp", label: t("WhatsApp") },
+    { value: "telegram", label: t("Telegram") },
     ...(moduleOn(me, "memberApp") ? [{ value: "app" as More, label: t("Member app") }] : []),
     ...(can(me, "owner") ? [{ value: "audit" as More, label: t("Activity log") }] : []),
   ];
@@ -40,6 +42,7 @@ export function SettingsPage() {
           <Segmented label={t("Advanced")} value={more} onChange={setMore} options={moreTabs} />
           <div style={{ height: 16 }} />
           {more === "whatsapp" && <WhatsAppTab />}
+          {more === "telegram" && <TelegramTab />}
           {more === "app" && <AppTab />}
           {more === "notifications" && <NotificationsTab />}
           {more === "audit" && <AuditTab />}
@@ -324,6 +327,33 @@ function RulesTab() {
         </section>
         <button className="btn primary" disabled={busy} onClick={() => save({ settings: { hours, ladiesHours: ladies, checkin: ck, reminders: rem } })}>{t("Save hours and rules")}</button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Telegram on or off for this gym's members, and the owner's own Telegram for the weekly summary.
+ * Members who connect get their messages there; everyone else keeps WhatsApp.
+ */
+function TelegramTab() {
+  const { gym, busy, save } = useGymForm();
+  const s = useAsync(() => get("/api/telegram"), [gym.settings?.telegram?.enabled]);
+  const d: any = s.data;
+  const on = !!gym.settings?.telegram?.enabled;
+  if (d && !d.bot) return <section className="panel"><div className="body muted">{t("Telegram isn't set up on GMS yet. Ask GMS support.")}</div></section>;
+  return (
+    <div className="cols">
+      <section className="panel"><div className="body stack">
+        <label className="check">
+          <input type="checkbox" checked={on} disabled={busy} onChange={(e) => save({ settings: { telegram: { enabled: e.target.checked } } })} />
+          <span className="who"><b>{t("Send members' messages on Telegram")}</b><small>{t("For members who connected their Telegram: reminders arrive by themselves, and the assistant answers their questions day and night. Everyone else keeps WhatsApp.")}</small></span>
+        </label>
+        {on && <p className="ink-2">{t("To connect a member, open their profile and press “Connect their Telegram”. Members can also do it from the member app, in Settings.")}</p>}
+        {d && on && <p><b>{t("{n} members connected", { n: d.members })}</b>{d.bot && <span className="muted"> · @{d.bot}</span>}</p>}
+      </div></section>
+      <section className="panel"><header><h2>{t("Your Telegram")}</h2></header><div className="body">
+        <MyTelegram purpose={t("Get your gym's week every Monday morning, and ask about your numbers any time.")} />
+      </div></section>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { bookSession, cancelBooking, ensureSessions } from "./classes.ts";
 import { botReply } from "../ai/bot.ts";
 import { receiptByToken } from "../services/receipt.ts";
 import { allowedEndpoint, vapidKeys } from "../services/webpush.ts";
+import { getBot } from "../services/telegram.ts";
 import { NOTIFICATION_CATEGORIES, NOTIFICATION_TYPES, pushSettings } from "../services/notify.ts";
 
 async function gymBySlug(slug: string) {
@@ -153,7 +154,9 @@ export function registerPortal(r: Router) {
         pt: extra.modules?.pt !== false && (extra.pt_packages > 0 || extra.pt_upcoming > 0), ptBooking: pts.memberBooking !== false,
         shop: extra.modules?.shop !== false && extra.products > 0, classes: extra.modules?.classes !== false, ai: extra.modules?.ai !== false,
         badges: es.badges !== false, challenges: es.challenges !== false, leaderboard: es.leaderboard !== false, referrals: es.referrals !== false,
+        telegram: !!extra.settings?.telegram?.enabled && !!(await getBot()),
       },
+      telegram_linked: !!(await one(db, "SELECT 1 FROM telegram_links WHERE member_id = $1", [me.id])),
     };
   });
 

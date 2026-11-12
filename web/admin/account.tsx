@@ -5,6 +5,7 @@ import { post } from "../shared/api.ts";
 import { Field, Modal, toast, useAction } from "../shared/ui.tsx";
 import { qrSvg } from "../shared/qr.ts";
 import { useApp } from "./app.tsx";
+import { MyTelegram } from "./telegram.tsx";
 
 function PasswordForm({ onDone, submitLabel = "Change password" }: { onDone: () => void; submitLabel?: string }) {
   const [f, setF] = useState({ current: "", next: "", again: "" });
@@ -98,6 +99,15 @@ export function AccountModal({ open, onClose }: { open: boolean; onClose: () => 
         <h3 style={{ margin: 0 }}>{t("Two-step sign-in")}</h3>
         <TwoStep />
       </section>
+      {(me.user.role === "owner" || me.user.role === "manager" || me.user.role === "superadmin") && (
+        <>
+          <hr style={{ border: 0, borderTop: "1px solid var(--line-2)", margin: "20px 0" }} />
+          <section className="stack">
+            <h3 style={{ margin: 0 }}>{t("Telegram")}</h3>
+            <MyTelegram purpose={me.user.role === "superadmin" ? "Get new free-month requests the moment they arrive, and the platform's week every Monday." : t("Get your gym's week every Monday morning, and ask about your numbers any time.")} />
+          </section>
+        </>
+      )}
     </Modal>
   );
 }

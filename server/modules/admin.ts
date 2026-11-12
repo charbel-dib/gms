@@ -10,6 +10,7 @@ import { seedDemoActivity } from "../services/demo.ts";
 import { clampModules, PLAN_PRICES, type SaasPlan } from "../services/plans.ts";
 import { getTemplate, levelModules } from "../templates.ts";
 import { setupSql } from "../services/setup.ts";
+import { notifyOperator } from "../services/telegram.ts";
 
 const DEMO_STATUSES = ["new", "contacted", "demo_booked", "won", "lost"] as const;
 
@@ -30,6 +31,9 @@ export function registerAdmin(r: Router) {
     if (b.website) return { ok: true };
     await db.query(`INSERT INTO demo_requests (name, gym_name, city, phone, email, members, message, ip) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
       [b.name, b.gym_name, b.city ?? null, b.phone, b.email ?? null, b.members ?? null, b.message ?? null, ctx.ip]);
+    // tell the operator on Telegram right away (if connected); never slows down or fails the form
+    const line = [`New free-month request: ${b.name}, ${b.gym_name}`, [b.city, b.members ? `${b.members} members` : null].filter(Boolean).join(", "), b.message, `WhatsApp: ${b.phone}`].filter(Boolean).join("\n");
+    queueMicrotask(() => { notifyOperator(line); });
     return { ok: true };
   });
 

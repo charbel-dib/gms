@@ -74,7 +74,7 @@ réservations, historique, programmes, et assistant.
 
 ## Offres GMS (ce que la salle vous paie)
 
-| | Essential 15 $/mois | Studio 29 $/mois | Complete 49 $/mois |
+| | Essential 19 $/mois | Studio 29 $/mois | Complete 49 $/mois |
 |---|---|---|---|
 | Membres, formules, paiements USD/LBP, reçus | ✓ | ✓ | ✓ |
 | Entrée QR, heures femmes, gel, import Excel | ✓ | ✓ | ✓ |

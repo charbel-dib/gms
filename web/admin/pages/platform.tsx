@@ -4,6 +4,7 @@ import { api, get, post, put, setGymOverride } from "../../shared/api.ts";
 import { Field, Icon, Loader, Modal, Tabs, toast, useAction, useAsync, waLink } from "../../shared/ui.tsx";
 import { fmtDate, money, relDays } from "../../shared/i18n.ts";
 import { navigate, useApp } from "../app.tsx";
+import { MyTelegram } from "../telegram.tsx";
 import { AccountModal } from "../account.tsx";
 
 const STEP_LABEL: Record<string, string> = { logo: "logo", prices: "prices", members: "members", payment: "first payment", checkin: "first check-in" };
@@ -41,6 +42,50 @@ const STATUS_PLATE: Record<string, string> = { active: "ok", trial: "warn", past
 
 // the names gyms see on the website; the internal keys stay starter/pro/elite
 const PLAN_NAMES = { starter: "Essential", pro: "Studio", elite: "Complete" } as const;
+
+/**
+ * The GMS bot on Telegram, set up once for every gym: paste the token from @BotFather.
+ * Then connect your own Telegram to get free-month requests and the weekly platform summary.
+ */
+function TelegramSetup() {
+  const s = useAsync(() => get("/api/admin/telegram"), []);
+  const [token, setToken] = useState("");
+  const [open, setOpen] = useState(false);
+  const { busy, run } = useAction();
+  const d: any = s.data;
+  if (!d) return null;
+  return (
+    <section className="panel" style={{ marginBottom: 24 }}>
+      <header>
+        <h2>Telegram</h2>
+        {d.connected ? <span className="muted">@{d.username} · {d.members} members, {d.staff} staff connected</span> : <span className="muted">not set up</span>}
+        <button className="btn small ghost" onClick={() => setOpen(!open)}>{open ? "Close" : d.connected ? "Manage" : "Set up"}</button>
+      </header>
+      {open && (
+        <div className="body cols">
+          {d.connected ? (
+            <div className="stack-s">
+              <p className="ink-2">Gyms that turn Telegram on (Settings → Advanced → Telegram) send their members' messages through @{d.username}. Owners connect from “Your account”.</p>
+              <div><button className="btn small ghost" disabled={busy} onClick={async () => { if (await run(() => api("/api/admin/telegram", { method: "DELETE" }), "Telegram disconnected")) s.reload(); }}>Disconnect the bot</button></div>
+            </div>
+          ) : (
+            <div className="stack-s">
+              <p className="ink-2">In Telegram, open <b>@BotFather</b>, send <code>/newbot</code>, choose a name (for example “GMS”) and a username ending in “bot”. BotFather gives you a token: paste it here.</p>
+              <Field label="Bot token"><input className="input" value={token} onChange={(e) => setToken(e.target.value)} placeholder="123456789:AA…" autoComplete="off" /></Field>
+              <div><button className="btn primary" disabled={busy || token.length < 20} onClick={async () => { const r = await run(() => api("/api/admin/telegram", { method: "PUT", body: { token: token.trim() } })); if (r) { toast(`Connected to @${r.username}`); setToken(""); s.reload(); } }}>Connect the bot</button></div>
+            </div>
+          )}
+          {d.connected && (
+            <div className="stack-s">
+              <b>Your Telegram</b>
+              <MyTelegram purpose="Get new free-month requests the moment they arrive, and the platform's week every Monday." />
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
 
 const ARCHIVE_REASONS = ["Stopped paying", "Gym closed", "Went back to notebook or Excel", "Moved to another software", "Free month not continued", "Test or duplicate"];
 
@@ -86,6 +131,7 @@ export function PlatformPage() {
               { value: "current", label: `Your gyms${d.view === "current" ? ` (${d.rows.length})` : ""}` },
               { value: "archived", label: `Archived (${d.totals.archived})` },
             ]} />
+            {d.view === "current" && <TelegramSetup />}
             {d.view === "current" && (() => {
               const list = needs(d.rows);
               return (
@@ -186,7 +232,7 @@ export function PlatformPage() {
           <Field label="Owner name"><input className="input" value={f.owner_name ?? ""} onChange={(e) => setF({ ...f, owner_name: e.target.value })} /></Field>
           <Field label="Owner email (login)"><input className="input" type="email" value={f.owner_email ?? ""} onChange={(e) => setF({ ...f, owner_email: e.target.value })} /></Field>
           <Field label="Owner WhatsApp" hint="Used for your follow-up messages"><input className="input" value={f.owner_phone ?? ""} onChange={(e) => setF({ ...f, owner_phone: e.target.value })} placeholder="+961 71 234 567" /></Field>
-          <Field label="GMS plan" hint={f.level !== "essential" && f.saas_plan === "starter" ? "Essential does not include classes, training or the member app" : undefined}><select className="input" value={f.saas_plan} onChange={(e) => setF({ ...f, saas_plan: e.target.value })}><option value="starter">Essential · $15/month</option><option value="pro">Studio · $29/month</option><option value="elite">Complete · $49/month</option></select></Field>
+          <Field label="GMS plan" hint={f.level !== "essential" && f.saas_plan === "starter" ? "Essential does not include classes, training or the member app" : undefined}><select className="input" value={f.saas_plan} onChange={(e) => setF({ ...f, saas_plan: e.target.value })}><option value="starter">Essential · $19/month</option><option value="pro">Studio · $29/month</option><option value="elite">Complete · $49/month</option></select></Field>
         </div>
         <label className="check"><input type="checkbox" checked={f.demo_data} onChange={(e) => setF({ ...f, demo_data: e.target.checked })} /> Fill with realistic demo data (for sales demos only)</label>
       </Modal>

@@ -1,8 +1,8 @@
 /* GMS website: the check-in demo in the hero, and the request form asked one question at a time. */
 (() => {
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const AR = window.GMS_LANG === "ar";
-  const tr = (en, ar) => (AR ? ar : en);
+  // the language can change while the page is open (the العربية button), so it is read each time
+  const tr = (en, ar) => (window.GMS_LANG === "ar" ? ar : en);
 
   // ---- hero: three members check in, one after another ----
   const desk = document.querySelector(".desk");
@@ -12,7 +12,7 @@
   const count = document.getElementById("inCount");
   if (desk && rows.length && !reduce) {
     desk.classList.add("live");
-    const idle = scanText.textContent;
+    const idle = () => tr("Type a name or scan a code", "اكتب اسم أو امسح رمز");
     let i = 0, visitors = 41;
     const step = () => {
       if (i === rows.length) {
@@ -25,7 +25,7 @@
       scanText.textContent = name;
       setTimeout(() => {
         scan.classList.remove("reading");
-        scanText.textContent = idle;
+        scanText.textContent = idle();
         rows[i].classList.add("in");
         count.textContent = String(++visitors);
         i += 1;
@@ -134,4 +134,6 @@
   });
 
   show(0, false);
+  // after a language switch, relabel the counter and the buttons
+  document.addEventListener("gms:lang", () => { if (steps[at]?.isConnected) show(at, false); else { const d = form.querySelector(".done"); if (d) d.dir = document.documentElement.dir; } });
 })();

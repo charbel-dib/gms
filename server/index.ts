@@ -21,6 +21,7 @@ import { registerShop } from "./modules/shop.ts";
 import { registerKpis } from "./modules/kpis.ts";
 import { registerPtBooking } from "./modules/ptbook.ts";
 import { registerCommunity } from "./modules/community.ts";
+import { registerTelegram } from "./modules/telegram.ts";
 import { startJobs, stopJobs } from "./jobs.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -39,6 +40,7 @@ registerShop(router);
 registerKpis(router);
 registerPtBooking(router);
 registerCommunity(router);
+registerTelegram(router);
 
 router.get("/healthz", async () => {
   await db.query("SELECT 1");
@@ -109,6 +111,11 @@ async function serveDynamicPage(req: http.IncomingMessage, res: http.ServerRespo
       .replace("</head>", `  ${head.tags}\n</head>`);
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
     res.end(html);
+    return true;
+  }
+  // privacy and terms, for everyone (also linked from Meta and Telegram profiles)
+  if (pathname === "/privacy" && fs.existsSync(path.join(PUBLIC_DIR, "privacy.html"))) {
+    serveFile(req, res, path.join(PUBLIC_DIR, "privacy.html"), "no-cache");
     return true;
   }
   // the GMS website for visitors; staff who are signed in land on their dashboard

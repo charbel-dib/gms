@@ -6,6 +6,7 @@ import { db, many, one } from "./db/index.ts";
 import { ensureSessions } from "./modules/classes.ts";
 import { reminderText, sendWhatsApp } from "./services/whatsapp.ts";
 import { scoreGym, trainForGym } from "./ai/churn.ts";
+import { sendWeeklySummaries } from "./services/weekly.ts";
 import { processQueue, scheduleExpiryNotices, scheduleReminders } from "./services/notify.ts";
 
 async function withLock(key: number, fn: () => Promise<void>) {
@@ -85,6 +86,10 @@ export function startJobs() {
     if (h.h < 10 || h.h >= 20) return;
     await forEachGym((id) => runReminders(id));
     await scheduleExpiryNotices();
+  });
+  // weekly summaries on Telegram: Monday from 9:00 Beirut time, once per person
+  every(60 * 60_000, 9106, async () => {
+    await sendWeeklySummaries();
   });
   // push notifications: class/PT reminders every 5 minutes, delivery queue every minute
   every(5 * 60_000, 9104, async () => {

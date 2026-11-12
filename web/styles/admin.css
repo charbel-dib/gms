@@ -503,3 +503,8 @@ h1.headline-sentence { font-size: var(--step-3); line-height: 1.25; font-weight:
   /* member list on a phone: name, status and end date are enough; the rest is one tap away */
   .members-table th:nth-child(2), .members-table td:nth-child(2), .members-table th:nth-child(5), .members-table td:nth-child(5) { display: none; }
 }
+
+/* Telegram link: a button for this device, a QR code for the phone next to it */
+.tg-open { display: flex; gap: 16px; align-items: center; }
+.tg-open .qr { width: 128px; flex: none; background: #fff; padding: 6px; border-radius: 8px; border: 1px solid var(--line); }
+.tg-open .qr svg { width: 100%; height: auto; display: block; }

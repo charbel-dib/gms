@@ -106,6 +106,13 @@ Rien n'a été retiré du produit ; ce qui change, c'est ce qu'on voit par défa
 
 - **Prix** : Essential 15 $, Studio 29 $, Complete 49 $ par mois, alignés sur les trois niveaux. Premier mois gratuit, sans frais d'installation.
 - **Site** : réduit à six blocs (accroche avec la démo d'entrée, trois tâches, prix, démarrage en trois étapes, quatre questions, demande d'essai). La demande d'essai pose cinq questions, une par carte ; sans JavaScript, le formulaire s'affiche en entier et fonctionne quand même.
+- **Telegram** (en attendant WhatsApp Business) : un seul bot GMS pour toutes les salles. Tu le crées une fois avec @BotFather et tu colles son token sur la page Platform (carte « Telegram ») : GMS le vérifie, branche le webhook (`/api/webhooks/telegram/<secret>`) et garde le token chiffré. Aucune variable d'environnement ni Terraform à toucher.
+  - Une salle l'active dans Settings → Advanced → Telegram. Un membre se connecte avec un lien à usage unique (bouton « Connect their Telegram » sur sa fiche, envoyé par WhatsApp ou scanné à l'accueil) ou depuis l'app membre. Ensuite ses rappels et messages partent sur Telegram, tout seuls ; s'il n'est pas connecté, rien ne change (WhatsApp clic-pour-envoyer).
+  - L'assistant de la salle répond aux membres sur Telegram ; « je veux parler à quelqu'un » prévient le propriétaire et le gérant.
+  - Le propriétaire et le gérant connectent leur Telegram dans « Your account » : résumé de la semaine chaque lundi à 9 h (Beyrouth), `/summary` à la demande, et questions sur leurs chiffres.
+  - Toi : nouvelles demandes d'essai en direct et résumé de la plateforme le lundi. `/stop` déconnecte n'importe qui.
+  - Code : `server/services/telegram.ts`, `server/modules/telegram.ts`, `server/services/weekly.ts`, migration `007_telegram.sql`.
+- **Page confidentialité et conditions** : `/privacy`, en anglais et en arabe, liée en pied de page du site.
 - **Archiver une salle** (page Platform → Archive) : avec une raison. La salle quitte la liste principale, son équipe et ses membres sont déconnectés et ne peuvent plus se connecter, les rappels s'arrêtent. Toutes les données restent ; « Restore » la remet telle quelle. « Delete for good » n'existe que pour une salle archivée et demande de retaper son adresse (slug) : tout est effacé, sans retour possible. Migration `006_gym_archive.sql`.
 
 Ce qui reste en anglais : la référence d'API, l'écran plateforme (pour toi), et les textes de conseil « Focus now » calculés par le serveur (niveau Everything).

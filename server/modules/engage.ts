@@ -32,13 +32,15 @@ export function registerEngage(r: Router) {
     const u = await requireStaff(ctx, ["owner", "manager", "reception"]);
     const where = ["ms.gym_id = $1"];
     const st = ctx.query.get("status");
+    // an owner's own questions to the bot are not member messages
+    where.push("ms.channel <> 'telegram-staff'");
     if (st === "outbox") where.push("ms.status = 'manual'");
     else if (st === "inbox") where.push("ms.direction = 'in'");
     else if (st === "failed") where.push("ms.status = 'failed'");
     const rows = await many(db, `SELECT ms.*, m.first_name, m.last_name, m.code FROM messages ms LEFT JOIN members m ON m.id = ms.member_id
                                   WHERE ${where.join(" AND ")} ORDER BY ms.created_at DESC LIMIT 300`, [u.gymId]);
     const counts = await one(db, `SELECT count(*) FILTER (WHERE status = 'manual')::int AS outbox, count(*) FILTER (WHERE direction = 'in' AND created_at > now() - interval '7 days')::int AS inbox,
-                                         count(*) FILTER (WHERE status = 'failed')::int AS failed FROM messages WHERE gym_id = $1`, [u.gymId]);
+                                         count(*) FILTER (WHERE status = 'failed')::int AS failed FROM messages WHERE gym_id = $1 AND channel <> 'telegram-staff'`, [u.gymId]);
     return { rows: rows.map((m) => (m.status === "manual" || m.status === "failed") && m.phone ? { ...m, link: waLink(m.phone, m.body) } : m), counts };
   });
 
@@ -277,7 +279,7 @@ async function handleWebhook(payload: any) {
         const dup = await one(db, "INSERT INTO messages (gym_id, member_id, phone, direction, kind, body, status, provider_id, dedupe_key) VALUES ($1,$2,$3,'in','inbound',$4,'received',$5,$6) ON CONFLICT DO NOTHING RETURNING id",
           [gym.id, member?.id ?? null, phone, text, msg.id ?? null, msg.id ? `in:${msg.id}` : null]);
         if (!dup || msg.type !== "text") continue;
-        const history = await many(db, `SELECT direction, body FROM messages WHERE gym_id = $1 AND phone = $2 AND created_at > now() - interval '24 hours' AND id <> $3 ORDER BY created_at DESC LIMIT 6`, [gym.id, phone, dup.id]);
+        const history = await many(db, `SELECT direction, body FROM messages WHERE gym_id = $1 AND phone = $2 AND channel = 'whatsapp' AND created_at > now() - interval '24 hours' AND id <> $3 ORDER BY created_at DESC LIMIT 6`, [gym.id, phone, dup.id]);
         const reply = await botReply(gym.id, member?.id ?? null, text, history.reverse().map((h) => ({ role: h.direction === "in" ? "user" : "assistant", content: h.body })));
         await sendWhatsApp(db, { gymId: gym.id, memberId: member?.id ?? null, phone, kind: reply.handoff ? "bot_handoff" : "bot", body: reply.reply, isReply: true });
       }

@@ -13,6 +13,7 @@ import crypto from "node:crypto";
 import { config } from "../config.ts";
 import { decryptSecret } from "../auth.ts";
 import { one, type Queryable } from "../db/index.ts";
+import { getBot, memberChat, tgSend } from "./telegram.ts";
 
 export function waLink(phone: string, text: string): string {
   return `https://wa.me/${phone.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
@@ -68,6 +69,27 @@ export interface OutMessage {
 /** Sends (or queues for click-to-send) a WhatsApp message and logs it. Returns the stored row, or null if deduplicated. */
 export async function sendWhatsApp(q: Queryable, msg: OutMessage) {
   const gym = await one(q, "SELECT settings, saas_plan FROM gyms WHERE id = $1", [msg.gymId]);
+  // a member who connected Telegram (and whose gym uses it) gets the message there, sent at once
+  if (msg.memberId && gym?.settings?.telegram?.enabled) {
+    const chat = await memberChat(q, msg.memberId);
+    if (chat && (await getBot())) {
+      const row = await one(q,
+        `INSERT INTO messages (gym_id, member_id, phone, direction, kind, body, status, dedupe_key, channel)
+         VALUES ($1,$2,$3,'out',$4,$5,'queued',$6,'telegram')
+         ON CONFLICT (gym_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING RETURNING *`,
+        [msg.gymId, msg.memberId, msg.phone, msg.kind, msg.body, msg.dedupeKey ?? null]);
+      if (!row) return null;
+      try {
+        const id = await tgSend(chat, msg.body);
+        await q.query("UPDATE messages SET status = 'sent', provider_id = $2, sent_at = now() WHERE id = $1", [row.id, `tg:${id}`]);
+        return { ...row, status: "sent", provider_id: `tg:${id}` };
+      } catch (e: any) {
+        // Telegram failed (blocked bot, network): fall back to a WhatsApp message the desk sends in one tap
+        await q.query("UPDATE messages SET status = 'manual', channel = 'whatsapp', error = $2 WHERE id = $1", [row.id, `telegram: ${String(e.message).slice(0, 400)}`]);
+        return { ...row, status: "manual", channel: "whatsapp", link: waLink(msg.phone, msg.body) };
+      }
+    }
+  }
   const creds = gym?.saas_plan === "elite" ? gymWaCreds(gym?.settings) : null;
   const row = await one(
     q,

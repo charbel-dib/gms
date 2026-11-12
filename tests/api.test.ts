@@ -1214,3 +1214,104 @@ test("archive, restore and delete a gym: archived gyms leave the list and cannot
   assert.ok(!after.rows.some((r: any) => r.slug === "leaving"));
   assert.equal((await new Client(ctx.base).req("POST", "/api/auth/login", { email: "owner@leaving.test", password: pw })).data.error, "invalid_credentials");
 });
+
+test("telegram: the operator connects the bot; members and owners connect with a one-time link; messages, the assistant, the weekly summary and trial alerts go through Telegram", async () => {
+  // a stand-in for api.telegram.org that records what GMS sends
+  const http = await import("node:http");
+  const sent: { method: string; body: any }[] = [];
+  let nextId = 100;
+  const fake = http.createServer(async (req, res) => {
+    let raw = "";
+    for await (const c of req) raw += c;
+    const method = String(req.url).split("/").pop()!;
+    const body = raw ? JSON.parse(raw) : {};
+    sent.push({ method, body });
+    const result = method === "getMe" ? { id: 1, is_bot: true, username: "gms_test_bot" } : method === "sendMessage" ? { message_id: nextId++ } : true;
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ ok: true, result }));
+  });
+  await new Promise<void>((r) => fake.listen(0, "127.0.0.1", () => r()));
+  process.env.TELEGRAM_API_BASE = `http://127.0.0.1:${(fake.address() as any).port}`;
+  const to = (chat: number) => sent.filter((s) => s.method === "sendMessage" && String(s.body.chat_id) === String(chat));
+  const waitFor = async (fn: () => boolean) => { for (let i = 0; i < 100 && !fn(); i++) await new Promise((r) => setTimeout(r, 30)); assert.ok(fn(), "timed out waiting for Telegram"); };
+  try {
+    // not a token: refused before calling Telegram
+    assert.equal((await admin.req("PUT", "/api/admin/telegram", { token: "hello" })).status, 400);
+    const conn = await admin.ok("PUT", "/api/admin/telegram", { token: "123456789:AAEexampleexampleexampleexample12345" });
+    assert.equal(conn.username, "gms_test_bot");
+    const hook = sent.find((s) => s.method === "setWebhook")!.body.url as string;
+    const path = new URL(hook).pathname;
+    assert.match(path, /^\/api\/webhooks\/telegram\/[\w-]{20,}$/);
+    // a wrong secret is a 404
+    assert.equal((await new Client(ctx.base).post("/api/webhooks/telegram/nope", {})).status, 404);
+    const update = (chat: number, text: string, id: number) => new Client(ctx.base).post(path, { update_id: id, message: { chat: { id: chat, type: "private" }, from: { username: `u${chat}` }, text } });
+
+    // a gym turns Telegram on and connects a member
+    const g = await admin.ok("POST", "/api/admin/gyms", { name: "Wire Gym", slug: "wire", template: "classic", owner_name: "Wire Owner", owner_email: "owner@wire.test", level: "full" });
+    const o = new Client(ctx.base);
+    await signIn(o, "owner@wire.test", g.temporaryPassword);
+    await o.ok("PUT", "/api/gym", { settings: { telegram: { enabled: true } } });
+    const m = await o.ok("POST", "/api/members", { first_name: "Rita", last_name: "Saad", phone: "03 222 333", gender: "female" });
+    const link = await o.ok("POST", `/api/members/${m.id}/telegram`);
+    assert.match(link.url, /^https:\/\/t\.me\/gms_test_bot\?start=[\w-]+$/);
+    assert.match(link.whatsapp, /^https:\/\/wa\.me\/9613222333\?text=/);
+    const code = link.url.split("start=")[1];
+    await update(5550, `/start ${code}`, 1);
+    await waitFor(() => to(5550).length === 1);
+    assert.match(to(5550)[0].body.text, /Rita, you're connected to Wire Gym/);
+    assert.equal((await o.ok("GET", `/api/members/${m.id}/telegram`)).linked, true);
+    // the link works once
+    await update(5551, `/start ${code}`, 2);
+    await waitFor(() => to(5551).length === 1);
+    assert.match(to(5551)[0].body.text, /expired or was already used/);
+
+    // a message to the member goes to Telegram, sent at once
+    const msg = await o.ok("POST", "/api/messages/send", { member_id: m.id, body: "See you tomorrow at 9" });
+    assert.equal(msg.status, "sent");
+    assert.equal(msg.channel, "telegram");
+    assert.equal(to(5550).at(-1)!.body.text, "See you tomorrow at 9");
+
+    // the member writes: the gym's assistant answers there; asking for a person alerts the owner
+    const ownerLink = await o.ok("POST", "/api/telegram/me");
+    await update(7770, `/start ${ownerLink.url.split("start=")[1]}`, 3);
+    await waitFor(() => to(7770).length === 1);
+    assert.match(to(7770)[0].body.text, /Every Monday morning/);
+    await update(5550, "I want to talk to someone at reception", 4);
+    await waitFor(() => to(5550).length === 3 && to(7770).length === 2);
+    assert.match(to(7770)[1].body.text, /Rita Saad wants to talk to someone/);
+    // the same update twice is answered once
+    await update(5550, "I want to talk to someone at reception", 4);
+    await new Promise((r) => setTimeout(r, 200));
+    assert.equal(to(5550).length, 3);
+    // the owner's questions don't show up in the gym's messages
+    const list = await o.ok("GET", "/api/messages");
+    assert.ok(list.rows.some((r: any) => r.channel === "telegram" && r.direction === "in"));
+
+    // the owner asks for the week, and the Monday job sends it once per day
+    await update(7770, "/summary", 5);
+    await waitFor(() => to(7770).length === 3);
+    assert.match(to(7770)[2].body.text, /^Wire Gym, your week/);
+    const { sendSummariesNow } = await import("../server/services/weekly.ts");
+    assert.ok((await sendSummariesNow()) >= 1);
+    assert.equal(await sendSummariesNow(), 0);
+
+    // the operator connects and hears about trial requests right away
+    const opLink = await admin.ok("POST", "/api/telegram/me");
+    await update(9990, `/start ${opLink.url.split("start=")[1]}`, 6);
+    await waitFor(() => to(9990).length === 1);
+    await new Client(ctx.base).ok("POST", "/api/public/demo-requests", { name: "Nadim Kassab", gym_name: "Iron Halba", phone: "70 123 456", city: "Halba", members: "<100", message: "Type of gym: Weights gym" });
+    await waitFor(() => to(9990).length === 2);
+    assert.match(to(9990)[1].body.text, /New free-month request: Nadim Kassab, Iron Halba/);
+
+    // /stop disconnects; the next message falls back to WhatsApp, ready for the desk
+    await update(5550, "/stop", 7);
+    await waitFor(() => to(5550).length === 4);
+    assert.equal((await o.ok("GET", `/api/members/${m.id}/telegram`)).linked, false);
+    const back = await o.ok("POST", "/api/messages/send", { member_id: m.id, body: "Back on WhatsApp" });
+    assert.equal(back.status, "manual");
+  } finally {
+    await admin.req("DELETE", "/api/admin/telegram");
+    delete process.env.TELEGRAM_API_BASE;
+    fake.close();
+  }
+});

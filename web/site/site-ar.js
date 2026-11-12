@@ -107,36 +107,54 @@ window.GMS_AR = {
  "Main": "القائمة",
  "Footer": "أسفل الصفحة",
  "Example: three members checking in at the desk": "مثال: تلات مشتركين عم يفوتوا عالنادي",
- "The Today screen: a sentence for the day and three things to do, with names": "شاشة اليوم: جملة عن النهار وتلات شغلات لازم تنعمل، مع الأسامي"
+ "The Today screen: a sentence for the day and three things to do, with names": "شاشة اليوم: جملة عن النهار وتلات شغلات لازم تنعمل، مع الأسامي",
+ "Privacy and terms": "الخصوصية والشروط"
 };
+/* Switches the page between English and Arabic in place, no reload: each text keeps its English original. */
 (() => {
   const norm = (s) => s.replace(/\s+/g, " ").trim();
+  const ATTRS = ["placeholder", "aria-label", "alt"];
+  const orig = new WeakMap();
   let lang = "en";
   try { lang = new URLSearchParams(location.search).get("lang") || localStorage.getItem("gms.site.lang") || "en"; } catch {}
-  const apply = () => {
-    document.documentElement.lang = "ar";
-    document.documentElement.dir = "rtl";
+  const apply = (to) => {
+    const ar = to === "ar";
+    document.documentElement.lang = ar ? "ar" : "en";
+    document.documentElement.dir = ar ? "rtl" : "ltr";
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const nodes = [];
     while (walk.nextNode()) nodes.push(walk.currentNode);
     for (const n of nodes) {
-      if (n.parentElement.closest("script,style,.chat")) continue;
-      const k = norm(n.nodeValue);
-      const v = k && window.GMS_AR[k];
-      if (v) n.nodeValue = n.nodeValue.replace(n.nodeValue.trim(), v);
+      if (n.parentElement.closest("script,style")) continue;
+      if (!orig.has(n)) orig.set(n, n.nodeValue);
+      const en = orig.get(n);
+      const v = window.GMS_AR[norm(en)];
+      n.nodeValue = ar && v ? en.replace(en.trim(), v) : en;
     }
-    for (const attr of ["placeholder", "aria-label", "alt"]) {
-      for (const el of document.querySelectorAll(`[${attr}]`)) { const v = window.GMS_AR[el.getAttribute(attr)]; if (v) el.setAttribute(attr, v); }
+    for (const attr of ATTRS) {
+      for (const el of document.querySelectorAll(`[${attr}]`)) {
+        const key = `en${attr.replace(/-./g, (m) => m[1].toUpperCase()).replace(/^./, (c) => c.toUpperCase())}`;
+        if (!(key in el.dataset)) el.dataset[key] = el.getAttribute(attr);
+        const v = window.GMS_AR[el.dataset[key]];
+        el.setAttribute(attr, ar && v ? v : el.dataset[key]);
+      }
     }
-    for (const img of document.querySelectorAll("img[data-ar-src]")) img.src = img.dataset.arSrc;
+    for (const img of document.querySelectorAll("img[data-ar-src]")) {
+      if (!img.dataset.enSrc) img.dataset.enSrc = img.getAttribute("src");
+      img.src = ar ? img.dataset.arSrc : img.dataset.enSrc;
+    }
     const b = document.getElementById("langBtn");
-    if (b) { b.textContent = "English"; b.lang = "en"; }
+    if (b) { b.textContent = ar ? "English" : "العربية"; b.lang = ar ? "en" : "ar"; }
+    window.GMS_LANG = ar ? "ar" : "en";
+    document.dispatchEvent(new CustomEvent("gms:lang"));
   };
   window.GMS_LANG = lang === "ar" ? "ar" : "en";
-  if (window.GMS_LANG === "ar") apply();
+  if (window.GMS_LANG === "ar") apply("ar");
   document.getElementById("langBtn")?.addEventListener("click", () => {
     const next = window.GMS_LANG === "ar" ? "en" : "ar";
     try { localStorage.setItem("gms.site.lang", next); } catch {}
-    const u = new URL(location.href); u.searchParams.delete("lang"); location.href = u.pathname + u.search + u.hash;
+    const u = new URL(location.href);
+    if (u.searchParams.has("lang")) { u.searchParams.delete("lang"); history.replaceState(null, "", u.pathname + u.search + u.hash); }
+    apply(next);
   });
 })();
