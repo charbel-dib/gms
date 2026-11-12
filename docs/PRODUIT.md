@@ -74,7 +74,7 @@ réservations, historique, programmes, et assistant.
 
 ## Offres GMS (ce que la salle vous paie)
 
-| | Starter 29 $/mois | Pro 59 $/mois | Elite 99 $/mois |
+| | Essential 15 $/mois | Studio 29 $/mois | Complete 49 $/mois |
 |---|---|---|---|
 | Membres, formules, paiements USD/LBP, reçus | ✓ | ✓ | ✓ |
 | Entrée QR, heures femmes, gel, import Excel | ✓ | ✓ | ✓ |
@@ -86,3 +86,4 @@ réservations, historique, programmes, et assistant.
 | WhatsApp automatique + IA conversationnelle (arabe, arabizi) | | | ✓ |
 
 Les modules d'une offre supérieure sont verrouillés automatiquement ; passer à l'offre au-dessus les active.
+Premier mois gratuit, pas de frais d'installation, sans engagement ; à l'année, deux mois offerts. Dans le code, les clés restent `starter`, `pro`, `elite` (`server/services/plans.ts`) ; le prix est enregistré par salle à sa création, donc changer la grille ne change pas ce que paient les salles existantes.

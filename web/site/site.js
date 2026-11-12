@@ -1,7 +1,8 @@
-/* GMS website: the reception demo in the hero, the product tour tabs, and the demo request form. */
+/* GMS website: the check-in demo in the hero, and the request form asked one question at a time. */
 (() => {
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const AR = window.GMS_LANG === "ar";
+  const tr = (en, ar) => (AR ? ar : en);
 
   // ---- hero: three members check in, one after another ----
   const desk = document.querySelector(".desk");
@@ -11,7 +12,7 @@
   const count = document.getElementById("inCount");
   if (desk && rows.length && !reduce) {
     desk.classList.add("live");
-    const names = ["Rita Haddad", "Karim Saab", "Joe Khoury"];
+    const idle = scanText.textContent;
     let i = 0, visitors = 41;
     const step = () => {
       if (i === rows.length) {
@@ -19,19 +20,19 @@
         setTimeout(() => { rows.forEach((r) => r.classList.remove("in")); i = 0; visitors = 41; count.textContent = String(visitors); setTimeout(step, 600); }, 4200);
         return;
       }
+      const name = rows[i].querySelector("b").textContent;
       scan.classList.add("reading");
-      scanText.textContent = AR ? `عم نقرا رمز ${rows[i].querySelector("b").textContent}…` : `Reading ${names[i]}’s QR code…`;
+      scanText.textContent = name;
       setTimeout(() => {
         scan.classList.remove("reading");
-        scanText.textContent = AR ? "امسح رمز QR، أو اكتب الاسم" : "Scan a QR code, or type a name";
+        scanText.textContent = idle;
         rows[i].classList.add("in");
-        visitors += 1;
-        count.textContent = String(visitors);
+        count.textContent = String(++visitors);
         i += 1;
         setTimeout(step, 1500);
       }, 900);
     };
-    // start only when the desk is visible
+    // start only when the desk is on screen
     const io = new IntersectionObserver((entries) => {
       if (entries.some((e) => e.isIntersecting)) { io.disconnect(); setTimeout(step, 500); }
     });
@@ -44,68 +45,93 @@
     setInterval(tick, 30000);
   }
 
-  // ---- product tour: accessible tabs (arrow keys move between them) ----
-  const tabs = [...document.querySelectorAll('.tour-tabs [role="tab"]')];
-  const select = (tab, focus) => {
-    tabs.forEach((t) => {
-      const on = t === tab;
-      t.setAttribute("aria-selected", String(on));
-      t.tabIndex = on ? 0 : -1;
-      document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
-    });
-    if (focus) tab.focus();
+  // ---- the request: one question per card ----
+  // Without JavaScript every question shows at once and the form still sends.
+  const form = document.getElementById("wizard");
+  if (!form) return;
+  const steps = [...form.querySelectorAll(".step")];
+  const bar = document.getElementById("wzBar");
+  const counter = document.getElementById("wzCount");
+  const back = document.getElementById("wzBack");
+  const next = document.getElementById("wzNext");
+  const msg = document.getElementById("formMsg");
+  const last = steps.length - 1;
+  let at = 0;
+  form.classList.add("js");
+
+  const show = (n, focus = true) => {
+    at = n;
+    steps.forEach((s, k) => s.classList.toggle("on", k === n));
+    bar.style.width = `${((n + 1) / steps.length) * 100}%`;
+    counter.textContent = tr(`${n + 1} of ${steps.length}`, `${n + 1} من ${steps.length}`);
+    back.hidden = n === 0;
+    next.textContent = n === last ? tr("Ask for my free month", "اطلب شهري المجاني") : tr("Next", "التالي");
+    msg.textContent = "";
+    msg.className = "form-msg";
+    if (focus) (steps[n].querySelector("input:checked") || steps[n].querySelector("input:not([type=radio]):not([tabindex='-1'])") || steps[n].querySelector("input"))?.focus({ preventScroll: true });
   };
-  tabs.forEach((t, i) => {
-    t.addEventListener("click", () => select(t));
-    t.addEventListener("keydown", (e) => {
-      const k = e.key;
-      if (!["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Home", "End"].includes(k)) return;
-      e.preventDefault();
-      const n = k === "Home" ? 0 : k === "End" ? tabs.length - 1 : (i + (k === "ArrowDown" || k === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
-      select(tabs[n], true);
-    });
+
+  // what each card needs before moving on
+  const check = (n) => {
+    const s = steps[n];
+    const bad = (el, text) => { if (el) el.setAttribute("aria-invalid", "true"); msg.textContent = text; msg.className = "form-msg err"; el?.focus(); return false; };
+    s.querySelectorAll("[aria-invalid]").forEach((el) => el.removeAttribute("aria-invalid"));
+    if (s.querySelector("input[type=radio]") && !s.querySelector("input:checked")) return bad(null, tr("Pick one answer.", "اختار جواب."));
+    if (n === 3) {
+      if (form.elements.name.value.trim().length < 2) return bad(form.elements.name, tr("Write your name.", "اكتب اسمك."));
+      if (form.elements.gym_name.value.trim().length < 2) return bad(form.elements.gym_name, tr("Write the gym’s name.", "اكتب اسم النادي."));
+    }
+    if (n === 4 && form.elements.phone.value.replace(/\D/g, "").length < 7) return bad(form.elements.phone, tr("Write a phone number we can reach on WhatsApp.", "اكتب رقم فينا نراسلك عليه عالواتساب."));
+    return true;
+  };
+
+  // a tap on an answer moves on by itself
+  form.querySelectorAll(".choices input").forEach((r) => r.addEventListener("change", () => {
+    const n = steps.indexOf(r.closest(".step"));
+    if (n === at && n < last) setTimeout(() => show(n + 1), reduce ? 0 : 180);
+  }));
+  // quick town buttons fill the field and move on
+  const city = form.elements.city;
+  document.querySelectorAll("#cityQuick button").forEach((b) => b.addEventListener("click", () => {
+    city.value = b.textContent;
+    document.querySelectorAll("#cityQuick button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    show(at + 1);
+  }));
+  city.addEventListener("input", () => document.querySelectorAll("#cityQuick button").forEach((x) => x.setAttribute("aria-pressed", String(x.textContent === city.value))));
+  back.addEventListener("click", () => show(Math.max(0, at - 1)));
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!check(at)) return;
+    if (at < last) { show(at + 1); return; }
+    const d = Object.fromEntries(new FormData(form));
+    const body = {
+      name: d.name, gym_name: d.gym_name, phone: d.phone, city: d.city || null, members: d.members || null,
+      message: d.kind ? `Type of gym: ${d.kind}` : null, website: d.website || "",
+    };
+    next.disabled = true;
+    next.textContent = tr("Sending…", "عم نبعت…");
+    try {
+      const r = await fetch("/api/public/demo-requests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(/phone/i.test(j.message || "") ? tr("This phone number doesn’t look right. Check it and try again.", "رقم التلفون مش مظبوط. تأكد منه وجرّب مرة تانية.") : tr("It didn’t go through. Try again, or message us on WhatsApp.", "ما انبعتت. جرّب مرة تانية، أو راسلنا عالواتساب."));
+      const first = String(d.name).trim().split(/\s+/)[0];
+      const done = document.createElement("div");
+      done.className = "done";
+      done.setAttribute("role", "status");
+      const h = document.createElement("h3");
+      h.textContent = tr(`Thanks, ${first}.`, `شكراً ${first}.`);
+      const p = document.createElement("p");
+      p.textContent = tr("We’ll message you on WhatsApp today to find a time to pass by.", "منراسلك عالواتساب اليوم لنتفق عوقت نمرق فيه.");
+      done.append(h, p);
+      form.replaceChildren(done);
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.className = "form-msg err";
+      next.disabled = false;
+      next.textContent = tr("Ask for my free month", "اطلب شهري المجاني");
+    }
   });
 
-  // ---- pricing buttons pre-fill the plan in the demo form ----
-  document.querySelectorAll("[data-plan]").forEach((a) => a.addEventListener("click", () => {
-    const msg = document.querySelector('#demoForm textarea[name="message"]');
-    if (msg && !msg.value) msg.value = `Interested in the ${a.dataset.plan} plan.`;
-  }));
-
-  // ---- demo request ----
-  const form = document.getElementById("demoForm");
-  const out = document.getElementById("formMsg");
-  if (form) {
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      out.className = "form-msg";
-      const fields = ["name", "gym_name", "phone"];
-      let firstBad = null;
-      for (const f of fields) {
-        const el = form.elements[f];
-        const ok = el.value.trim().length >= (f === "phone" ? 7 : 2);
-        el.setAttribute("aria-invalid", String(!ok));
-        if (!ok && !firstBad) firstBad = el;
-      }
-      if (firstBad) { out.textContent = AR ? "اكتب اسمك، ناديك ورقم تلفون." : "Fill in your name, your gym and a phone number."; out.classList.add("err"); firstBad.focus(); return; }
-      const data = Object.fromEntries(new FormData(form));
-      const body = { name: data.name, gym_name: data.gym_name, phone: data.phone, city: data.city || null, members: data.members || null, message: data.message || null, website: data.website || "" };
-      const btn = form.querySelector('button[type="submit"]');
-      btn.disabled = true;
-      btn.textContent = AR ? "عم نبعت…" : "Sending…";
-      try {
-        const r = await fetch("/api/public/demo-requests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(AR ? "صار في مشكلة. راسلنا عالواتساب." : j.message || "Something went wrong. Message us on WhatsApp instead.");
-        form.classList.add("sent");
-        const first = String(data.name).split(" ")[0].replace(/[<>&]/g, "");
-        form.innerHTML = AR ? `<h3>شكراً ${first}</h3><p style="color:var(--ink-2);max-width:40ch">منراسلك عالواتساب اليوم لنتفق عوقت.</p>` : `<h3>Thanks, ${first}</h3><p style="color:var(--ink-2);max-width:40ch">We’ll message you on WhatsApp today to find a time.</p>`;
-      } catch (err) {
-        out.textContent = err.message;
-        out.classList.add("err");
-        btn.disabled = false;
-        btn.textContent = AR ? "اطلب شهري المجاني" : "Ask for my free month";
-      }
-    });
-  }
+  show(0, false);
 })();

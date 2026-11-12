@@ -1,14 +1,17 @@
 /**
- * GMS subscription plans (what a gym pays GMS) and what each one unlocks.
- *   Starter $29  — members, plans, payments USD/LBP, QR check-in, click-to-send WhatsApp, leads, expenses, reports
- *   Pro     $59  — + group classes & bookings, personal training, branded member app, churn prediction & insights
- *   Elite   $99  — + automatic WhatsApp (Business Platform), AI assistant in Arabic/Arabizi (LLM), priority support
+ * GMS subscription plans (what a gym pays GMS) and what each one unlocks. On the website and for gyms they are
+ * called by the level they match: Essential, Studio, Complete.
+ *   starter "Essential" $15 — members, plans, payments USD/LBP, check-in, click-to-send WhatsApp, leads, expenses, reports
+ *   pro     "Studio"    $29 — + group classes & bookings, personal training, branded member app, churn prediction & insights
+ *   elite   "Complete"  $49 — + automatic WhatsApp (Business Platform), assistant answering members (LLM), shop
+ * A price is stored per gym when it is created, so changing these does not change what existing gyms pay.
  */
 import { one, type Queryable } from "../db/index.ts";
 
 export type SaasPlan = "starter" | "pro" | "elite";
 
-export const PLAN_PRICES: Record<SaasPlan, number> = { starter: 29, pro: 59, elite: 99 };
+export const PLAN_PRICES: Record<SaasPlan, number> = { starter: 15, pro: 29, elite: 49 };
+export const PLAN_NAMES: Record<SaasPlan, string> = { starter: "Essential", pro: "Studio", elite: "Complete" };
 
 const PRO_MODULES = ["classes", "pt", "memberApp", "ai"];
 

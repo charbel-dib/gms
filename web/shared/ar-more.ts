@@ -865,4 +865,5 @@ export const arMore: Record<string, string> = {
   "Joined": "اشترك",
   "Lost": "راح",
   "This gym is no longer on GMS. Contact GMS support to reopen it.": "هالنادي ما بقا عـ GMS. تواصل مع دعم GMS لترجعوا تفتحوه.",
+  "Complete": "الكامل",
 };

@@ -350,7 +350,7 @@ function WhatsAppTab() {
 const LEVELS: { key: "essential" | "studio" | "full"; title: string; who: string; has: string }[] = [
   { key: "essential", title: "Essential", who: "A weights gym: memberships, the door, the cash.", has: "Members, check-in, payments, WhatsApp reminders" },
   { key: "studio", title: "Studio", who: "You also run classes or personal training.", has: "Essential, plus classes, personal training and the member app" },
-  { key: "full", title: "Everything", who: "A large gym that wants every tool.", has: "Studio, plus shop, expenses, interested people and follow-up advice" },
+  { key: "full", title: "Complete", who: "A large gym that wants every tool.", has: "Studio, plus shop, expenses, interested people and follow-up advice" },
 ];
 
 function ModulesTab() {

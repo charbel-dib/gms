@@ -39,6 +39,9 @@ function needs(rows: any[]) {
 
 const STATUS_PLATE: Record<string, string> = { active: "ok", trial: "warn", past_due: "denied", suspended: "frozen" };
 
+// the names gyms see on the website; the internal keys stay starter/pro/elite
+const PLAN_NAMES = { starter: "Essential", pro: "Studio", elite: "Complete" } as const;
+
 const ARCHIVE_REASONS = ["Stopped paying", "Gym closed", "Went back to notebook or Excel", "Moved to another software", "Free month not continued", "Test or duplicate"];
 
 export function PlatformPage() {
@@ -138,7 +141,7 @@ export function PlatformPage() {
                 <tr key={g.id}>
                   <td><span className="who"><b>{g.name}{g.is_demo && <span className="tag" style={{ marginInlineStart: 6 }}>demo</span>}</b><small>/{g.slug} · {g.city ?? ""} · {g.owner_email}</small></span></td>
                   <td><span className="status"><span className="plate" data-s={STATUS_PLATE[g.saas_status]} />{g.saas_status.replace("_", " ")}</span>{g.saas_status === "trial" && g.trial_ends_at && <small className="muted"> until {fmtDate(g.trial_ends_at)}</small>}</td>
-                  <td><span style={{ textTransform: "capitalize" }}>{g.saas_plan}</span>, {money(g.saas_price_usd)}<br /><small className="muted">{g.level ?? "full"} level</small></td>
+                  <td><span>{PLAN_NAMES[g.saas_plan as keyof typeof PLAN_NAMES] ?? g.saas_plan}</span>, {money(g.saas_price_usd)}<br /><small className="muted">{g.level ?? "full"} level</small></td>
                   <td>{(() => { const v = Object.values(g.setup ?? {}); const done = v.filter(Boolean).length; return done === v.length ? <span className="muted">done</span> : <b>{done} of {v.length}</b>; })()}</td>
                   <td>{g.active_members}</td><td>{g.checkins_7d}</td><td className="ink-2">{relDays(g.last_login)}</td>
                   <td className="r">
@@ -168,9 +171,9 @@ export function PlatformPage() {
           ))}</div>
         </Field>
         <Field label="What they see at the start" hint="Start small. The owner can switch more on later in Settings.">
-          <div className="grid-2" style={{ gridTemplateColumns: "repeat(3, minmax(0,1fr))" }}>{([["essential", "Essential", "Members, door, cash, WhatsApp"], ["studio", "Studio", "+ classes, training, member app"], ["full", "Everything", "+ shop, expenses, follow-up"]] as const).map(([k, title, desc]) => (
+          <div className="grid-2" style={{ gridTemplateColumns: "repeat(3, minmax(0,1fr))" }}>{([["essential", "Essential", "Members, door, cash, WhatsApp"], ["studio", "Studio", "+ classes, training, member app"], ["full", "Complete", "+ auto WhatsApp, assistant, shop"]] as const).map(([k, title, desc]) => (
             <label key={k} className="panel check" style={{ padding: 14, alignItems: "flex-start", borderColor: f.level === k ? "var(--brand)" : undefined }}>
-              <input type="radio" name="lvl" checked={f.level === k} onChange={() => setF({ ...f, level: k, saas_plan: k !== "essential" && f.saas_plan === "starter" ? "pro" : f.saas_plan })} />
+              <input type="radio" name="lvl" checked={f.level === k} onChange={() => setF({ ...f, level: k, saas_plan: ({ essential: "starter", studio: "pro", full: "elite" } as const)[k] })} />
               <span className="who"><b>{title}</b><small style={{ whiteSpace: "normal" }}>{desc}</small></span>
             </label>
           ))}</div>
@@ -183,7 +186,7 @@ export function PlatformPage() {
           <Field label="Owner name"><input className="input" value={f.owner_name ?? ""} onChange={(e) => setF({ ...f, owner_name: e.target.value })} /></Field>
           <Field label="Owner email (login)"><input className="input" type="email" value={f.owner_email ?? ""} onChange={(e) => setF({ ...f, owner_email: e.target.value })} /></Field>
           <Field label="Owner WhatsApp" hint="Used for your follow-up messages"><input className="input" value={f.owner_phone ?? ""} onChange={(e) => setF({ ...f, owner_phone: e.target.value })} placeholder="+961 71 234 567" /></Field>
-          <Field label="GMS plan" hint={f.level !== "essential" && f.saas_plan === "starter" ? "Starter does not include classes, training or the member app" : undefined}><select className="input" value={f.saas_plan} onChange={(e) => setF({ ...f, saas_plan: e.target.value })}><option value="starter">Starter · $29/month</option><option value="pro">Pro · $59/month</option><option value="elite">Elite · $99/month</option></select></Field>
+          <Field label="GMS plan" hint={f.level !== "essential" && f.saas_plan === "starter" ? "Essential does not include classes, training or the member app" : undefined}><select className="input" value={f.saas_plan} onChange={(e) => setF({ ...f, saas_plan: e.target.value })}><option value="starter">Essential · $15/month</option><option value="pro">Studio · $29/month</option><option value="elite">Complete · $49/month</option></select></Field>
         </div>
         <label className="check"><input type="checkbox" checked={f.demo_data} onChange={(e) => setF({ ...f, demo_data: e.target.checked })} /> Fill with realistic demo data (for sales demos only)</label>
       </Modal>
@@ -272,7 +275,7 @@ export function PlatformPage() {
             }}>Save</button></>}>
           <div className="grid-2">
             <Field label="Status"><select className="input" value={edit.saas_status} onChange={(e) => setEdit({ ...edit, saas_status: e.target.value })}>{["trial", "active", "past_due", "suspended"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select></Field>
-            <Field label="Plan"><select className="input" value={edit.saas_plan} onChange={(e) => setEdit({ ...edit, saas_plan: e.target.value })}>{["starter", "pro", "elite"].map((s) => <option key={s}>{s}</option>)}</select></Field>
+            <Field label="Plan"><select className="input" value={edit.saas_plan} onChange={(e) => setEdit({ ...edit, saas_plan: e.target.value })}>{(["starter", "pro", "elite"] as const).map((s) => <option key={s} value={s}>{PLAN_NAMES[s]}</option>)}</select></Field>
             <Field label="Monthly price ($)"><input className="input" value={edit.saas_price_usd} onChange={(e) => setEdit({ ...edit, saas_price_usd: e.target.value })} /></Field>
             <Field label="Paid until"><input className="input" type="date" value={edit.saas_paid_until ?? ""} onChange={(e) => setEdit({ ...edit, saas_paid_until: e.target.value })} /></Field>
           </div>
