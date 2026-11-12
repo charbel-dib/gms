@@ -347,7 +347,7 @@ async function drawIcon(gym: any, size: number): Promise<string> {
     ctx.fillStyle = brand;
     ctx.fillRect(0, 0, size, size);
     ctx.fillStyle = "#ffffff";
-    ctx.font = `800 ${Math.round(size * 0.5)}px Archivo, system-ui, sans-serif`;
+    ctx.font = `600 ${Math.round(size * 0.5)}px Alexandria, system-ui, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText((gym.name ?? "G").trim()[0].toUpperCase(), size / 2, size / 2 + size * 0.03);

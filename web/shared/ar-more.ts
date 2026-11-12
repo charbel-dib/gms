@@ -903,4 +903,5 @@ export const arMore: Record<string, string> = {
   "Message us on WhatsApp": "راسلنا على واتساب",
   "Members don’t sign in here: they use the link to their gym’s app.": "لا يسجّل المشتركون الدخول من هنا، بل من رابط تطبيق ناديهم.",
   "Mark done": "تحديد كمكتملة",
+  "Gym software for Lebanon": "برنامج للنوادي الرياضية في لبنان",
 };

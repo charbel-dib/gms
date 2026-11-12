@@ -5,32 +5,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Privacy and terms · GMS</title>
   <meta name="description" content="How GMS handles your gym's data and your members' data, and the terms of the service.">
-  <meta name="theme-color" content="#1a2230">
+  <meta name="theme-color" content="#0f5e8c">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alexandria:wght@300..700&display=swap">
   <link rel="stylesheet" href="/site/site.css">
   <style>
     .legal { background: var(--paper); padding: clamp(40px, 6vw, 80px) 0 96px; }
     .legal .wrap { max-width: 760px; }
     .legal h1 { font-size: clamp(2.2rem, 1.6rem + 2.4vw, 3.4rem); }
     .legal .date { color: var(--muted); margin-top: 10px; }
-    .legal nav.toc { margin-top: 24px; display: flex; gap: 20px; flex-wrap: wrap; font-weight: 600; }
-    .legal h2 { font-size: 1.9rem; margin-top: 56px; padding-top: 24px; border-top: 2px solid var(--ink); }
+    .legal nav.toc { margin-top: 24px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .legal nav.toc a { text-decoration: none; background: var(--tint); color: var(--sea-dark); padding: 6px 16px; border-radius: 99px; }
+    .legal h2 { font-size: 1.7rem; margin-top: 56px; padding-top: 28px; border-top: 1px solid var(--line); }
     .legal h3 { font-size: 1.2rem; margin-top: 28px; }
     .legal p, .legal li { color: var(--ink-2); line-height: 1.6; max-width: 68ch; }
     .legal p { margin-top: 10px; }
     .legal ul { margin: 10px 0 0; padding-inline-start: 22px; display: grid; gap: 6px; }
-    .legal [lang="ar"] { font-family: "IBM Plex Sans Arabic", "Archivo", system-ui, sans-serif; }
-    .legal [lang="ar"] h1, .legal [lang="ar"] h2, .legal [lang="ar"] h3 { font-stretch: 100%; letter-spacing: 0; line-height: 1.35; }
+    .legal [lang="ar"] { font-family: "Alexandria", system-ui, sans-serif; }
+    .legal [lang="ar"] h1, .legal [lang="ar"] h2, .legal [lang="ar"] h3 { letter-spacing: 0; line-height: 1.4; }
     html[lang="ar"] .legal article[lang="en"], html[lang="en"] .legal article[lang="ar"] { display: none; }
   </style>
 </head>
 <body>
 <header class="nav">
   <div class="wrap nav-in">
-    <a class="logo" href="/" aria-label="GMS home"><span class="logo-mark" aria-hidden="true"><i></i><i></i><i></i></span>GMS</a>
+    <a class="logo" href="/" aria-label="GMS home"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M47.6 16.4A22 22 0 1 0 54 32H35" fill="none" stroke="#0f5e8c" stroke-width="9" stroke-linecap="round"/><circle cx="53" cy="11" r="5" fill="#45b8d8"/></svg>gms</a>
     <div class="nav-cta">
       <button class="link lang" id="langBtn" type="button" lang="ar">العربية</button>
       <a class="btn" href="/#start">Try it free</a>
@@ -218,7 +219,7 @@
 
 <footer class="foot">
   <div class="wrap foot-in">
-    <a class="logo" href="/"><span class="logo-mark" aria-hidden="true"><i></i><i></i><i></i></span>GMS</a>
+    <a class="logo" href="/"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M47.6 16.4A22 22 0 1 0 54 32H35" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round"/><circle cx="53" cy="11" r="5" fill="#45b8d8"/></svg>gms</a>
     <nav aria-label="Footer"><a href="/#prices">Prices</a><a href="/login">Log in</a></nav>
   </div>
 </footer>

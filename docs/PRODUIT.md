@@ -19,7 +19,7 @@ Chaque salle choisit ce qu'elle voit, et peut changer n'importe quel jour sans r
 |---|---|---|
 | **Essential** (par défaut) | Salle de musculation | Membres, entrée, paiements, rappels WhatsApp : 6 entrées de menu |
 | **Studio** | Salle avec cours ou coaching | + cours, coaching privé, application membre |
-| **Everything** | Grande salle | + boutique, dépenses, personnes intéressées, conseils de suivi |
+| **Complete** | Grande salle | + boutique, dépenses, personnes intéressées, conseils de suivi |
 
 L'interface existe en **anglais et en arabe** (droite à gauche), et chaque personne de l'équipe choisit sa langue.
 
@@ -61,7 +61,7 @@ programmes d'entraînement envoyés dans l'application du membre.
 - **Qui va partir ?** Score de risque par membre, appris sur l'historique de la salle (AUC 0,80 sur les données de démo),
   avec les raisons en clair : « Aucune visite depuis 18 jours », « Visites en baisse de 6 », « Abonnement se termine dans 5 jours ».
   Revenu mensuel menacé chiffré. Un clic rédige un message de reconquête en arabe ou en anglais.
-- **Demandez à votre salle** : le propriétaire pose une question (« combien on a encaissé ce mois ? », « chou fi members bi5las ishtirakon ? »)
+- **Demandez à votre salle** : le propriétaire pose une question (« combien on a encaissé ce mois ? », « qui finit son abonnement cette semaine ? »)
   et reçoit une réponse chiffrée tirée de ses propres données, avec des actions concrètes.
 - **Assistant des membres** : prix, horaires, heures femmes, planning, gel, paiements, état de l'abonnement, réservation d'un cours.
   Il connaît automatiquement les réglages de la salle (pas de ressaisie) et passe la main à la réception quand il ne sait pas.
@@ -83,7 +83,7 @@ réservations, historique, programmes, et assistant.
 | Coaching privé, commissions, programmes | | ✓ | ✓ |
 | Application membre à la marque de la salle | | ✓ | ✓ |
 | Prédiction du churn, « Demandez à votre salle » (mode hors ligne) | | ✓ | ✓ |
-| WhatsApp automatique + IA conversationnelle (arabe, arabizi) | | | ✓ |
+| WhatsApp automatique + assistant (arabe standard, anglais) | | | ✓ |
 
 Les modules d'une offre supérieure sont verrouillés automatiquement ; passer à l'offre au-dessus les active.
 Premier mois gratuit, pas de frais d'installation, sans engagement ; à l'année, deux mois offerts. Dans le code, les clés restent `starter`, `pro`, `elite` (`server/services/plans.ts`) ; le prix est enregistré par salle à sa création, donc changer la grille ne change pas ce que paient les salles existantes.

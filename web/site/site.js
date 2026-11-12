@@ -88,6 +88,9 @@
       if (pause) pause.textContent = paused ? tr("Play", "تشغيل") : tr("Pause", "إيقاف مؤقت");
     });
   }
+  // a hairline under the nav once the page has moved
+  const nav = document.querySelector(".nav");
+  if (nav) { const on = () => nav.classList.toggle("scrolled", window.scrollY > 8); on(); window.addEventListener("scroll", on, { passive: true }); }
   const clock = document.getElementById("clock");
   if (clock) {
     const tick = () => { clock.textContent = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Beirut" }); };

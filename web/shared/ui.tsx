@@ -237,3 +237,21 @@ export function useDebounced<T>(value: T, ms = 250): T {
   }, [value, ms]);
   return v;
 }
+
+/** The GMS mark: an open weight plate that draws a G, and a light dot where it opens. */
+export function GmsMark({ size = 28, ring = "var(--sea)", dot = "var(--sea-light)" }: { size?: number; ring?: string; dot?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" style={{ flex: "none" }}>
+      <path d="M47.6 16.4A22 22 0 1 0 54 32H35" fill="none" stroke={ring} strokeWidth="9" strokeLinecap="round" />
+      <circle cx="53" cy="11" r="5" fill={dot} />
+    </svg>
+  );
+}
+export function GmsLogo({ size = 28, light = false }: { size?: number; light?: boolean }) {
+  return (
+    <span className="gms-logo" dir="ltr" style={{ fontSize: size * 0.82 }}>
+      <GmsMark size={size} ring={light ? "#fff" : undefined} dot={light ? "#8fdcf0" : undefined} />
+      <span>gms</span>
+    </span>
+  );
+}

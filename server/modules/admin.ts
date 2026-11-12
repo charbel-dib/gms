@@ -87,7 +87,7 @@ export function registerAdmin(r: Router) {
       slug: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{1,40}$/, "lowercase letters, digits and dashes"),
       city: z.string().max(60).nullable().optional(),
       phone: z.string().max(30).nullable().optional(),
-      brand_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#E4572E"),
+      brand_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#0F5E8C"),
       template: z.enum(TEMPLATES.map((t) => t.key) as [string, ...string[]]),
       saas_plan: z.enum(["starter", "pro", "elite"]).default("pro"),
       level: z.enum(["essential", "studio", "full"]).default("essential"),

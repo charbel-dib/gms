@@ -26,7 +26,7 @@ export async function provisionGym(q: Queryable, input: NewGym): Promise<{ gymId
      VALUES ($1,$2,$3,$4,$5,$5,$6,$7,$8,$9,$10) RETURNING id`,
     [
       input.slug, input.name, input.name_ar ?? null, input.city ?? null, input.phone ?? null,
-      input.brand_color ?? "#E4572E", clampModules(input.saas_plan ?? "pro", levelModules(input.level ?? "essential")), { ...t.settings, template: t.key, level: input.level ?? "essential" },
+      input.brand_color ?? "#0F5E8C", clampModules(input.saas_plan ?? "pro", levelModules(input.level ?? "essential")), { ...t.settings, template: t.key, level: input.level ?? "essential" },
       input.saas_plan ?? "pro", PLAN_PRICES[input.saas_plan ?? "pro"],
     ],
   );

@@ -139,7 +139,7 @@ function App() {
       document.documentElement.style.setProperty("--brand", g.brand_color);
       document.documentElement.style.setProperty("--brand-ink", brandInk(g.brand_color));
       document.title = g.name;
-      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#121821");
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#f4f7f9");
     }, () => setGymErr(true));
     loadMe();
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js", { scope: "/m/" }).catch(() => {});

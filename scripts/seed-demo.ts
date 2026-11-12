@@ -45,7 +45,7 @@ const pulse = await makeGym("demo", "Cedar Fitness (demo)", "سيدر فيتنس
 }, 260);
 await makeGym("demo-box", "Summit Box (demo)", "سوميت بوكس", "crossfit", "#2F6FCF", "Beirut", { address: "Mar Mikhael, Beirut", instagram: "@gms.demo", tagline: "Stronger together." }, 90, "studio", "pro");
 // a small weights gym on the simplest level: what most gyms outside Beirut look like
-await makeGym("demo-halba", "Halba Gym (demo)", "نادي حلبا", "classic", "#1F7A4D", "Halba", { address: "Main street, Halba, Akkar", instagram: "@gms.demo", tagline: "Your gym, next door." }, 140, "essential", "starter", 0.45);
+await makeGym("demo-halba", "Halba Gym (demo)", "نادي حلبا", "classic", "#0F5E8C", "Halba", { address: "Main street, Halba, Akkar", instagram: "@gms.demo", tagline: "Your gym, next door." }, 140, "essential", "starter", 0.45);
 
 // give two demo members app access with a known PIN
 const pin = "1234";

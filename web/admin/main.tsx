@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { get, getGymOverride, post, setGymOverride, setUnauthorizedHandler } from "../shared/api.ts";
-import { Icon, Spinner, Status, Toasts, toastError, useDebounced } from "../shared/ui.tsx";
+import { Icon, Spinner, Status, Toasts, toastError, useDebounced, GmsLogo } from "../shared/ui.tsx";
 import { getLang, setLang, t, useLang } from "../shared/i18n.ts";
 import { flush, refreshOfflineMembers, useConnection } from "./offline.ts";
 import { AppCtx, Link, brandInk, can, doCheckin, looksLikeQr, moduleOn, navigate, usePath, type Me } from "./app.tsx";
@@ -32,16 +32,12 @@ function Login({ onDone }: { onDone: () => void }) {
   return (
     <div className="auth">
       <div className="auth-art">
-        <div className="plates-row" aria-hidden="true">
-          {[["#d1343f", 64], ["#2f6fcf", 56], ["#d99a00", 48], ["#2e8b57", 40]].map(([c, s]) => (
-            <span key={c} className="plate" style={{ ["--c" as any]: c, width: s as number, height: s as number }} />
-          ))}
-        </div>
+        <GmsLogo size={40} light />
         <div className="stack">
           <h1>{t("Run the gym, not the paperwork.")}</h1>
           <p>{t("Memberships, check-in, classes, payments in dollars or lira, WhatsApp reminders and an assistant that knows your numbers.")}</p>
         </div>
-        <small style={{ color: "#7f8ba0" }}>{t("GMS · Gym Management System")}</small>
+        <small className="auth-foot">{t("Gym software for Lebanon")}</small>
       </div>
       <div className="auth-form">
         <form onSubmit={async (e) => {

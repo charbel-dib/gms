@@ -87,7 +87,7 @@ export function registerPortal(r: Router) {
       id: `/m/${g.slug}`, name: g.name, short_name: g.name.length > 14 ? g.name.split(/\s+/)[0].slice(0, 14) : g.name,
       description: g.tagline ?? `${g.name}: your pass, classes and membership`,
       start_url: `/m/${g.slug}?source=app`, scope: `/m/${g.slug}`, display: "standalone", orientation: "portrait",
-      background_color: "#121821", theme_color: "#121821", categories: ["health", "fitness", "sports"], icons,
+      background_color: "#f4f7f9", theme_color: "#f4f7f9", categories: ["health", "fitness", "sports"], icons,
     }));
     return undefined;
   });
