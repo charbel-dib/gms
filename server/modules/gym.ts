@@ -138,7 +138,7 @@ export function registerGym(r: Router) {
     // limited per account (any address) and per address (any account)
     const keys = { account: `staff:${b.email}`, address: `staff-ip:${ctx.ip}` };
     await guardLogin(keys);
-    const u = await one(db, `SELECT u.id, u.gym_id, u.password_hash, u.active, u.must_change_password, u.totp_enabled, u.totp_secret_enc, u.totp_last_step, g.saas_status
+    const u = await one(db, `SELECT u.id, u.gym_id, u.password_hash, u.active, u.must_change_password, u.totp_enabled, u.totp_secret_enc, u.totp_last_step, g.saas_status, g.archived_at AS gym_archived_at
                                FROM users u LEFT JOIN gyms g ON g.id = u.gym_id WHERE lower(u.email) = $1`, [b.email]);
     // an unknown email takes as long as a wrong password, so the answer time doesn't tell which accounts exist
     const passwordOk = u ? await verifyPassword(b.password, u.password_hash) : await verifyNobody(b.password);
@@ -147,6 +147,7 @@ export function registerGym(r: Router) {
       throw bad("invalid_credentials", "Wrong email or password");
     }
     if (u.saas_status === "suspended") throw bad("gym_suspended", "This gym's subscription is suspended. Contact GMS support.");
+    if (u.gym_archived_at) throw bad("gym_archived", "This gym is no longer on GMS. Contact GMS support to reopen it.");
     if (u.totp_enabled) {
       if (!b.code) throw bad("code_required", "Enter the 6-digit code from your authenticator app");
       const step = matchStep(decryptSecret(u.totp_secret_enc), b.code.replace(/\s/g, ""));

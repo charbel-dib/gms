@@ -1168,3 +1168,49 @@ test("levels: a new gym starts on Essential; the owner switches level and nothin
   assert.equal(off.length, 1);
   assert.ok(off[0].qr_token);
 });
+
+test("archive, restore and delete a gym: archived gyms leave the list and cannot sign in; deleting needs the slug and erases everything", async () => {
+  const g = await admin.ok("POST", "/api/admin/gyms", { name: "Leaving Gym", slug: "leaving", template: "classic", owner_name: "Leaving Owner", owner_email: "owner@leaving.test" });
+  const c = new Client(ctx.base);
+  await signIn(c, "owner@leaving.test", g.temporaryPassword);
+  const pw = ownPasswords.get("owner@leaving.test|" + g.temporaryPassword) ?? g.temporaryPassword;
+  const m = await c.ok("POST", "/api/members", { first_name: "Sami", last_name: "Haddad", phone: "03 444 222", gender: "male" });
+
+  // a reason is required
+  assert.equal((await admin.req("POST", `/api/admin/gyms/${g.gymId}/archive`, {})).status, 400);
+  await admin.ok("POST", `/api/admin/gyms/${g.gymId}/archive`, { reason: "Stopped paying: will call back in March" });
+
+  let list = await admin.ok("GET", "/api/admin/gyms");
+  assert.ok(!list.rows.some((r: any) => r.slug === "leaving"));
+  assert.ok(list.totals.archived >= 1);
+  const archived = await admin.ok("GET", "/api/admin/gyms?archived=1");
+  assert.equal(archived.rows.find((r: any) => r.slug === "leaving").archived_reason, "Stopped paying: will call back in March");
+
+  // the owner is signed out and cannot come back in; the member app is gone
+  assert.equal((await c.get("/api/gym")).status, 401);
+  const again = new Client(ctx.base);
+  const blocked = await again.req("POST", "/api/auth/login", { email: "owner@leaving.test", password: pw });
+  assert.equal(blocked.data.error, "gym_archived");
+  assert.equal((await again.get("/api/gym")).status, 401);
+  assert.equal((await new Client(ctx.base).get("/api/public/gyms/leaving")).status, 404);
+
+  // deleting a gym that is not archived is refused
+  const keep = await admin.ok("POST", "/api/admin/gyms", { name: "Staying Gym", slug: "staying", template: "classic", owner_name: "Staying Owner", owner_email: "owner@staying.test" });
+  assert.equal((await admin.req("DELETE", `/api/admin/gyms/${keep.gymId}`, { confirm: "staying" })).status, 409);
+
+  // restore: back in the list, the same member is still there
+  await admin.ok("POST", `/api/admin/gyms/${g.gymId}/restore`);
+  list = await admin.ok("GET", "/api/admin/gyms");
+  assert.ok(list.rows.some((r: any) => r.slug === "leaving"));
+  const back = new Client(ctx.base);
+  await back.ok("POST", "/api/auth/login", { email: "owner@leaving.test", password: pw });
+  assert.equal((await back.ok("GET", `/api/members/${m.id}`)).first_name, "Sami");
+
+  // delete for good: archive again, a wrong confirmation is refused, the right one erases the gym and its accounts
+  await admin.ok("POST", `/api/admin/gyms/${g.gymId}/archive`, { reason: "Gym closed" });
+  assert.equal((await admin.req("DELETE", `/api/admin/gyms/${g.gymId}`, { confirm: "Leaving Gym" })).status, 400);
+  await admin.ok("DELETE", `/api/admin/gyms/${g.gymId}`, { confirm: "leaving" });
+  const after = await admin.ok("GET", "/api/admin/gyms?archived=1");
+  assert.ok(!after.rows.some((r: any) => r.slug === "leaving"));
+  assert.equal((await new Client(ctx.base).req("POST", "/api/auth/login", { email: "owner@leaving.test", password: pw })).data.error, "invalid_credentials");
+});

@@ -10,11 +10,11 @@ import { allowedEndpoint, vapidKeys } from "../services/webpush.ts";
 import { NOTIFICATION_CATEGORIES, NOTIFICATION_TYPES, pushSettings } from "../services/notify.ts";
 
 async function gymBySlug(slug: string) {
-  const g = await one(db, `SELECT id, slug, name, name_ar, tagline, brand_color, phone, whatsapp, instagram, address, city, locale, modules, settings, saas_status, (logo IS NOT NULL) AS has_logo,
+  const g = await one(db, `SELECT id, slug, name, name_ar, tagline, brand_color, phone, whatsapp, instagram, address, city, locale, modules, settings, saas_status, archived_at, (logo IS NOT NULL) AS has_logo,
                                   (app_icon_512 IS NOT NULL) AS has_app_icon, extract(epoch FROM app_icon_updated_at)::bigint AS icon_version
                              FROM gyms WHERE slug = $1`, [slug]);
-  if (!g || g.saas_status === "suspended") throw notFound("gym");
-  const { settings, saas_status, ...rest } = g;
+  if (!g || g.saas_status === "suspended" || g.archived_at) throw notFound("gym");
+  const { settings, saas_status, archived_at, ...rest } = g;
   return { ...rest, hours: settings?.hours ?? [], ladiesHours: settings?.ladiesHours ?? [], pushEnabled: pushSettings(settings).enabled };
 }
 
@@ -24,7 +24,7 @@ async function gymBySlug(slug: string) {
  */
 export async function memberPageHead(slug: string) {
   const g = await one(db, `SELECT slug, name, tagline, (app_icon_512 IS NOT NULL) AS has_app_icon, extract(epoch FROM app_icon_updated_at)::bigint AS v
-                             FROM gyms WHERE slug = $1 AND saas_status <> 'suspended'`, [slug]).catch(() => null);
+                             FROM gyms WHERE slug = $1 AND saas_status <> 'suspended' AND archived_at IS NULL`, [slug]).catch(() => null);
   if (!g) return null;
   const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
   const name = esc(g.name);

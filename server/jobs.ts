@@ -22,7 +22,7 @@ async function withLock(key: number, fn: () => Promise<void>) {
 
 /** Sends renewal reminders and win-back messages for one gym. Idempotent (dedupe keys). */
 export async function runReminders(gymId: string) {
-  const gym = await one(db, "SELECT name, locale, settings, modules FROM gyms WHERE id = $1 AND saas_status <> 'suspended'", [gymId]);
+  const gym = await one(db, "SELECT name, locale, settings, modules FROM gyms WHERE id = $1 AND saas_status <> 'suspended' AND archived_at IS NULL", [gymId]);
   if (!gym || gym.modules?.whatsapp === false) return { sent: 0, queued: 0 };
   const cfg = { enabled: true, daysBefore: [7, 1], afterExpiryDays: [3], ...(gym.settings?.reminders ?? {}) };
   if (!cfg.enabled) return { sent: 0, queued: 0 };
@@ -55,7 +55,7 @@ export async function runReminders(gymId: string) {
 }
 
 async function forEachGym(fn: (id: string) => Promise<unknown>) {
-  const gyms = await many(db, "SELECT id FROM gyms WHERE saas_status <> 'suspended'");
+  const gyms = await many(db, "SELECT id FROM gyms WHERE saas_status <> 'suspended' AND archived_at IS NULL");
   for (const g of gyms) {
     try {
       await fn(g.id);

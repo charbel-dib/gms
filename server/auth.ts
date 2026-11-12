@@ -93,7 +93,8 @@ export async function requireStaff(ctx: Ctx, roles?: Role[]): Promise<StaffUser 
     if (!token) throw unauthorized();
     const row = await one<StaffUser & { gym_status: string | null; must_change_password: boolean }>(
       db,
-      `SELECT u.id, u.gym_id, u.email, u.name, u.role, u.must_change_password, u.totp_enabled, g.saas_status AS gym_status
+      `SELECT u.id, u.gym_id, u.email, u.name, u.role, u.must_change_password, u.totp_enabled,
+              CASE WHEN g.archived_at IS NOT NULL THEN 'archived' ELSE g.saas_status END AS gym_status
          FROM sessions s JOIN users u ON u.id = s.user_id
          LEFT JOIN gyms g ON g.id = u.gym_id
         WHERE s.token_hash = $1 AND s.kind = 'staff' AND s.expires_at > now() AND u.active`,
@@ -101,6 +102,7 @@ export async function requireStaff(ctx: Ctx, roles?: Role[]): Promise<StaffUser 
     );
     if (!row) throw unauthorized();
     if (row.gym_status === "suspended") throw new HttpError(402, "gym_suspended", "This gym's GMS subscription is suspended. Contact GMS support.");
+    if (row.gym_status === "archived") throw new HttpError(402, "gym_archived", "This gym is no longer on GMS. Contact GMS support to reopen it.");
     ctx.user = { id: row.id, gym_id: row.gym_id, email: row.email, name: row.name, role: row.role, must_change_password: row.must_change_password, totp_enabled: row.totp_enabled };
     checkPasswordChange(ctx, row.must_change_password);
     if (row.role === "superadmin") {

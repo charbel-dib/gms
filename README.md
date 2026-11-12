@@ -104,4 +104,6 @@ Rien n'a été retiré du produit ; ce qui change, c'est ce qu'on voit par défa
 - **Plateforme** : « Needs you today » liste les salles qui doivent de l'argent, dont l'essai se termine, qui sont bloquées dans l'installation ou qui n'utilisent plus l'entrée, avec un message WhatsApp prêt pour le propriétaire.
 - **Site** (`web/site/`) : anglais et arabe (`site-ar.js`, lien direct `/?lang=ar`), section « Start simple », captures refaites.
 
+- **Archiver une salle** (page Platform → Archive) : avec une raison. La salle quitte la liste principale, son équipe et ses membres sont déconnectés et ne peuvent plus se connecter, les rappels s'arrêtent. Toutes les données restent ; « Restore » la remet telle quelle. « Delete for good » n'existe que pour une salle archivée et demande de retaper son adresse (slug) : tout est effacé, sans retour possible. Migration `006_gym_archive.sql`.
+
 Ce qui reste en anglais : la référence d'API, l'écran plateforme (pour toi), et les textes de conseil « Focus now » calculés par le serveur (niveau Everything).

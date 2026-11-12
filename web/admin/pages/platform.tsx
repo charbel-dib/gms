@@ -1,7 +1,7 @@
 /** GMS platform console for the GMS operator (super-admin). */
 import React, { useState } from "react";
-import { get, post, put, setGymOverride } from "../../shared/api.ts";
-import { Field, Icon, Loader, Modal, toast, useAction, useAsync, waLink } from "../../shared/ui.tsx";
+import { api, get, post, put, setGymOverride } from "../../shared/api.ts";
+import { Field, Icon, Loader, Modal, Tabs, toast, useAction, useAsync, waLink } from "../../shared/ui.tsx";
 import { fmtDate, money, relDays } from "../../shared/i18n.ts";
 import { navigate, useApp } from "../app.tsx";
 import { AccountModal } from "../account.tsx";
@@ -39,8 +39,15 @@ function needs(rows: any[]) {
 
 const STATUS_PLATE: Record<string, string> = { active: "ok", trial: "warn", past_due: "denied", suspended: "frozen" };
 
+const ARCHIVE_REASONS = ["Stopped paying", "Gym closed", "Went back to notebook or Excel", "Moved to another software", "Free month not continued", "Test or duplicate"];
+
 export function PlatformPage() {
-  const state = useAsync(() => get("/api/admin/gyms"), []);
+  // "current" is the gyms you work with; archived gyms keep all their data and can be restored
+  const [view, setView] = useState<"current" | "archived">("current");
+  // the answer remembers which list it is, so the old list never shows under the new tab while the next one loads
+  const state = useAsync(() => get(`/api/admin/gyms${view === "archived" ? "?archived=1" : ""}`).then((d: any) => ({ ...d, view })), [view]);
+  const [archiving, setArchiving] = useState<any>(null);
+  const [deleting, setDeleting] = useState<any>(null);
   const templates = useAsync(() => get("/api/admin/templates"), []);
   const [creating, setCreating] = useState(false);
   const [f, setF] = useState<any>({ template: "classic", level: "essential", saas_plan: "starter", brand_color: "#E4572E", demo_data: false });
@@ -72,7 +79,11 @@ export function PlatformPage() {
       <Loader state={state}>
         {(d: any) => (
           <>
-            {(() => {
+            <Tabs value={view} onChange={setView} tabs={[
+              { value: "current", label: `Your gyms${d.view === "current" ? ` (${d.rows.length})` : ""}` },
+              { value: "archived", label: `Archived (${d.totals.archived})` },
+            ]} />
+            {d.view === "current" && (() => {
               const list = needs(d.rows);
               return (
                 <section className="panel" style={{ marginBottom: 24 }}>
@@ -92,13 +103,36 @@ export function PlatformPage() {
                 </section>
               );
             })()}
-            <div className="figures">
+            {d.view === "current" && <div className="figures">
               <div className="figure"><span className="label">Gyms</span><span className="value num-display">{d.totals.gyms}</span></div>
               <div className="figure"><span className="label">Paying</span><span className="value num-display">{d.totals.active}</span></div>
               <div className="figure"><span className="label">In trial</span><span className="value num-display">{d.totals.trial}</span></div>
               <div className="figure"><span className="label">Monthly recurring revenue</span><span className="value num-display">{money(d.totals.mrr)}</span></div>
-            </div>
-            <div className="table-wrap"><table className="data">
+            </div>}
+            {d.view === "archived" && (
+              d.rows.length ? (
+                <div className="table-wrap"><table className="data">
+                  <thead><tr><th>Gym</th><th>Archived</th><th>Reason</th><th>Members kept</th><th /></tr></thead>
+                  <tbody>{d.rows.map((g: any) => (
+                    <tr key={g.id}>
+                      <td><span className="who"><b>{g.name}</b><small>/{g.slug} · {g.city ?? ""} · {g.owner_email}</small></span></td>
+                      <td className="ink-2">{fmtDate(g.archived_at)}</td>
+                      <td style={{ maxWidth: 320, whiteSpace: "normal" }}>{g.archived_reason}</td>
+                      <td>{g.active_members}</td>
+                      <td className="r">
+                        <button className="btn small" onClick={() => { setGymOverride(g.id); location.href = "/members"; }}>Look inside</button>{" "}
+                        <button className="btn small danger" onClick={() => setDeleting({ ...g, typed: "" })}>Delete for good</button>{" "}
+                        <button className="btn small primary" disabled={busy} onClick={async () => {
+                          const r = await run(() => post(`/api/admin/gyms/${g.id}/restore`));
+                          if (r) { toast(`${g.name} is back in your gyms`); state.reload(); }
+                        }}>Restore</button>
+                      </td>
+                    </tr>
+                  ))}</tbody>
+                </table></div>
+              ) : <div className="panel body muted" style={{ marginTop: 16 }}>No archived gym. When a gym leaves GMS, archive it from your list: its data is kept and you can restore it any day.</div>
+            )}
+            {d.view === "current" && <div className="table-wrap"><table className="data">
               <thead><tr><th>Gym</th><th>Status</th><th>Plan</th><th>Set up</th><th>Active members</th><th>Check-ins, 7 days</th><th>Last sign-in</th><th /></tr></thead>
               <tbody>{d.rows.map((g: any) => (
                 <tr key={g.id}>
@@ -110,11 +144,12 @@ export function PlatformPage() {
                   <td className="r">
                     <button className="btn small" onClick={() => setEdit({ ...g })}>Billing</button>{" "}
                     <button className="btn small" onClick={() => setWa({ id: g.id, name: g.name, phoneNumberId: g.wa_phone_number_id ?? "", businessNumber: g.wa_business_number ?? "", hasToken: g.wa_has_token, token: "" })}><Icon name="whatsapp" />{g.wa_phone_number_id ? "Connected" : "WhatsApp"}</button>{" "}
+                    <button className="btn small" onClick={() => setArchiving({ ...g, reason: "", other: "" })}>Archive</button>{" "}
                     <button className="btn small primary" onClick={() => { setGymOverride(g.id); location.href = "/"; }}>Open</button>
                   </td>
                 </tr>
               ))}</tbody>
-            </table></div>
+            </table></div>}
           </>
         )}
       </Loader>
@@ -180,6 +215,53 @@ export function PlatformPage() {
         </Modal>
       )}
 
+      {archiving && (() => {
+        const reason = archiving.reason === "Other" ? archiving.other.trim() : [archiving.reason, archiving.other.trim()].filter(Boolean).join(": ");
+        return (
+          <Modal title={`Archive ${archiving.name}`} open onClose={() => setArchiving(null)}
+            footer={<>
+              <button className="btn" onClick={() => setArchiving(null)}>Cancel</button>
+              <button className="btn primary" disabled={busy || reason.length < 2} onClick={async () => {
+                const r = await run(() => post(`/api/admin/gyms/${archiving.id}/archive`, { reason }));
+                if (r) { toast(`${archiving.name} archived. You can restore it from Archived.`); setArchiving(null); state.reload(); }
+              }}>Archive the gym</button>
+            </>}>
+            <p style={{ marginBottom: 12 }}>The gym leaves your list. Its team and members are signed out and can no longer sign in, and reminders stop. <b>Nothing is deleted:</b> restore it any day and it comes back exactly as it was.</p>
+            {/* a group of buttons, not a <label>: a label would press its first button on any click */}
+            <div className="field" role="group" aria-labelledby="arch-why">
+              <span id="arch-why">Why is it leaving?</span>
+              <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+                {[...ARCHIVE_REASONS, "Other"].map((x) => (
+                  <button key={x} type="button" className="chip" aria-pressed={archiving.reason === x} onClick={() => setArchiving({ ...archiving, reason: x })}>{x}</button>
+                ))}
+              </div>
+            </div>
+            <Field label={archiving.reason === "Other" ? "Reason" : "Details (optional)"}>
+              <textarea className="input" rows={3} maxLength={400} value={archiving.other} placeholder="What they said, what could bring them back…" onChange={(e) => setArchiving({ ...archiving, other: e.target.value })} />
+            </Field>
+          </Modal>
+        );
+      })()}
+
+      {deleting && (
+        <Modal title={`Delete ${deleting.name} for good`} open onClose={() => setDeleting(null)}
+          footer={<>
+            <button className="btn" onClick={() => setDeleting(null)}>Keep it archived</button>
+            <button className="btn primary" style={{ background: "var(--plate-red)", borderColor: "var(--plate-red)" }} disabled={busy || deleting.typed.trim() !== deleting.slug} onClick={async () => {
+              const r = await run(() => api(`/api/admin/gyms/${deleting.id}`, { method: "DELETE", body: { confirm: deleting.typed.trim() } }));
+              if (r) { toast(`${deleting.name} was deleted`); setDeleting(null); state.reload(); }
+            }}>Delete everything</button>
+          </>}>
+          <div className="panel" style={{ padding: "12px 16px", borderColor: "var(--plate-red)", marginBottom: 14 }}>
+            <b>This cannot be undone.</b> Every member, membership, payment and receipt, check-in, class, message and staff account of this gym is erased. Nobody, not even GMS support, can bring it back.
+          </div>
+          <p className="muted" style={{ marginBottom: 12 }}>If the gym might come back, or if you may need its numbers one day, keep it archived instead. To keep a copy, use “Look inside”, then export the members to Excel first.</p>
+          <Field label={`To confirm, type the gym's address: ${deleting.slug}`}>
+            <input className="input" autoComplete="off" value={deleting.typed} onChange={(e) => setDeleting({ ...deleting, typed: e.target.value })} placeholder={deleting.slug} />
+          </Field>
+        </Modal>
+      )}
+
       {edit && (
         <Modal title={`Billing · ${edit.name}`} open onClose={() => setEdit(null)}
           footer={<>
@@ -194,7 +276,7 @@ export function PlatformPage() {
             <Field label="Monthly price ($)"><input className="input" value={edit.saas_price_usd} onChange={(e) => setEdit({ ...edit, saas_price_usd: e.target.value })} /></Field>
             <Field label="Paid until"><input className="input" type="date" value={edit.saas_paid_until ?? ""} onChange={(e) => setEdit({ ...edit, saas_paid_until: e.target.value })} /></Field>
           </div>
-          <p className="muted" style={{ fontSize: "0.85rem" }}>Suspended gyms cannot sign in and their member app goes offline; data is kept.</p>
+          <p className="muted" style={{ fontSize: "0.85rem" }}>Suspended gyms cannot sign in and their member app goes offline; data is kept. A gym that left GMS is better archived: it leaves your list and keeps its data.</p>
         </Modal>
       )}
     </div>

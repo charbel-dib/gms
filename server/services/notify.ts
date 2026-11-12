@@ -181,7 +181,7 @@ export async function processQueue(limit = 200): Promise<{ sent: number; noDevic
 
 /** Class and PT reminders for every gym. Idempotent (one per booking/session). */
 export async function scheduleReminders() {
-  const gyms = await many(db, `SELECT id, settings FROM gyms WHERE saas_status <> 'suspended' AND coalesce((modules->>'memberApp')::boolean, true)`);
+  const gyms = await many(db, `SELECT id, settings FROM gyms WHERE saas_status <> 'suspended' AND archived_at IS NULL AND coalesce((modules->>'memberApp')::boolean, true)`);
   let created = 0;
   for (const g of gyms) {
     const ps = pushSettings(g.settings);

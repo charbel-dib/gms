@@ -263,7 +263,7 @@ async function handleWebhook(payload: any) {
       const v = change?.value ?? {};
       const phoneNumberId = v?.metadata?.phone_number_id;
       if (!phoneNumberId) continue;
-      const gym = await one(db, "SELECT id FROM gyms WHERE settings->'whatsapp'->>'phoneNumberId' = $1 AND saas_status <> 'suspended'", [phoneNumberId]);
+      const gym = await one(db, "SELECT id FROM gyms WHERE settings->'whatsapp'->>'phoneNumberId' = $1 AND saas_status <> 'suspended' AND archived_at IS NULL", [phoneNumberId]);
       if (!gym) continue;
       for (const s of v.statuses ?? []) {
         if (["delivered", "read", "failed", "sent"].includes(s.status)) {

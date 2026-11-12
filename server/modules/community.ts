@@ -525,7 +525,7 @@ export function registerCommunity(r: Router) {
 
   /** A friend leaves their name and number from an invite link; reception follows up. */
   r.post("/api/public/gyms/:slug/join", async (ctx) => {
-    const g = await one(db, "SELECT id, settings, saas_status FROM gyms WHERE slug = $1", [ctx.params.slug]);
+    const g = await one(db, "SELECT id, settings, CASE WHEN archived_at IS NOT NULL THEN 'suspended' ELSE saas_status END AS saas_status FROM gyms WHERE slug = $1", [ctx.params.slug]);
     if (!g || g.saas_status === "suspended") throw notFound("gym");
     const b = await ctx.body(z.object({ name: z.string().trim().min(2).max(80), phone: zPhone, ref: z.string().trim().max(12).nullable().optional(), interest: z.string().trim().max(80).nullable().optional() }));
     await checkRateLimit(`join:${ctx.ip}:${g.id}`, 5, 60);

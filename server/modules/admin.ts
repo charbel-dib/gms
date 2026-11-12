@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db, one, many, audit } from "../db/index.ts";
 import { checkRateLimit, encryptSecret, randomPassword, requireSuperadmin } from "../auth.ts";
 import { config } from "../config.ts";
-import { bad, notFound, zDate, zId, zPhone, type Router } from "../http.ts";
+import { HttpError, bad, notFound, zDate, zId, zPhone, type Router } from "../http.ts";
 import { provisionGym } from "../services/provision.ts";
 import { TEMPLATES } from "../templates.ts";
 import { seedDemoActivity } from "../services/demo.ts";
@@ -48,8 +48,10 @@ export function registerAdmin(r: Router) {
     return row;
   });
 
+  // The main list shows the gyms you work with; ?archived=1 shows the ones that left.
   r.get("/api/admin/gyms", async (ctx) => {
     await requireSuperadmin(ctx);
+    const archived = ctx.query.get("archived") === "1";
     const rows = await many(db, `
       SELECT g.id, g.slug, g.name, g.city, g.phone, g.saas_plan, g.saas_status, g.saas_price_usd, g.saas_paid_until, g.trial_ends_at, g.created_at, g.is_demo,
              g.settings->'whatsapp'->>'phoneNumberId' AS wa_phone_number_id, g.settings->'whatsapp'->>'businessNumber' AS wa_business_number,
@@ -60,10 +62,12 @@ export function registerAdmin(r: Router) {
              (SELECT u.email FROM users u WHERE u.gym_id = g.id AND u.role = 'owner' ORDER BY created_at LIMIT 1) AS owner_email,
              (SELECT u.phone FROM users u WHERE u.gym_id = g.id AND u.role = 'owner' ORDER BY created_at LIMIT 1) AS owner_phone,
              (SELECT max(c.at) FROM checkins c WHERE c.gym_id = g.id) AS last_checkin,
-             g.settings->>'level' AS level, ${setupSql("g")} AS setup
-        FROM gyms g ORDER BY g.created_at DESC`);
+             g.settings->>'level' AS level, ${setupSql("g")} AS setup, g.archived_at, g.archived_reason
+        FROM gyms g WHERE (g.archived_at IS NOT NULL) = $1
+       ORDER BY ${archived ? "g.archived_at" : "g.created_at"} DESC`, [archived]);
+    const archivedCount = Number((await one(db, "SELECT count(*) AS n FROM gyms WHERE archived_at IS NOT NULL"))?.n ?? 0);
     const mrr = rows.filter((g) => g.saas_status === "active").reduce((s, g) => s + Number(g.saas_price_usd), 0);
-    return { rows, totals: { gyms: rows.length, active: rows.filter((g) => g.saas_status === "active").length, trial: rows.filter((g) => g.saas_status === "trial").length, mrr } };
+    return { rows, totals: { gyms: rows.length, active: rows.filter((g) => g.saas_status === "active").length, trial: rows.filter((g) => g.saas_status === "trial").length, mrr: archived ? 0 : mrr, archived: archivedCount } };
   });
 
   r.get("/api/admin/templates", async (ctx) => {
@@ -131,6 +135,48 @@ export function registerAdmin(r: Router) {
     );
     if (b.saas_status === "suspended") await db.query("DELETE FROM sessions WHERE gym_id = $1", [id]);
     await audit(db, id, su.id, "gym.platform_update", "gym", id, b);
+    return { ok: true };
+  });
+
+  // Archive: the gym leaves the main list, its team and members are signed out and can no longer sign in,
+  // reminders stop. Every row is kept, so restoring brings it back exactly as it was.
+  r.post("/api/admin/gyms/:id/archive", async (ctx) => {
+    const su = await requireSuperadmin(ctx);
+    const id = zId.parse(ctx.params.id);
+    const b = await ctx.body(z.object({ reason: z.string().trim().min(2).max(500) }));
+    const g = await one(db, "UPDATE gyms SET archived_at = now(), archived_reason = $2 WHERE id = $1 AND archived_at IS NULL RETURNING id, name", [id, b.reason]);
+    if (!g) throw notFound("gym");
+    await db.query("DELETE FROM sessions WHERE gym_id = $1", [id]);
+    await audit(db, id, su.id, "gym.archive", "gym", id, { reason: b.reason });
+    return { ok: true };
+  });
+
+  r.post("/api/admin/gyms/:id/restore", async (ctx) => {
+    const su = await requireSuperadmin(ctx);
+    const id = zId.parse(ctx.params.id);
+    const g = await one(db, "UPDATE gyms SET archived_at = NULL, archived_reason = NULL WHERE id = $1 AND archived_at IS NOT NULL RETURNING id, archived_at", [id]);
+    if (!g) throw notFound("archived gym");
+    await audit(db, id, su.id, "gym.restore", "gym", id);
+    return { ok: true };
+  });
+
+  // Delete for good: only an archived gym, and only when its exact address (slug) is typed back.
+  // Every member, payment, check-in and account of the gym goes with it. This cannot be undone.
+  r.del("/api/admin/gyms/:id", async (ctx) => {
+    const su = await requireSuperadmin(ctx);
+    const id = zId.parse(ctx.params.id);
+    const b = await ctx.body(z.object({ confirm: z.string().trim() }));
+    const g = await one(db, "SELECT id, slug, name, archived_at, archived_reason FROM gyms WHERE id = $1", [id]);
+    if (!g) throw notFound("gym");
+    if (!g.archived_at) throw new HttpError(409, "not_archived", "Archive the gym first. Only an archived gym can be deleted.");
+    if (b.confirm !== g.slug) throw new HttpError(400, "confirm_mismatch", `Type the gym's address "${g.slug}" to confirm.`);
+    const counts = await one(db, `SELECT (SELECT count(*) FROM members WHERE gym_id = $1)::int AS members, (SELECT count(*) FROM payments WHERE gym_id = $1)::int AS payments`, [id]);
+    await db.tx(async (q) => {
+      await q.query("DELETE FROM sessions WHERE gym_id = $1", [id]);
+      await q.query("DELETE FROM gyms WHERE id = $1", [id]);
+      // the gym's own log goes with it; this line stays in the platform log
+      await audit(q, null, su.id, "gym.delete", "gym", id, { slug: g.slug, name: g.name, archived_reason: g.archived_reason, ...counts });
+    });
     return { ok: true };
   });
 
