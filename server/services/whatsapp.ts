@@ -133,14 +133,14 @@ export function verifyMetaSignature(raw: Buffer, header: string | undefined): bo
 
 const REMINDER_DEFAULTS = {
   en: {
-    before: "Hi {name} 👋 your {plan} membership at {gym} ends on {date} ({days} days left). Renew at reception or reply here to keep your streak going 💪",
-    today: "Hi {name}, your {plan} membership at {gym} ends today. Renew now so you don't miss a day 💪",
-    after: "Hi {name}, we miss you at {gym}! Your membership ended on {date}. Come back this week and we'll take care of you 🙌",
+    before: "Hi {name}, your {plan} membership at {gym} ends on {date} ({days} days left). Renew at reception, or reply to this message.",
+    today: "Hi {name}, your {plan} membership at {gym} ends today. Renew now so you don't miss a day.",
+    after: "Hi {name}, we miss you at {gym}. Your membership ended on {date}, and we'd be glad to see you back this week.",
   },
   ar: {
-    before: "مرحبا {name} 👋 اشتراكك ({plan}) في {gym} بينتهي بتاريخ {date} (باقي {days} أيام). جدّد عالاستقبال أو جاوبنا هون 💪",
-    today: "مرحبا {name}، اشتراكك ({plan}) في {gym} بينتهي اليوم. جدّد هلّق تا ما تخسر ولا يوم 💪",
-    after: "مرحبا {name}، اشتقنالك بـ {gym}! اشتراكك خلص بتاريخ {date}. رجاع هالجمعة ومنهتم فيك 🙌",
+    before: "مرحبًا {name}، ينتهي اشتراكك ({plan}) في {gym} بتاريخ {date} (بقي {days} أيام). يمكنك التجديد في الاستقبال أو الرد على هذه الرسالة.",
+    today: "مرحبًا {name}، ينتهي اشتراكك ({plan}) في {gym} اليوم. جدّده الآن كي لا يفوتك أي يوم.",
+    after: "مرحبًا {name}، نفتقدك في {gym}. انتهى اشتراكك بتاريخ {date}، ويسعدنا أن تعود هذا الأسبوع.",
   },
 };
 

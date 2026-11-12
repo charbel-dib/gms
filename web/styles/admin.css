@@ -523,3 +523,8 @@ h1.headline-sentence { font-size: var(--step-3); line-height: 1.25; font-weight:
 .person { transition: border-color 0.12s ease; }
 @media (hover: hover) and (pointer: fine) { .person:hover { border-color: var(--muted); } }
 @keyframes sheet-up { from { transform: translateY(100%); } }
+
+/* sign-in page: who it is for, and the way in for gyms that are not clients yet */
+.auth-new { display: grid; gap: 8px; margin-top: 8px; padding-top: 20px; border-top: 1px solid var(--line); }
+.auth-new p { margin: 0; color: var(--ink-2); font-size: 0.92rem; }
+.auth-new .row-s { display: flex; flex-wrap: wrap; gap: 8px; }

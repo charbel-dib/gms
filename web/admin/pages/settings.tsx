@@ -233,7 +233,7 @@ function StaffTab() {
         </Modal>
       )}
       {pw && (
-        <Modal title={t("Temporary password")} open onClose={() => setPw(null)} footer={<button className="btn primary" onClick={() => setPw(null)}>{t("Done")}</button>}>
+        <Modal title={t("Temporary password")} open onClose={() => setPw(null)} footer={<button className="btn primary" onClick={() => setPw(null)}>{t("Close")}</button>}>
           <p>{t("Give this password to the person. They choose their own password the first time they sign in.")}</p>
           <p className="num-display" style={{ fontSize: "2rem", letterSpacing: "0.04em", userSelect: "all" }}>{pw}</p>
         </Modal>

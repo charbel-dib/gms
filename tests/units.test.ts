@@ -85,7 +85,7 @@ test("QR codes have the right size and finder patterns", () => {
 test("reminder texts in English and Lebanese Arabic", () => {
   const v = { name: "Rita", plan: "1 Month", gym: "Pulse", date: "2026-12-01", days: 7 };
   assert.match(reminderText("en", "before", v), /7 days left/);
-  assert.match(reminderText("ar", "after", v), /اشتقنالك/);
+  assert.match(reminderText("ar", "after", v), /نفتقدك/);
   assert.equal(reminderText("en", "before", v, "Yo {name}, {days}d"), "Yo Rita, 7d");
 });
 

@@ -58,7 +58,10 @@ function Login({ onDone }: { onDone: () => void }) {
             setBusy(false);
           }
         }}>
-          <h2>{t("Sign in")}</h2>
+          <div className="stack-s">
+            <h2>{t("Sign in to your gym")}</h2>
+            <p className="muted" style={{ fontSize: "0.92rem" }}>{t("For gyms that already use GMS: owners, managers and desk staff.")}</p>
+          </div>
           <label className="field"><span>{t("Email")}</span><input className="input" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} autoFocus /></label>
           <label className="field"><span>{t("Password")}</span><input className="input" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
           {code !== null && (
@@ -69,6 +72,15 @@ function Login({ onDone }: { onDone: () => void }) {
           {err && <p role="alert" style={{ color: "var(--plate-red)" }}>{err}</p>}
           <button className="btn primary block" disabled={busy}>{busy ? t("Signing in…") : t("Sign in")}</button>
           <p className="muted" style={{ fontSize: "0.85rem" }}>{t("Forgot your password? Ask the gym owner, or GMS support, to reset it.")}</p>
+          <div className="auth-new">
+            <b>{t("Not a GMS gym yet?")}</b>
+            <p>{t("Try it free for a month. We set it up with you and bring in your members.")}</p>
+            <div className="row-s">
+              <a className="btn small" href="/#start">{t("Try it free")}</a>
+              <a className="btn small ghost" href="https://wa.me/96170141207" target="_blank" rel="noopener">{t("Message us on WhatsApp")}</a>
+            </div>
+            <small className="muted">{t("Members don’t sign in here: they use the link to their gym’s app.")}</small>
+          </div>
         </form>
       </div>
     </div>

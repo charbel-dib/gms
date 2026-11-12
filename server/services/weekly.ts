@@ -23,16 +23,16 @@ export async function gymWeekText(gymId: string): Promise<string> {
   const sign = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n)}%`;
   if (g.locale === "ar") {
     return [
-      `${g.name_ar || g.name}، جمعتك بالأرقام`,
+      `${g.name_ar || g.name}: ملخص الأسبوع`,
       "",
-      `${s.visits} زيارة${pct != null ? ` (${sign(pct)} عن الجمعة اللي قبلها)` : ""}`,
-      `${usd(s.collected)} مقبوضين`,
-      s.owing ? `${usd(s.owed)} بعدهم عند ${s.owing} مشترك` : "ما حدا عليه مصاري",
-      `${s.ending} اشتراك بيخلصوا بالسبع أيام الجايين`,
-      s.away ? `${s.away} مشترك بطّلوا يجوا` : "ما حدا بطّل يجي",
-      s.joined ? `${s.joined} مشترك جديد` : "",
+      `الزيارات: ${s.visits}${pct != null ? ` (${sign(pct)} مقارنة بالأسبوع السابق)` : ""}`,
+      `المحصَّل: ${usd(s.collected)}`,
+      s.owing ? `المستحق: ${usd(s.owed)} على ${s.owing} مشتركين` : "لا مبالغ مستحقة على أحد",
+      `اشتراكات تنتهي خلال 7 أيام: ${s.ending}`,
+      s.away ? `توقفوا عن الحضور: ${s.away}` : "لم يتوقف أحد عن الحضور",
+      s.joined ? `مشتركون جدد: ${s.joined}` : "",
       "",
-      `افتح GMS: ${config.publicUrl}/`,
+      `فتح GMS: ${config.publicUrl}/`,
     ].filter((l, i, a) => l !== "" || (a[i - 1] ?? "") !== "").join("\n");
   }
   return [

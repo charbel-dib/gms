@@ -32,18 +32,18 @@ export const TEMPLATES: GymTemplate[] = [
     settings: { ...baseSettings, hours: weekHours("06:00", "23:00") },
     plans: [
       { name: "1 Month", name_ar: "شهر", kind: "time", duration_days: 30, price: 45, includes_classes: true, freeze_days_allowed: 0 },
-      { name: "3 Months", name_ar: "٣ أشهر", kind: "time", duration_days: 90, price: 120, includes_classes: true, freeze_days_allowed: 10 },
-      { name: "6 Months", name_ar: "٦ أشهر", kind: "time", duration_days: 180, price: 220, includes_classes: true, freeze_days_allowed: 20 },
+      { name: "3 Months", name_ar: "3 أشهر", kind: "time", duration_days: 90, price: 120, includes_classes: true, freeze_days_allowed: 10 },
+      { name: "6 Months", name_ar: "6 أشهر", kind: "time", duration_days: 180, price: 220, includes_classes: true, freeze_days_allowed: 20 },
       { name: "1 Year", name_ar: "سنة", kind: "time", duration_days: 365, price: 400, includes_classes: true, freeze_days_allowed: 30 },
       { name: "Student 1 Month", name_ar: "طالب - شهر", kind: "time", duration_days: 30, price: 35, includes_classes: false, freeze_days_allowed: 0 },
-      { name: "10 Visits", name_ar: "١٠ زيارات", kind: "visits", duration_days: 60, visits: 10, price: 40, includes_classes: false, freeze_days_allowed: 0 },
-      { name: "Day Pass", name_ar: "دخول يوم", kind: "visits", duration_days: 1, visits: 1, price: 7, includes_classes: false, freeze_days_allowed: 0 },
+      { name: "10 Visits", name_ar: "10 زيارات", kind: "visits", duration_days: 60, visits: 10, price: 40, includes_classes: false, freeze_days_allowed: 0 },
+      { name: "Day Pass", name_ar: "دخول ليوم واحد", kind: "visits", duration_days: 1, visits: 1, price: 7, includes_classes: false, freeze_days_allowed: 0 },
     ],
     classTypes: [
       { name: "Zumba", name_ar: "زومبا", color: "#E4572E", default_capacity: 20, duration_min: 50, slots: [[1, "18:30"], [3, "18:30"], [5, "11:00"]] },
       { name: "Spinning", name_ar: "سبينينغ", color: "#3D5A80", default_capacity: 15, duration_min: 45, slots: [[2, "07:00"], [4, "19:30"], [6, "10:00"]] },
       { name: "Body Pump", name_ar: "بادي بامب", color: "#2A9D8F", default_capacity: 18, duration_min: 55, slots: [[1, "20:00"], [3, "20:00"]] },
-      { name: "Abs & Core", name_ar: "بطن", color: "#8D6A9F", default_capacity: 20, duration_min: 30, slots: [[2, "18:00"], [4, "18:00"]] },
+      { name: "Abs & Core", name_ar: "تمارين البطن", color: "#8D6A9F", default_capacity: 20, duration_min: 30, slots: [[2, "18:00"], [4, "18:00"]] },
     ],
     knowledge: [
       { title: "House rules", body: "Bring a towel. Re-rack your weights. Proper sports shoes are required on the floor. Lockers are free during your visit; leave nothing overnight." },
@@ -60,13 +60,13 @@ export const TEMPLATES: GymTemplate[] = [
     settings: { ...baseSettings, hours: weekHours("07:00", "21:00", "13:00") },
     plans: [
       { name: "1 Month Unlimited", name_ar: "شهر غير محدود", kind: "time", duration_days: 30, price: 55, includes_classes: true, freeze_days_allowed: 0, gender_restriction: "female" },
-      { name: "3 Months Unlimited", name_ar: "٣ أشهر غير محدود", kind: "time", duration_days: 90, price: 150, includes_classes: true, freeze_days_allowed: 14, gender_restriction: "female" },
-      { name: "8 Classes", name_ar: "٨ حصص", kind: "visits", duration_days: 30, visits: 8, price: 40, includes_classes: true, freeze_days_allowed: 0, gender_restriction: "female" },
+      { name: "3 Months Unlimited", name_ar: "3 أشهر غير محدود", kind: "time", duration_days: 90, price: 150, includes_classes: true, freeze_days_allowed: 14, gender_restriction: "female" },
+      { name: "8 Classes", name_ar: "8 حصص", kind: "visits", duration_days: 30, visits: 8, price: 40, includes_classes: true, freeze_days_allowed: 0, gender_restriction: "female" },
     ],
     classTypes: [
       { name: "Pilates Mat", name_ar: "بيلاتس", color: "#C06C84", default_capacity: 12, duration_min: 50, women_only: true, slots: [[1, "09:30"], [3, "09:30"], [5, "09:30"]] },
       { name: "Zumba", name_ar: "زومبا", color: "#E4572E", default_capacity: 20, duration_min: 50, women_only: true, slots: [[2, "18:00"], [4, "18:00"]] },
-      { name: "Stretch & Tone", name_ar: "تمدد وشد", color: "#6C5B7B", default_capacity: 15, duration_min: 45, women_only: true, slots: [[0, "10:00"], [3, "19:00"]] },
+      { name: "Stretch & Tone", name_ar: "إطالة وشدّ", color: "#6C5B7B", default_capacity: 15, duration_min: 45, women_only: true, slots: [[0, "10:00"], [3, "19:00"]] },
     ],
     knowledge: [
       { title: "Women only", body: "The studio is for women only. Male coaches never enter during opening hours." },
@@ -81,7 +81,7 @@ export const TEMPLATES: GymTemplate[] = [
     settings: { ...baseSettings, hours: weekHours("06:00", "21:30") },
     plans: [
       { name: "Unlimited Monthly", name_ar: "شهري غير محدود", kind: "time", duration_days: 30, price: 120, includes_classes: true, freeze_days_allowed: 7 },
-      { name: "12 Classes", name_ar: "١٢ حصة", kind: "visits", duration_days: 30, visits: 12, price: 95, includes_classes: true, freeze_days_allowed: 0 },
+      { name: "12 Classes", name_ar: "12 حصة", kind: "visits", duration_days: 30, visits: 12, price: 95, includes_classes: true, freeze_days_allowed: 0 },
       { name: "Drop-in", name_ar: "حصة واحدة", kind: "visits", duration_days: 1, visits: 1, price: 15, includes_classes: true, freeze_days_allowed: 0 },
     ],
     classTypes: [
@@ -102,7 +102,7 @@ export const TEMPLATES: GymTemplate[] = [
     settings: { ...baseSettings, hours: weekHours("09:00", "22:00") },
     plans: [
       { name: "Monthly", name_ar: "شهري", kind: "time", duration_days: 30, price: 70, includes_classes: true, freeze_days_allowed: 0 },
-      { name: "3 Months", name_ar: "٣ أشهر", kind: "time", duration_days: 90, price: 190, includes_classes: true, freeze_days_allowed: 10 },
+      { name: "3 Months", name_ar: "3 أشهر", kind: "time", duration_days: 90, price: 190, includes_classes: true, freeze_days_allowed: 10 },
       { name: "Kids Monthly", name_ar: "أطفال شهري", kind: "time", duration_days: 30, price: 50, includes_classes: true, freeze_days_allowed: 0 },
     ],
     classTypes: [

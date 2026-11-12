@@ -102,7 +102,7 @@ export function registerTelegram(r: Router) {
     if (!link) throw new HttpError(409, "telegram_off", "Telegram is not set up yet.");
     const text = say(m.locale,
       `Hi ${m.first_name}, get your ${m.name} reminders on Telegram. Open this link and press Start: ${link.url}`,
-      `مرحبا ${m.first_name}، خلّي تذكيرات ${m.name} توصلك عالتلغرام. افتح هالرابط واكبس Start: ${link.url}`);
+      `مرحبًا ${m.first_name}، يمكنك استلام تذكيرات ${m.name} على تلغرام. افتح هذا الرابط واضغط Start: ${link.url}`);
     return { ...link, text, whatsapp: m.phone ? waLink(m.phone, text) : null };
   });
 
@@ -147,18 +147,18 @@ export async function handleUpdate(update: any) {
   if (start) {
     if (!start[1]) {
       const known = await one(db, "SELECT 1 FROM telegram_links WHERE chat_id = $1", [chat]);
-      if (!known) return void (await reply(BOTH("Hi! To connect, open the link your gym sent you.", "مرحبا! لتتصل، افتح الرابط اللي بعتلك ياه ناديك.")));
-      return void (await reply(BOTH("You're connected. Write your question here.", "إنت متصل. اكتب سؤالك هون.")));
+      if (!known) return void (await reply(BOTH("Hi! To connect, open the link your gym sent you.", "مرحبًا. للربط، افتح الرابط الذي أرسله لك ناديك.")));
+      return void (await reply(BOTH("You're connected. Write your question here.", "أنت مرتبط. اكتب سؤالك هنا.")));
     }
     const c = await one(db, "DELETE FROM telegram_codes WHERE code = $1 AND expires_at > now() RETURNING *", [start[1]]);
-    if (!c) return void (await reply(BOTH("This link has expired or was already used. Ask for a new one.", "هالرابط خلص أو انستعمل. اطلب رابط جديد.")));
+    if (!c) return void (await reply(BOTH("This link has expired or was already used. Ask for a new one.", "انتهت صلاحية هذا الرابط أو سبق استخدامه. اطلب رابطًا جديدًا.")));
     if (c.member_id) {
       await db.query("DELETE FROM telegram_links WHERE member_id = $1", [c.member_id]);
       await db.query("INSERT INTO telegram_links (chat_id, username, gym_id, member_id) VALUES ($1,$2,$3,$4)", [chat, username, c.gym_id, c.member_id]);
       const g = await one(db, "SELECT mb.first_name, g.name, g.name_ar, g.locale FROM members mb JOIN gyms g ON g.id = mb.gym_id WHERE mb.id = $1", [c.member_id]);
       return void (await reply(say(g.locale,
         `Hi ${g.first_name}, you're connected to ${g.name}. Your reminders will come here, and you can ask anything about the gym: hours, prices, your membership.`,
-        `مرحبا ${g.first_name}، صرت متصل بـ ${g.name_ar || g.name}. التذكيرات رح توصلك هون، وفيك تسأل أي شي عن النادي: الدوام، الأسعار، اشتراكك.`)));
+        `مرحبًا ${g.first_name}، أنت الآن مرتبط بـ ${g.name_ar || g.name}. ستصلك التذكيرات هنا، ويمكنك السؤال عن أي شيء يخص النادي: الدوام والأسعار واشتراكك.`)));
     }
     await db.query("DELETE FROM telegram_links WHERE user_id = $1", [c.user_id]);
     await db.query("INSERT INTO telegram_links (chat_id, username, gym_id, user_id) VALUES ($1,$2,$3,$4)", [chat, username, c.gym_id, c.user_id]);
@@ -167,9 +167,9 @@ export async function handleUpdate(update: any) {
     if (u.role === "owner" || u.role === "manager") {
       return void (await reply(say(u.locale,
         `Connected, ${u.name}. Every Monday morning you'll get ${u.gym}'s week here. Ask me about your numbers any time, for example "how much did we collect this month?", or send /summary.`,
-        `صرت متصل يا ${u.name}. كل يوم اثنين الصبح بتوصلك جمعة ${u.gym} بالأرقام هون. اسألني عن أرقامك وقت ما بدك، مثلاً «قديش قبضنا هالشهر؟»، أو ابعت /summary.`)));
+        `تم الربط يا ${u.name}. سيصلك ملخص أسبوع ${u.gym} هنا كل يوم اثنين صباحًا. اسألني عن أرقامك متى شئت، مثلًا «كم حصّلنا هذا الشهر؟»، أو أرسل /summary.`)));
     }
-    return void (await reply(say(u.locale, `Connected, ${u.name}.`, `صرت متصل يا ${u.name}.`)));
+    return void (await reply(say(u.locale, `Connected, ${u.name}.`, `تم الربط يا ${u.name}.`)));
   }
 
   const links = await many(db, `SELECT l.*, u.role, u.active AS user_active, g.locale, g.name AS gym_name, g.archived_at, g.saas_status
@@ -177,9 +177,9 @@ export async function handleUpdate(update: any) {
      WHERE l.chat_id = $1 ORDER BY l.last_used_at DESC`, [chat]);
   if (text === "/stop") {
     await db.query("DELETE FROM telegram_links WHERE chat_id = $1", [chat]);
-    return void (await reply(BOTH("Done. You won't get messages here anymore.", "تمام. ما رح يوصلك شي هون بعد اليوم.")));
+    return void (await reply(BOTH("Done. You won't get messages here anymore.", "تم. لن تصلك رسائل هنا بعد الآن.")));
   }
-  if (!links.length) return void (await reply(BOTH("Hi! To connect, open the link your gym sent you.", "مرحبا! لتتصل، افتح الرابط اللي بعتلك ياه ناديك.")));
+  if (!links.length) return void (await reply(BOTH("Hi! To connect, open the link your gym sent you.", "مرحبًا. للربط، افتح الرابط الذي أرسله لك ناديك.")));
   const l = links[0];
   await db.query("UPDATE telegram_links SET last_used_at = now(), username = coalesce($2, username) WHERE id = $1", [l.id, username]);
   if (l.gym_id && (l.archived_at || l.saas_status === "suspended")) return;
@@ -191,11 +191,11 @@ export async function handleUpdate(update: any) {
 
   // owners and managers: their week, and questions about their own numbers
   if (l.user_id) {
-    if (!l.user_active || !["owner", "manager"].includes(l.role)) return void (await reply(say(l.locale, "Weekly summaries go to owners and managers.", "الملخص الأسبوعي بيوصل لصاحب النادي وللمدير.")));
+    if (!l.user_active || !["owner", "manager"].includes(l.role)) return void (await reply(say(l.locale, "Weekly summaries go to owners and managers.", "يصل الملخص الأسبوعي إلى مالك النادي والمدير.")));
     if (text === "/summary") return void (await reply(await gymWeekText(l.gym_id)));
     const history = await many(db, `SELECT direction, body FROM messages WHERE gym_id = $1 AND channel = 'telegram-staff' AND phone = $2 AND created_at > now() - interval '2 hours' ORDER BY created_at DESC LIMIT 6`, [l.gym_id, chat]);
     const a = await askGym(l.gym_id, text, history.reverse().map((h) => ({ role: h.direction === "in" ? "user" as const : "assistant" as const, content: h.body })));
-    const answer = String(a.answer || say(l.locale, "I couldn't work that out. Try asking another way.", "ما قدرت لاقي الجواب. جرّب تسأل بطريقة تانية.")).slice(0, 3500);
+    const answer = String(a.answer || say(l.locale, "I couldn't work that out. Try asking another way.", "لم أجد الجواب. جرّب طرح السؤال بطريقة أخرى.")).slice(0, 3500);
     await db.query("INSERT INTO messages (gym_id, phone, direction, kind, body, status, channel) VALUES ($1,$2,'in','owner_question',$3,'received','telegram-staff'), ($1,$2,'out','owner_answer',$4,'sent','telegram-staff')", [l.gym_id, chat, text, answer]);
     return void (await reply(answer));
   }
@@ -213,7 +213,7 @@ export async function handleUpdate(update: any) {
   await db.query(`INSERT INTO messages (gym_id, member_id, phone, direction, kind, body, status, channel, provider_id, sent_at) VALUES ($1,$2,$3,'out',$4,$5,'sent','telegram',$6, now())`,
     [l.gym_id, mb.id, mb.phone, out.handoff ? "bot_handoff" : "bot", out.reply, `tg:${id}`]);
   if (out.handoff) {
-    const alert = say(l.locale, `${mb.first_name} ${mb.last_name} wants to talk to someone. They wrote: "${text}"`, `${mb.first_name} ${mb.last_name} بدّه يحكي مع حدا. كتب: «${text}»`);
+    const alert = say(l.locale, `${mb.first_name} ${mb.last_name} wants to talk to someone. They wrote: "${text}"`, `${mb.first_name} ${mb.last_name} يريد التحدث مع أحد الموظفين. كتب: «${text}»`);
     for (const c of await staffChats(l.gym_id)) await tgSend(c, alert).catch(() => {});
   }
 }

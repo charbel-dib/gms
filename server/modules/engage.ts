@@ -181,7 +181,7 @@ export function registerEngage(r: Router) {
     let text: string;
     if (llmEnabled() && (await hasElite(db, u.gymId))) {
       const out = await runWithTools({
-        system: `You write short, warm WhatsApp messages for the staff of "${m.gym_name}", a gym in Lebanon. Output ONLY the message text (2–3 sentences, max one emoji), language: ${b.lang === "arabizi" ? "Lebanese Arabizi (latin letters, e.g. 'kifak')" : b.lang === "ar" ? "Lebanese Arabic" : "English"}. Never mention data, scores or AI. No discount unless the context says so.`,
+        system: `You write short, warm WhatsApp messages for the staff of "${m.gym_name}", a gym in Lebanon. Output ONLY the message text (2–3 sentences, max one emoji), language: ${b.lang === "ar" || b.lang === "arabizi" ? "simple Modern Standard Arabic in Arabic script (never Lebanese dialect or Arabizi)" : "English"}. Never mention data, scores or AI. No discount unless the context says so.`,
         messages: [{ role: "user", content: `Member: ${m.first_name}. Plan: ${m.plan_name ?? "none"}, ends ${m.end_date ?? "-"} (${m.days_left ?? "-"} days left). Why we worry: ${JSON.stringify(m.reasons ?? [])}. Goal: bring them back this week in a caring, non-pushy way, invite them to a class or a free check-in with a coach.` }],
         tools: [],
         maxTokens: 220,
@@ -189,11 +189,10 @@ export function registerEngage(r: Router) {
       text = out.text;
     } else {
       const templates = {
-        en: `Hi ${m.first_name}! We haven't seen you at ${m.gym_name} lately and we miss you 💪 Want us to book you a free session with a coach this week to get back on track?`,
-        ar: `مرحبا ${m.first_name}! اشتقنالك بـ ${m.gym_name} 💪 بتحب نحجزلك جلسة مجانية مع مدرب هالجمعة لترجع عالروتين؟`,
-        arabizi: `Hi ${m.first_name}! Eshta2nelak bi ${m.gym_name} 💪 Baddak nehjizlak session ma3 coach hal jem3a ta terja3 3al routine?`,
+        en: `Hi ${m.first_name}, we haven't seen you at ${m.gym_name} for a while. Want us to book you a free session with a coach this week to get back into it?`,
+        ar: `مرحبًا ${m.first_name}، لم نرك في ${m.gym_name} منذ مدة. هل تودّ أن نحجز لك جلسة مجانية مع مدرب هذا الأسبوع لتعود إلى برنامجك؟`,
       };
-      text = templates[b.lang as keyof typeof templates];
+      text = templates[b.lang === "ar" || b.lang === "arabizi" ? "ar" : "en"];
     }
     return { text, link: m.phone ? waLink(m.phone, text) : null };
   });

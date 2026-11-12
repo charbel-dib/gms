@@ -52,7 +52,7 @@ export function CoachingPage() {
                   <td>{s.coach_name ?? "—"}</td>
                   <td>{s.title} <small className="muted">{s.sessions_used}/{s.sessions_total} · {s.duration_min} min{s.booked_by === "member" ? t(" · booked in the app") : ""}</small></td>
                   <td className="r">{s.status === "scheduled" ? (
-                    <><button className="btn small" onClick={() => mark(s.id, "done")}><Icon name="check" />{t("Done")}</button>{" "}
+                    <><button className="btn small" onClick={() => mark(s.id, "done")}><Icon name="check" />{t("Mark done")}</button>{" "}
                       <button className="btn small" onClick={() => mark(s.id, "no_show")}>{t("No-show")}</button>{" "}
                       <button className="btn small ghost" onClick={() => mark(s.id, "cancelled")}>{t("Cancel")}</button></>
                   ) : <span className="tag">{s.status.replace("_", " ")}</span>}</td>

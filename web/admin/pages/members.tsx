@@ -512,7 +512,7 @@ function AccessModal({ open, m, onClose }: { open: boolean; m: any; onClose: () 
 
 function MessageModal({ open, m, onClose, winback }: { open: boolean; m: any; onClose: () => void; winback?: boolean }) {
   const [text, setText] = useState("");
-  const [lang, setLang] = useState<"en" | "ar" | "arabizi">(getLang() === "ar" ? "ar" : "en");
+  const [lang, setLang] = useState<"en" | "ar">(getLang() === "ar" ? "ar" : "en");
   const { busy, run } = useAction();
   const draft = async (l = lang) => { const r = await run(() => post(`/api/ai/winback/${m.id}`, { lang: l })); if (r) setText(r.text); };
   useEffect(() => { if (open && winback) draft(); if (open && !winback) setText(`Hi ${m.first_name}, `); }, [open]);
@@ -527,7 +527,7 @@ function MessageModal({ open, m, onClose, winback }: { open: boolean; m: any; on
       }}><Icon name="whatsapp" />{t("Send")}</button></>}>
       {winback && (
         <div className="spread">
-          <Segmented label={t("Language")} value={lang} onChange={(l) => { setLang(l); draft(l); }} options={[{ value: "en", label: "English" }, { value: "ar", label: "عربي" }, { value: "arabizi", label: "3arabi" }]} />
+          <Segmented label={t("Language")} value={lang} onChange={(l) => { setLang(l); draft(l); }} options={[{ value: "en", label: "English" }, { value: "ar", label: "عربي" }]} />
           <button className="btn small ghost" onClick={() => draft()} disabled={busy}><Icon name="refresh" />{t("Another version")}</button>
         </div>
       )}

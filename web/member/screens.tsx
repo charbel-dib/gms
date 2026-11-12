@@ -604,7 +604,7 @@ export function AskView({ gym, onBack }: { gym: any; onBack: () => void }) {
       <SubHeader title={t("Ask the gym")} onBack={onBack} />
       {log.length === 0 && (
         <div className="chips">
-          {["When does my membership end?", "Adesh l ishtirak 3 ashhor?", "شو برنامج الحصص بكرا؟", "Can I freeze my membership?"].map((q) => <button key={q} onClick={() => send(q)} dir="auto">{q}</button>)}
+          {["When does my membership end?", "How much is the 3-month membership?", "ما برنامج الحصص غدًا؟", "Can I freeze my membership?"].map((q) => <button key={q} onClick={() => send(q)} dir="auto">{q}</button>)}
         </div>
       )}
       <div className="chat">

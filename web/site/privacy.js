@@ -8,7 +8,7 @@
     document.documentElement.dir = l === "ar" ? "rtl" : "ltr";
     btn.textContent = l === "ar" ? "English" : "العربية";
     btn.lang = l === "ar" ? "en" : "ar";
-    document.querySelector(".nav-cta .btn").textContent = l === "ar" ? "جرّبه ببلاش" : "Try it free";
+    document.querySelector(".nav-cta .btn").textContent = l === "ar" ? "جرّبه مجانًا" : "Try it free";
     document.title = l === "ar" ? "الخصوصية والشروط · GMS" : "Privacy and terms · GMS";
   };
   set(lang === "ar" ? "ar" : "en");

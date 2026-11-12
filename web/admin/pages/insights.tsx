@@ -11,8 +11,8 @@ const PROMPTS = [
   "Which members still owe money?",
   "When is the gym busiest, and when is it empty?",
   "Which classes are full and which are empty?",
-  "chou fi members bi5las ishtirakon hal jem3a?",
-  "كيف الإيرادات هالشهر مقارنة بالشهر الماضي؟",
+  "Whose membership ends this week?",
+  "كيف كانت الإيرادات هذا الشهر مقارنة بالشهر الماضي؟",
 ];
 
 function Ask() {
@@ -110,7 +110,7 @@ function Churn() {
 }
 
 function BotTest() {
-  const [text, setText] = useState("adesh l ishtirak bel chahr?");
+  const [text, setText] = useState("How much is a monthly membership?");
   const [r, setR] = useState<any>(null);
   const { busy, run } = useAction();
   const kb = useAsync(() => get("/api/ai/knowledge"), []);
