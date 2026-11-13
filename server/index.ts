@@ -44,9 +44,13 @@ registerCommunity(router);
 registerTelegram(router);
 registerLoadtest(router);
 
-router.get("/healthz", async () => {
-  await db.query("SELECT 1");
-  return { ok: true, version: process.env.APP_VERSION ?? "dev" };
+// The load balancer asks this every 15 s and replaces the server after 3 answers slower than 5 s.
+// It must not wait for a database connection: when the database is slow, every connection is busy, the
+// answer comes late, and AWS kills a server that was working fine, losing every request it was serving.
+// "?db=1" also checks the database, for a person or a script.
+router.get("/healthz", async (ctx) => {
+  if (ctx.url.searchParams.get("db") === "1") await db.query("SELECT 1");
+  return { ok: true, version: process.env.APP_VERSION ?? "dev", pool: db.stats() };
 });
 
 /** API reference (OpenAPI 3.1), generated from the code by `npm run build` (scripts/gen-api-docs.ts). */

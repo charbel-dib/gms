@@ -3,7 +3,7 @@
  * GMS load test: invents the traffic of N gyms at their evening peak and raises it step by step.
  *
  *   node scripts/loadtest/run.mjs --base https://xxxx.cloudfront.net --kit gms-loadtest-kit.json
- *        [--steps 1,2,5,10,20] [--seconds 120] [--out loadtest-results]
+ *        [--steps 1,2,5,10,20] [--seconds 120] [--gyms 10] [--out loadtest-results]
  *
  * The kit comes from the Platform page (Load test card). It holds 24-hour tokens for the fake gyms only.
  *
@@ -11,6 +11,8 @@
  * so ~10 requests per second for 50 gyms). Step "5" is five times that, and so on.
  * Traffic is "open": people keep arriving at the planned rate even if the server slows down,
  * so an overloaded server shows up as rising response times and errors, like in real life.
+ * --gyms N sends traffic to the first N gyms of the kit only, as if the server had only those gyms
+ * (the others stay in the database but are not read, so they take no memory on the database server).
  * The test stops early when a step goes badly (more than 5% errors, or 95% of requests slower than 3 s).
  */
 import fs from "node:fs";
@@ -23,7 +25,7 @@ const kit = JSON.parse(fs.readFileSync(args.kit, "utf8"));
 const STEPS = (args.steps ?? "1,2,5,10,20").split(",").map(Number);
 const SECONDS = Number(args.seconds ?? 120);
 const OUT = args.out ?? "loadtest-results";
-const gyms = kit.gyms.filter((g) => g.desk && g.owner && g.members.length);
+const gyms = kit.gyms.filter((g) => g.desk && g.owner && g.members.length).slice(0, Number(args.gyms ?? Infinity));
 const N = gyms.length;
 
 // ---- what one gym does in its busiest hour (actions per hour), and what each action calls ----
