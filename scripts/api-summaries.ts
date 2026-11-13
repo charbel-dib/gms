@@ -5,7 +5,7 @@
  */
 export const SUMMARIES: Record<string, string | [string, string]> = {
   // system
-  "GET /healthz": ["Health check", "Used by the load balancer: checks the database answers. Returns the deployed version."],
+  "GET /healthz": ["Health check", "Used by the load balancer: answers as long as the server runs, without waiting for the database (add ?db=1 to check it too). Returns the deployed version and the database pool."],
   "GET /api/docs.json": ["This API reference (OpenAPI 3.1)", "Import it into Postman, Insomnia or any OpenAPI tool. Generated from the code at each build."],
 
   // platform admin

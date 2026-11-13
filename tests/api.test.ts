@@ -364,6 +364,7 @@ test("security: cross-site POST is blocked; JSON is required; unknown routes 404
   assert.equal((await owner.get("/api/nope")).status, 404);
   const h = await owner.get("/healthz");
   assert.equal(h.data.ok, true);
+  assert.equal((await owner.get("/healthz?db=1")).data.ok, true);
 });
 
 test("GMS plans: Starter cannot switch on Pro features; upgrading turns them on", async () => {
