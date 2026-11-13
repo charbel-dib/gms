@@ -33,9 +33,11 @@ async function setState(patch: Record<string, unknown>) {
     [JSON.stringify({ ...patch, updatedAt: new Date().toISOString() })],
   );
 }
+// a run moves forward at least every few seconds per gym; one that has not moved for 3 minutes died with its server
+const stalled = (s: any) => (s.phase === "seeding" || s.phase === "deleting") && Date.now() - Date.parse(s.updatedAt ?? 0) >= 3 * 60_000;
 async function busy() {
   const s = await getState();
-  return (s.phase === "seeding" || s.phase === "deleting") && Date.now() - Date.parse(s.updatedAt ?? 0) < 3 * 60_000;
+  return (s.phase === "seeding" || s.phase === "deleting") && !stalled(s);
 }
 
 async function seed(gyms: number, members: number, days: number) {
@@ -70,12 +72,13 @@ async function seed(gyms: number, members: number, days: number) {
 }
 
 async function removeAll() {
+  const started = Date.now();
   const rows = await many(db, "SELECT id FROM gyms WHERE slug LIKE $1 AND is_demo", [`${PREFIX}%`]);
-  await setState({ phase: "deleting", done: 0, total: rows.length, error: null });
+  await setState({ phase: "deleting", done: 0, total: rows.length, error: null, startedAt: new Date().toISOString(), seconds: 0 });
   try {
     for (let i = 0; i < rows.length; i++) {
       await db.query("DELETE FROM gyms WHERE id = $1", [rows[i].id]);
-      await setState({ done: i + 1 });
+      await setState({ done: i + 1, seconds: Math.round((Date.now() - started) / 1000) });
     }
     await db.query("DELETE FROM platform_settings WHERE key = 'loadtest'");
   } catch (e) {
@@ -177,6 +180,7 @@ export function registerLoadtest(r: Router) {
                                      (SELECT count(*) FROM gyms WHERE slug LIKE 'load-%')::int AS load_gyms`);
     const mem = process.memoryUsage();
     const { monitorKeyHash, monitorKeyUntil, ...progress } = state;
+    if (stalled(state)) Object.assign(progress, { phase: "stopped", stoppedWhile: state.phase });
     return {
       task: `${os.hostname()}:${process.pid}`,
       uptimeSec: Math.round(process.uptime()),

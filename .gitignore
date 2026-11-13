@@ -16,3 +16,4 @@ infra/terraform/*.tfplan
 scripts/loadtest/members.json
 loadtest-results/
 gms-loadtest-kit*.json
+loadtest-run.log

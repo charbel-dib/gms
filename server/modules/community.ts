@@ -133,14 +133,21 @@ export async function refreshProgress(q: Queryable, gymId: string, memberId: str
 const shortName = (first: string, last: string) => `${first}${last ? ` ${last.trim()[0]?.toUpperCase() ?? ""}.` : ""}`;
 
 export async function leaderboard(q: Queryable, c: any, opts: { memberId?: string; full?: boolean; limit?: number } = {}) {
-  const metric = c.metric === "classes"
-    ? `(SELECT count(*) FROM bookings b JOIN class_sessions s ON s.id = b.session_id WHERE b.member_id = m.id AND b.status = 'attended' AND (s.starts_at AT TIME ZONE g.timezone)::date BETWEEN $2 AND $3)`
-    : `(SELECT count(DISTINCT (ck.at AT TIME ZONE g.timezone)::date) FROM checkins ck WHERE ck.member_id = m.id AND ck.result = 'ok' AND (ck.at AT TIME ZONE g.timezone)::date BETWEEN $2 AND $3)`;
+  // one grouped pass over the gym's check-ins (or class bookings) of the period, not one count per member;
+  // the padded bounds let the (gym, time) index do the work, the local-date test is exact
+  const scores = c.metric === "classes"
+    ? `SELECT b.member_id, count(*) AS score FROM bookings b JOIN class_sessions s ON s.id = b.session_id, g
+        WHERE s.gym_id = $1 AND b.status = 'attended' AND s.starts_at >= $2::date - 1 AND s.starts_at < $3::date + 2
+          AND (s.starts_at AT TIME ZONE g.timezone)::date BETWEEN $2 AND $3 GROUP BY 1`
+    : `SELECT ck.member_id, count(DISTINCT (ck.at AT TIME ZONE g.timezone)::date) AS score FROM checkins ck, g
+        WHERE ck.gym_id = $1 AND ck.result = 'ok' AND ck.at >= $2::date - 1 AND ck.at < $3::date + 2
+          AND (ck.at AT TIME ZONE g.timezone)::date BETWEEN $2 AND $3 GROUP BY 1`;
   const rows = await many(q, `
-    SELECT * FROM (
-      SELECT m.id, m.first_name, m.last_name, coalesce((m.app_prefs->>'hideOnLeaderboard')::boolean, false) AS hidden, ${metric}::int AS score
-        FROM members m JOIN gyms g ON g.id = m.gym_id WHERE m.gym_id = $1 AND m.archived_at IS NULL) x
-     WHERE score > 0 ORDER BY score DESC, first_name`, [c.gym_id, c.starts_on, c.ends_on]);
+    WITH g AS (SELECT timezone FROM gyms WHERE id = $1), sc AS (${scores})
+    SELECT m.id, m.first_name, m.last_name, coalesce((m.app_prefs->>'hideOnLeaderboard')::boolean, false) AS hidden, sc.score::int AS score
+      FROM sc JOIN members m ON m.id = sc.member_id
+     WHERE m.gym_id = $1 AND m.archived_at IS NULL AND sc.score > 0
+     ORDER BY sc.score DESC, m.first_name`, [c.gym_id, c.starts_on, c.ends_on]);
   // ties share a rank (1, 2, 2, 4)
   let rank = 0, prevScore = -1;
   const ranked = rows.map((r, i) => {

@@ -209,13 +209,25 @@ async function bootstrap() {
 }
 
 export async function start() {
-  await bootstrap();
-  const server = http.createServer((req, res) => void handle(req, res));
+  // Listen before the migrations run: a long migration on a big database would otherwise fail the
+  // health checks, and AWS would stop the server and start another one that runs the same migration again.
+  // Until they are done, /healthz says the server is alive and every other request gets "starting".
+  let ready = false;
+  const server = http.createServer((req, res) => {
+    if (ready) return void handle(req, res);
+    const live = (req.url ?? "").split("?")[0] === "/healthz";
+    res.writeHead(live ? 200 : 503, { "content-type": "application/json", "cache-control": "no-store", ...(live ? {} : { "retry-after": "5" }) });
+    res.end(JSON.stringify(live ? { ok: true, starting: true } : { error: "starting", message: "The server is updating. Try again in a few seconds." }));
+  });
   server.keepAliveTimeout = 65_000; // above the AWS ALB idle timeout (60s)
   server.headersTimeout = 66_000;
   server.requestTimeout = 60_000;
   await new Promise<void>((resolve) => server.listen(config.port, resolve));
-  console.log(`[gms] listening on :${config.port} (${config.isProd ? "production" : "development"})`);
+  console.log(`[gms] listening on :${config.port} (${config.isProd ? "production" : "development"}), updating the database`);
+  const t = Date.now();
+  await bootstrap();
+  ready = true;
+  console.log(`[gms] ready (database updated in ${Math.round((Date.now() - t) / 1000)} s)`);
   if (config.jobsEnabled) startJobs();
   const shutdown = (sig: string) => {
     console.log(`[gms] ${sig}: shutting down`);

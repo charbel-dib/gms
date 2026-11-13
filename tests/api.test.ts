@@ -1315,3 +1315,34 @@ test("telegram: the operator connects the bot; members and owners connect with a
     fake.close();
   }
 });
+
+// Runs last: after every payment, sale, membership, coaching package and check-in made above,
+// the balance and last visit kept on each member row must equal a full recount.
+test("stored member balances and last visits match a full recount", async () => {
+  const r = await ctx.db.query(`
+    SELECT count(*)::int AS n,
+           count(*) FILTER (WHERE m.stat_balance_usd <> round(
+               coalesce((SELECT sum(price_usd) FROM memberships WHERE member_id = m.id AND status = 'active'), 0)
+             + coalesce((SELECT sum(price_usd) FROM pt_packages WHERE member_id = m.id), 0)
+             + coalesce((SELECT sum(total_usd) FROM sales WHERE member_id = m.id AND status <> 'void'), 0)
+             - coalesce((SELECT sum(amount_usd) FROM payments WHERE member_id = m.id AND voided_at IS NULL), 0), 2))::int AS bad_balance,
+           count(*) FILTER (WHERE m.stat_last_checkin IS DISTINCT FROM
+             (SELECT max(at) FROM checkins c WHERE c.member_id = m.id AND c.result = 'ok'))::int AS bad_visit
+      FROM members m`);
+  const row = r.rows[0];
+  assert.ok(row.n > 10, "the earlier tests created members");
+  assert.equal(row.bad_balance, 0);
+  assert.equal(row.bad_visit, 0);
+});
+
+// Without an index on a foreign key column, deleting the row it points to reads the whole table, once per
+// deleted row (deleting a test gym on the production database ran for hours before migration 009).
+test("every foreign key column has an index", async () => {
+  const r = await ctx.db.query(`
+    SELECT c.conrelid::regclass::text || '.' || a.attname AS col
+      FROM pg_constraint c
+      JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+     WHERE c.contype = 'f'
+       AND NOT EXISTS (SELECT 1 FROM pg_index i WHERE i.indrelid = c.conrelid AND i.indkey[0] = c.conkey[1])`);
+  assert.deepEqual(r.rows.map((x: any) => x.col), []);
+});

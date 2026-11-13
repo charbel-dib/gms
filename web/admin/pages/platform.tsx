@@ -377,6 +377,7 @@ function LoadTest() {
         <p className="ink-2" style={{ fontSize: "0.92rem" }}>Creates fake gyms named load-01, load-02… with members and months of history, so you can see how the server holds up under the traffic of many gyms. They are hidden from your gym list and from revenue. Delete them when you are done.</p>
         {running && <p><b>{phase === "seeding" ? "Creating test gyms" : "Deleting test gyms"}: {p.done ?? 0} of {p.total ?? "?"}</b>{p.seconds ? ` (${Math.round(p.seconds / 60)} min so far)` : ""}</p>}
         {phase === "failed" && <p style={{ color: "var(--plate-red)" }}>Stopped with an error: {p.error}. Start again: gyms already made are kept.</p>}
+        {phase === "stopped" && <p style={{ color: "var(--plate-red)" }}>{p.stoppedWhile === "seeding" ? "Creating" : "Deleting"} test gyms stopped at {p.done ?? 0} of {p.total ?? "?"}, probably because the server restarted. Start it again: what is done is kept.</p>}
         {st && <p className="muted" style={{ fontSize: "0.85rem" }}>Server now: task {st.task}, {st.rssMb} MB memory, CPU {st.cpuPct}%, database pool {st.pool.open}/{st.pool.max} open, {st.pool.waiting} waiting, {st.db.connections} database connections.</p>}
         <div className="row" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end" }}>
           <Field label="Gyms"><input type="number" min={1} max={60} value={form.gyms} onChange={(e) => setForm({ ...form, gyms: Number(e.target.value) })} style={{ width: 90 }} /></Field>

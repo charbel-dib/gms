@@ -19,14 +19,14 @@ export async function dashboard(gymId: string) {
         (SELECT count(*) FROM mo WHERE status = 'expired' AND days_left >= -30)::int AS expired_30d,
         (SELECT count(*) FROM mo WHERE churn_score >= 0.6 AND status IN ('active','expiring'))::int AS at_risk,
         (SELECT coalesce(sum(balance_usd), 0) FROM mo WHERE balance_usd > 0) AS outstanding_usd,
-        (SELECT count(*) FROM checkins c, g WHERE c.gym_id = $1 AND c.result = 'ok' AND (c.at AT TIME ZONE g.timezone)::date = g.today)::int AS checkins_today,
+        (SELECT count(*) FROM checkins c, g WHERE c.gym_id = $1 AND c.result = 'ok' AND c.at > now() - interval '2 days' AND (c.at AT TIME ZONE g.timezone)::date = g.today)::int AS checkins_today,
         (SELECT round(count(*) / 30.0, 1) FROM checkins c WHERE c.gym_id = $1 AND c.result = 'ok' AND c.at > now() - interval '30 days') AS checkins_avg_30d,
-        (SELECT coalesce(sum(amount_usd), 0) FROM payments p, g WHERE p.gym_id = $1 AND p.voided_at IS NULL
+        (SELECT coalesce(sum(amount_usd), 0) FROM payments p, g WHERE p.gym_id = $1 AND p.voided_at IS NULL AND p.paid_at > now() - interval '33 days'
            AND date_trunc('month', p.paid_at AT TIME ZONE g.timezone) = date_trunc('month', g.today::timestamp)) AS revenue_month,
-        (SELECT coalesce(sum(amount_usd), 0) FROM payments p, g WHERE p.gym_id = $1 AND p.voided_at IS NULL
+        (SELECT coalesce(sum(amount_usd), 0) FROM payments p, g WHERE p.gym_id = $1 AND p.voided_at IS NULL AND p.paid_at > now() - interval '64 days'
            AND (p.paid_at AT TIME ZONE g.timezone)::date BETWEEN (date_trunc('month', g.today::timestamp) - interval '1 month')::date
                                                      AND (g.today - interval '1 month')::date) AS revenue_last_month_same_period,
-        (SELECT coalesce(sum(amount_usd), 0) FROM payments p, g WHERE p.gym_id = $1 AND p.voided_at IS NULL
+        (SELECT coalesce(sum(amount_usd), 0) FROM payments p, g WHERE p.gym_id = $1 AND p.voided_at IS NULL AND p.paid_at > now() - interval '2 days'
            AND (p.paid_at AT TIME ZONE g.timezone)::date = g.today) AS revenue_today,
         (SELECT coalesce(round(sum(ms.price_usd * 30.0 / greatest(ms.end_date - ms.start_date + 1, 30)), 2), 0)
            FROM memberships ms, g WHERE ms.gym_id = $1 AND ms.status = 'active' AND g.today BETWEEN ms.start_date AND ms.end_date) AS mrr,
@@ -39,11 +39,14 @@ export async function dashboard(gymId: string) {
     `, [gymId]),
     many(q, `
       WITH g AS (SELECT timezone, (now() AT TIME ZONE timezone)::date AS today FROM gyms WHERE id = $1)
-      SELECT to_char(m, 'YYYY-MM') AS month,
-             coalesce((SELECT sum(amount_usd) FROM payments p WHERE p.gym_id = $1 AND p.voided_at IS NULL AND date_trunc('month', p.paid_at AT TIME ZONE g.timezone) = m), 0) AS revenue,
-             coalesce((SELECT sum(amount_usd) FROM expenses e WHERE e.gym_id = $1 AND date_trunc('month', e.spent_on::timestamp) = m), 0) AS expenses
-        FROM g, generate_series(date_trunc('month', g.today::timestamp) - interval '11 months', date_trunc('month', g.today::timestamp), interval '1 month') m
-       ORDER BY m`, [gymId]),
+      , months AS (SELECT m FROM g, generate_series(date_trunc('month', g.today::timestamp) - interval '11 months', date_trunc('month', g.today::timestamp), interval '1 month') m)
+      , rev AS (SELECT date_trunc('month', p.paid_at AT TIME ZONE g.timezone) AS m, sum(amount_usd) AS usd FROM payments p, g
+                 WHERE p.gym_id = $1 AND p.voided_at IS NULL AND p.paid_at > now() - interval '13 months' GROUP BY 1)
+      , exp AS (SELECT date_trunc('month', e.spent_on::timestamp) AS m, sum(amount_usd) AS usd FROM expenses e
+                 WHERE e.gym_id = $1 AND e.spent_on > current_date - 400 GROUP BY 1)
+      SELECT to_char(months.m, 'YYYY-MM') AS month, coalesce(rev.usd, 0) AS revenue, coalesce(exp.usd, 0) AS expenses
+        FROM months LEFT JOIN rev ON rev.m = months.m LEFT JOIN exp ON exp.m = months.m
+       ORDER BY months.m`, [gymId]),
     many(q, `
       SELECT extract(dow FROM c.at AT TIME ZONE g.timezone)::int AS dow, extract(hour FROM c.at AT TIME ZONE g.timezone)::int AS hour, count(*)::int AS n
         FROM checkins c JOIN gyms g ON g.id = c.gym_id
@@ -51,9 +54,11 @@ export async function dashboard(gymId: string) {
        GROUP BY 1, 2`, [gymId]),
     many(q, `
       WITH g AS (SELECT timezone, (now() AT TIME ZONE timezone)::date AS today FROM gyms WHERE id = $1)
-      SELECT d::date::text AS day,
-             (SELECT count(*) FROM checkins c WHERE c.gym_id = $1 AND c.result = 'ok' AND (c.at AT TIME ZONE g.timezone)::date = d::date)::int AS checkins
-        FROM g, generate_series(g.today - 29, g.today, interval '1 day') d ORDER BY d`, [gymId]),
+      , per_day AS (SELECT (c.at AT TIME ZONE g.timezone)::date AS local_day, count(*)::int AS n FROM checkins c, g
+                     WHERE c.gym_id = $1 AND c.result = 'ok' AND c.at > now() - interval '32 days' GROUP BY 1)
+      SELECT s.d::date::text AS day, coalesce(per_day.n, 0) AS checkins
+        FROM g CROSS JOIN generate_series(g.today - 29, g.today, interval '1 day') AS s(d) LEFT JOIN per_day ON per_day.local_day = s.d::date
+       ORDER BY s.d`, [gymId]),
     many(q, `SELECT id, code, first_name, last_name, phone, plan_name, end_date, days_left, balance_usd FROM member_overview
               WHERE gym_id = $1 AND archived_at IS NULL AND status = 'expiring' ORDER BY end_date LIMIT 12`, [gymId]),
     many(q, `SELECT m.id, m.first_name, m.last_name, m.phone FROM members m JOIN gyms g ON g.id = m.gym_id
@@ -66,10 +71,12 @@ export async function dashboard(gymId: string) {
               ORDER BY s.starts_at`, [gymId]),
     many(q, `
       WITH g AS (SELECT timezone, (now() AT TIME ZONE timezone)::date AS today FROM gyms WHERE id = $1)
-      SELECT to_char(m, 'YYYY-MM') AS month,
-             (SELECT count(*) FROM members x WHERE x.gym_id = $1 AND date_trunc('month', x.created_at AT TIME ZONE g.timezone) = m)::int AS new_members
-        FROM g, generate_series(date_trunc('month', g.today::timestamp) - interval '5 months', date_trunc('month', g.today::timestamp), interval '1 month') m
-       ORDER BY m`, [gymId]),
+      , joined AS (SELECT date_trunc('month', x.created_at AT TIME ZONE g.timezone) AS m, count(*)::int AS n FROM members x, g
+                    WHERE x.gym_id = $1 AND x.created_at > now() - interval '7 months' GROUP BY 1)
+      SELECT to_char(s.m, 'YYYY-MM') AS month, coalesce(joined.n, 0) AS new_members
+        FROM g CROSS JOIN generate_series(date_trunc('month', g.today::timestamp) - interval '5 months', date_trunc('month', g.today::timestamp), interval '1 month') AS s(m)
+        LEFT JOIN joined ON joined.m = s.m
+       ORDER BY s.m`, [gymId]),
   ]);
   const [lowStockList, shopToday] = await Promise.all([
     lowStock(db, gymId),
