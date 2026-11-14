@@ -1317,6 +1317,48 @@ test("telegram: the operator connects the bot; members and owners connect with a
   }
 });
 
+test("a demo gym is ready to show: product pictures, offers, the app's inbox and a member to log in as", async () => {
+  const created = await admin.ok("POST", "/api/admin/gyms", { name: "Show Gym", slug: "show-gym", template: "classic", owner_name: "Show Owner", owner_email: "owner@show-gym.test", saas_plan: "elite", level: "full", demo_data: true });
+  const g = (await admin.ok("GET", "/api/admin/gyms")).rows.find((x: any) => x.slug === "show-gym");
+  assert.ok(g.demo?.phone, "the member to log in as is on the Platform page");
+  assert.equal(g.demo.pin, "1234");
+  const own = new Client(ctx.base);
+  await signIn(own, "owner@show-gym.test", created.temporaryPassword);
+  const products = await own.ok("GET", "/api/shop/products");
+  assert.ok(products.length >= 10 && products.every((p: any) => p.has_image), "every product has a picture");
+  const img = await fetch(`${ctx.base}/api/public/products/${products[0].id}/image`);
+  assert.equal(img.headers.get("content-type"), "image/svg+xml");
+  assert.match(await img.text(), /^<svg/);
+  const offers = await own.ok("GET", "/api/offers");
+  assert.ok(offers.length >= 3 && offers.every((o: any) => o.has_image));
+
+  // the member app, as the demo member
+  const m = new Client(ctx.base);
+  await m.ok("POST", "/api/m/show-gym/login", { phone: g.demo.phone, pin: "1234" });
+  const home = await m.ok("GET", "/api/m/home");
+  assert.ok(home.offers.length >= 3);
+  assert.equal(home.requests[0]?.status, "ready", "an order waits at reception");
+  assert.ok(home.next.class, "a class is booked");
+  const inbox = await m.ok("GET", "/api/m/notifications");
+  assert.ok(inbox.rows.length >= 4 && inbox.unread >= 1, "the owner's recent announcements are in the inbox");
+
+  // the owner sends an app notification: it lands in every app inbox, even without phone notifications
+  const pre = await own.ok("POST", "/api/messages/broadcast", { segment: "active", channel: "push", title: "Ramadan hours", body: "Hi {name}, we open 10:00 to 2:00 at night.", preview: true });
+  assert.ok(pre.push > 10);
+  const sent = await own.ok("POST", "/api/messages/broadcast", { segment: "active", channel: "push", title: "Ramadan hours", body: "Hi {name}, we open 10:00 to 2:00 at night." });
+  assert.equal(sent.pushed, pre.push);
+  const after = await m.ok("GET", "/api/m/notifications");
+  assert.equal(after.rows[0].title, "Ramadan hours");
+
+  // running it again adds nothing twice
+  const n1 = (await ctx.db.query("SELECT count(*)::int AS n FROM notifications WHERE gym_id = $1", [created.gymId])).rows[0].n;
+  const again = await admin.ok("POST", `/api/admin/gyms/${created.gymId}/demo-data`);
+  assert.equal(again.refreshed, true);
+  assert.equal(again.demo.phone, g.demo.phone);
+  const n2 = (await ctx.db.query("SELECT count(*)::int AS n FROM notifications WHERE gym_id = $1", [created.gymId])).rows[0].n;
+  assert.equal(n2, n1);
+});
+
 // Runs last: after every payment, sale, membership, coaching package and check-in made above,
 // the balance and last visit kept on each member row must equal a full recount.
 test("stored member balances and last visits match a full recount", async () => {

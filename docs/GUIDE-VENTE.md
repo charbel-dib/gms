@@ -1,6 +1,6 @@
 # GMS — guide de vente : tout ce que fait le système, et comment le présenter
 
-Version du 12 novembre 2026. À relire avant chaque démo. Tout ce qui est écrit ici existe dans le produit, sauf la section « Ce qui n'existe pas encore ».
+Version du 14 novembre 2026. À relire avant chaque démo. Tout ce qui est écrit ici existe dans le produit, sauf la section « Ce qui n'existe pas encore ».
 
 ## 1. GMS en trente secondes
 
@@ -84,7 +84,9 @@ Une salle peut changer de formule n'importe quel mois, sans rien perdre.
 |---|---|---|
 | Halba Gym (Essential) | owner@demo-halba.gms / demo12345 | Une petite salle de musculation, six entrées de menu |
 | Cedar Fitness (Studio) | owner@demo.gms / demo12345 | Cours, coaching, application membre |
-| Application membre | /m/demo, téléphone +9613972985, PIN 1234 | Ce que voit un membre |
+| Application membre | /m/demo ; le téléphone et le PIN (1234) sont écrits sous chaque salle de démo, page Plateforme | Ce que voit un membre : sa carte, ses cours, sa commande prête, la boutique avec photos, les offres, ses messages |
+
+Chaque salle de démo a une boutique de 14 produits avec leur image (le shaker et la serviette portent le nom et la couleur de la salle), trois offres illustrées, un défi du mois, et les dernières annonces du gérant dans l'application. Une nouvelle salle de démo (case « demo data » à la création) est remplie toute seule. Pour une salle de démo plus ancienne, clique sur **Fill demo** sur sa ligne : il ajoute seulement ce qui manque.
 
 ## 6. La démo en dix minutes
 
@@ -94,7 +96,12 @@ Une salle peut changer de formule n'importe quel mois, sans rien perdre.
 4. **Paiement** : encaisse un renouvellement en livres, montre le reçu.
 5. **Arabe** : bascule la langue.
 6. Si la salle a des cours : ouvre Cedar Fitness, le planning, puis l'application membre.
-7. Termine par : « On importe tes membres cette semaine et tu l'essaies un mois gratuitement. »
+7. **L'application membre, sur un deuxième téléphone** (ou le téléphone du gérant) : ouvre /m/demo et connecte-toi avec le téléphone et le PIN de la page Plateforme. Montre la carte d'entrée, « Ta commande est prête », les offres, la boutique.
+8. **Le gérant change quelque chose, le membre le voit.** Sur le premier téléphone, en tant que gérant :
+   - Member app → Offers → **New offer**, par exemple « -10 % sur la créatine ce week-end », et coche « Also send a notification to members with the app » ;
+   - ou Messages → Message a group → App notification, à « Active members ».
+   Sur le deuxième téléphone, rafraîchis : l'offre est en haut de l'accueil, le message est dans la cloche. Ceux qui ont activé les notifications le reçoivent aussi sur leur téléphone.
+9. Termine par : « On importe tes membres cette semaine et tu l'essaies un mois gratuitement. »
 
 Ne montre pas tout. Trois écrans bien compris valent mieux que douze survolés.
 

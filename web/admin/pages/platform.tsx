@@ -185,7 +185,8 @@ export function PlatformPage() {
               <thead><tr><th>Gym</th><th>Status</th><th>Plan</th><th>Set up</th><th>Active members</th><th>Check-ins, 7 days</th><th>Last sign-in</th><th /></tr></thead>
               <tbody>{d.rows.map((g: any) => (
                 <tr key={g.id}>
-                  <td><span className="who"><b>{g.name}{g.is_demo && <span className="tag" style={{ marginInlineStart: 6 }}>demo</span>}</b><small>/{g.slug} · {g.city ?? ""} · {g.owner_email}</small></span></td>
+                  <td><span className="who"><b>{g.name}{g.is_demo && <span className="tag" style={{ marginInlineStart: 6 }}>demo</span>}</b><small>/{g.slug} · {g.city ?? ""} · {g.owner_email}</small>
+                    {g.demo?.phone && <small>Member app: <a href={`/m/${g.slug}`} target="_blank" rel="noreferrer">/m/{g.slug}</a>, phone <b>{g.demo.phone}</b>, PIN <b>{g.demo.pin}</b> ({g.demo.name})</small>}</span></td>
                   <td><span className="status"><span className="plate" data-s={STATUS_PLATE[g.saas_status]} />{g.saas_status.replace("_", " ")}</span>{g.saas_status === "trial" && g.trial_ends_at && <small className="muted"> until {fmtDate(g.trial_ends_at)}</small>}</td>
                   <td><span>{PLAN_NAMES[g.saas_plan as keyof typeof PLAN_NAMES] ?? g.saas_plan}</span>, {money(g.saas_price_usd)}{(g.level ?? "full") !== PLAN_LEVEL[g.saas_plan] && <><br /><small className="muted">runs the {LEVEL_NAMES[g.level ?? "full"] ?? g.level} level</small></>}</td>
                   <td>{(() => { const v = Object.values(g.setup ?? {}); const done = v.filter(Boolean).length; return done === v.length ? <span className="muted">done</span> : <b>{done} of {v.length}</b>; })()}</td>
@@ -193,6 +194,10 @@ export function PlatformPage() {
                   <td className="r">
                     <button className="btn small" onClick={() => setEdit({ ...g })}>Billing</button>{" "}
                     <button className="btn small" onClick={() => setWa({ id: g.id, name: g.name, phoneNumberId: g.wa_phone_number_id ?? "", businessNumber: g.wa_business_number ?? "", hasToken: g.wa_has_token, token: "" })}><Icon name="whatsapp" />{g.wa_phone_number_id ? "Connected" : "WhatsApp"}</button>{" "}
+                    {g.is_demo && <><button className="btn small" disabled={busy} title="Adds the shop, offers, pictures, app notifications and the member to log in as, where they are missing" onClick={async () => {
+                      const r = await run(() => post(`/api/admin/gyms/${g.id}/demo-data`));
+                      if (r) { toast(r.demo ? `Demo ready. Member app: phone ${r.demo.phone}, PIN ${r.demo.pin}` : "Demo data added"); state.reload(); }
+                    }}>Fill demo</button>{" "}</>}
                     <button className="btn small" onClick={() => setArchiving({ ...g, reason: "", other: "" })}>Archive</button>{" "}
                     <button className="btn small dark" onClick={() => { setGymOverride(g.id); location.href = "/"; }}>Open</button>
                   </td>

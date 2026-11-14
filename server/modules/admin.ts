@@ -6,7 +6,7 @@ import { config } from "../config.ts";
 import { HttpError, bad, notFound, zDate, zId, zPhone, type Router } from "../http.ts";
 import { provisionGym } from "../services/provision.ts";
 import { TEMPLATES } from "../templates.ts";
-import { seedDemoActivity } from "../services/demo.ts";
+import { refreshDemo, seedDemoActivity } from "../services/demo.ts";
 import { clampModules, PLAN_PRICES, type SaasPlan } from "../services/plans.ts";
 import { getTemplate, levelModules } from "../templates.ts";
 import { setupSql } from "../services/setup.ts";
@@ -66,7 +66,8 @@ export function registerAdmin(r: Router) {
              (SELECT u.email FROM users u WHERE u.gym_id = g.id AND u.role = 'owner' ORDER BY created_at LIMIT 1) AS owner_email,
              (SELECT u.phone FROM users u WHERE u.gym_id = g.id AND u.role = 'owner' ORDER BY created_at LIMIT 1) AS owner_phone,
              (SELECT max(c.at) FROM checkins c WHERE c.gym_id = g.id) AS last_checkin,
-             g.settings->>'level' AS level, ${setupSql("g")} AS setup, g.archived_at, g.archived_reason
+             g.settings->>'level' AS level, ${setupSql("g")} AS setup, g.archived_at, g.archived_reason,
+             CASE WHEN g.is_demo THEN g.settings->'demo' END AS demo
         FROM gyms g WHERE (g.archived_at IS NOT NULL) = $1 AND NOT (g.is_demo AND g.slug LIKE 'load-%')
        ORDER BY ${archived ? "g.archived_at" : "g.created_at"} DESC`, [archived]);
     const archivedCount = Number((await one(db, "SELECT count(*) AS n FROM gyms WHERE archived_at IS NOT NULL AND NOT (is_demo AND slug LIKE 'load-%')"))?.n ?? 0);
@@ -205,7 +206,10 @@ export function registerAdmin(r: Router) {
     // fake members and payments would mix with a real gym's records
     if (!g.is_demo) throw bad("not_a_demo_gym", "Demo data can only be added to a gym created as a demo");
     await audit(db, id, su.id, "gym.demo_data", "gym", id);
-    return seedDemoActivity(id, { members: 120, days: 180 });
+    // a demo gym that already has members gets what it lacks (pictures, offers, notifications, the member to log in as)
+    if (await one(db, "SELECT 1 FROM members WHERE gym_id = $1 LIMIT 1", [id])) return { refreshed: true, demo: await refreshDemo(id) };
+    const stats = await seedDemoActivity(id, { members: 120, days: 180 });
+    return { ...stats, demo: (await one(db, "SELECT settings->'demo' AS d FROM gyms WHERE id = $1", [id]))?.d ?? null };
   });
 
   /**

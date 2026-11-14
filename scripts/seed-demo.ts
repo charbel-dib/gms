@@ -6,7 +6,7 @@
  *   Cedar Fitness (demo) : owner@demo.gms / demo12345 · reception@demo.gms / demo12345
  *   Summit Box (demo)    : owner@demo-box.gms / demo12345   (level: studio)
  *   Halba Gym (demo)     : owner@demo-halba.gms / demo12345 (level: essential — the small-gym demo)
- *   Member app           : /m/demo  phone and PIN printed at the end
+ *   Member apps          : /m/<slug>, phone and PIN printed at the end and shown on the Platform page
  */
 import { db, one } from "../server/db/index.ts";
 import { migrate } from "../server/db/migrate.ts";
@@ -39,7 +39,7 @@ async function makeGym(slug: string, name: string, nameAr: string, template: str
   return gymId;
 }
 
-const pulse = await makeGym("demo", "Cedar Fitness (demo)", "سيدر فيتنس", "classic", "#E4572E", "Jounieh", {
+await makeGym("demo", "Cedar Fitness (demo)", "سيدر فيتنس", "classic", "#E4572E", "Jounieh", {
   address: "Main road, Kaslik, Jounieh", instagram: "@gms.demo", tagline: "Train hard. Stay consistent.",
   settings: { ladiesHours: [{ day: 1, from: "10:00", to: "12:00" }, { day: 3, from: "10:00", to: "12:00" }, { day: 5, from: "10:00", to: "12:00" }] },
 }, 260);
@@ -47,10 +47,9 @@ await makeGym("demo-box", "Summit Box (demo)", "سوميت بوكس", "crossfit"
 // a small weights gym on the simplest level: what most gyms outside Beirut look like
 await makeGym("demo-halba", "Halba Gym (demo)", "نادي حلبا", "classic", "#0F5E8C", "Halba", { address: "Main street, Halba, Akkar", instagram: "@gms.demo", tagline: "Your gym, next door." }, 140, "essential", "starter", 0.45);
 
-// give two demo members app access with a known PIN
-const pin = "1234";
-const demoMembers = (await db.query(`SELECT id, code, first_name, last_name, phone FROM member_overview WHERE gym_id = $1 AND status IN ('active','expiring') AND includes_classes ORDER BY code LIMIT 2`, [pulse])).rows;
-for (const m of demoMembers) await db.query("UPDATE members SET pin_hash = $2 WHERE id = $1", [m.id, await hashPassword(pin)]);
-console.log("\nMember app demo logins (/m/demo):");
-for (const m of demoMembers) console.log(`  #${m.code} ${m.first_name} ${m.last_name}: phone ${m.phone}  PIN ${pin}`);
+// the member to log in as in each demo gym's app (chosen and filled by seedShowcase)
+console.log("\nMember app demo logins (also shown on the Platform page):");
+for (const g of (await db.query(`SELECT slug, settings->'demo' AS d FROM gyms WHERE is_demo AND slug LIKE 'demo%' ORDER BY slug`)).rows) {
+  if (g.d) console.log(`  /m/${g.slug}  ${g.d.name}: phone ${g.d.phone}  PIN ${g.d.pin}`);
+}
 await db.end();

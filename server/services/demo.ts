@@ -8,6 +8,8 @@ import { db, many, one, type Queryable } from "../db/index.ts";
 import { hashPassword } from "../auth.ts";
 import { trainForGym, scoreGym } from "../ai/churn.ts";
 import { ensureSessions } from "../modules/classes.ts";
+import { refreshProgress } from "../modules/community.ts";
+import { productArt, offerArtStarter, offerArtFreeWeek, offerArtBootcamp } from "./demo-art.ts";
 
 const MALE = ["Charbel", "Elie", "Georges", "Joe", "Rami", "Karim", "Hadi", "Ali", "Mohamad", "Hassan", "Rabih", "Tony", "Marc", "Fadi", "Ziad", "Samer", "Omar", "Bilal", "Jad", "Anthony", "Ralph", "Nadim", "Wissam", "Hussein", "Youssef", "Michel", "Peter", "Khalil", "Ghassan", "Tarek"];
 const FEMALE = ["Maria", "Rita", "Nour", "Lea", "Yara", "Christelle", "Rana", "Lara", "Joelle", "Sara", "Mira", "Hiba", "Zeina", "Nadine", "Carla", "Maya", "Rima", "Layal", "Fatima", "Dima", "Jessica", "Tala", "Perla", "Celine", "Reem"];
@@ -204,6 +206,7 @@ export async function seedDemoActivity(gymId: string, opts: { members: number; d
   await seedEngagement(gymId, R);
   const train = await trainForGym(gymId);
   const score = await scoreGym(gymId);
+  await seedShowcase(gymId);
   return { members: memberRows.length, memberships: msRows.length, payments: payRows.length, checkins: ckRows.length, bookings: bookingRows.length, model: train, scored: score.scored };
 }
 
@@ -345,4 +348,163 @@ export async function seedEngagement(gymId: string, R: () => number) {
     }
     await q.query(`UPDATE gyms SET settings = jsonb_set(settings, '{engage}', coalesce(settings->'engage', '{}') || '{"referralReward": "1 free week"}'::jsonb) WHERE id = $1`, [gymId]);
   });
+}
+
+// ---------------------------------------------------------------- showcase
+
+const TEXT = {
+  en: {
+    generator: ["Generator maintenance on Thursday", "The gym opens at 7:00 instead of 6:00 on Thursday morning. Sorry for the trouble, see you after!"],
+    offer: ["-12% · Starter pack", "Whey, creatine and the gym shaker for $99 instead of $113. Tap to see it in the shop."],
+    bootcamp: ["Saturday bootcamp is back", "Free outdoor session every Saturday at 9:00, for all members. Bring water and a friend."],
+    challenge: (title: string) => [`${title}: you're close`, "Each visit this month counts. Check your progress in the app."],
+    ready: (product: string) => ["Your order is ready", `${product} is waiting for you at reception.`],
+  },
+  ar: {
+    generator: ["صيانة المولّد يوم الخميس", "يفتح النادي يوم الخميس الساعة 7:00 بدل 6:00 صباحًا. نعتذر عن الإزعاج."],
+    offer: ["-12% · باقة البداية", "واي بروتين وكرياتين وشيكر النادي بـ 99$ بدل 113$. اضغط لرؤيتها في المتجر."],
+    bootcamp: ["عودة تمارين السبت في الهواء الطلق", "حصة مجانية كل سبت الساعة 9:00 لجميع المشتركين. أحضر الماء وصديقًا."],
+    challenge: (title: string) => [`${title}: اقتربت من الهدف`, "كل زيارة هذا الشهر تُحتسب. تابع تقدّمك في التطبيق."],
+    ready: (product: string) => ["طلبك جاهز", `${product} بانتظارك في الاستقبال.`],
+  },
+} as const;
+
+/**
+ * Makes a demo gym look lived-in from the member app's side, so a gym owner understands it in one look:
+ * pictures for every product and offer, the app installed by many members, the owner's recent
+ * announcements in their inbox, and one member (the one to log in as) with bookings, a coaching package,
+ * an order waiting at reception, badges and a challenge in progress.
+ * Safe to run again: it only fills what is missing. The member to log in as is kept in settings.demo.
+ */
+export async function seedShowcase(gymId: string) {
+  const gym = await one(db, `SELECT g.name, g.slug, g.brand_color, g.locale, g.timezone, g.settings, (now() AT TIME ZONE g.timezone)::date::text AS today,
+                                    (SELECT id FROM users u WHERE u.gym_id = g.id AND u.role = 'owner' ORDER BY created_at LIMIT 1) AS owner_id
+                               FROM gyms g WHERE g.id = $1`, [gymId]);
+  if (!gym) return null;
+  const brand = gym.brand_color || "#0F5E8C";
+  const printed = gym.name.replace(/\s*\([^)]*\)\s*$/, ""); // "Cedar Fitness (demo)" is printed "Cedar Fitness"
+  const L = gym.locale === "ar" ? TEXT.ar : TEXT.en;
+  const svg = (s: string) => Buffer.from(s, "utf8");
+
+  // pictures: every product and offer without one
+  for (const p of await many(db, "SELECT id, name FROM products WHERE gym_id = $1 AND image IS NULL", [gymId])) {
+    const art = productArt(p.name, brand, printed);
+    if (art) await db.query("UPDATE products SET image = $2, image_mime = 'image/svg+xml' WHERE id = $1", [p.id, svg(art)]);
+  }
+  for (const o of await many(db, "SELECT id, title, kind FROM offers WHERE gym_id = $1 AND image IS NULL", [gymId])) {
+    const art = /starter/i.test(o.title) ? offerArtStarter(brand, printed) : /free week|renew/i.test(o.title) ? offerArtFreeWeek(brand) : o.kind === "event" ? offerArtBootcamp(brand) : null;
+    if (art) await db.query("UPDATE offers SET image = $2, image_mime = 'image/svg+xml' WHERE id = $1", [o.id, svg(art)]);
+  }
+
+  // the app installed by a bit less than half of the members who come (PIN 1234 for all of them)
+  const pin = await hashPassword("1234");
+  await db.query(`UPDATE members m SET pin_hash = $2 FROM member_overview mo
+                   WHERE mo.id = m.id AND m.gym_id = $1 AND m.pin_hash IS NULL AND mo.status IN ('active','expiring') AND left(md5(m.id::text), 1) < '7'`, [gymId, pin]);
+
+  // the member to log in as: active, with classes and coaching when the gym has them
+  let star = gym.settings?.demo?.memberId
+    ? await one(db, "SELECT id, first_name, last_name, phone, membership_id, includes_classes FROM member_overview WHERE id = $1 AND gym_id = $2 AND status IN ('active','expiring')", [gym.settings.demo.memberId, gymId])
+    : null;
+  if (!star) {
+    star = await one(db, `SELECT mo.id, mo.first_name, mo.last_name, mo.phone, mo.membership_id, mo.includes_classes FROM member_overview mo
+                           WHERE mo.gym_id = $1 AND mo.archived_at IS NULL AND mo.status = 'active' AND mo.phone IS NOT NULL AND mo.days_left >= 12
+                           ORDER BY mo.includes_classes DESC,
+                                    EXISTS (SELECT 1 FROM pt_packages p WHERE p.member_id = mo.id AND p.sessions_used < p.sessions_total - 2) DESC,
+                                    mo.balance_usd <= 0 DESC, mo.code
+                           LIMIT 1`, [gymId]);
+  }
+  if (!star) return null;
+  await db.query("UPDATE members SET pin_hash = $2, whatsapp_opt_in = true WHERE id = $1", [star.id, pin]);
+  await db.query(`UPDATE gyms SET settings = jsonb_set(settings, '{demo}', $2::jsonb) WHERE id = $1`,
+    [gymId, JSON.stringify({ memberId: star.id, name: `${star.first_name} ${star.last_name}`, phone: star.phone, pin: "1234" })]);
+
+  await db.tx(async (q) => {
+    // visits on most days so far this month, so the monthly challenge is well under way
+    const day = Number(gym.today.slice(8, 10));
+    const want = Math.min(9, day - 1);
+    const have = await many(q, `SELECT DISTINCT (c.at AT TIME ZONE $3)::date::text AS d FROM checkins c
+                                 WHERE c.member_id = $1 AND c.result = 'ok' AND (c.at AT TIME ZONE $3)::date >= date_trunc('month', $2::date)`, [star.id, gym.today, gym.timezone]);
+    const seen = new Set(have.map((x) => x.d));
+    let added = 0;
+    for (let k = 1; k < day && seen.size + added < want; k++) {
+      const d = new Date(Date.parse(gym.today + "T00:00:00Z") - k * 86400000).toISOString().slice(0, 10);
+      if (seen.has(d) || k % 4 === 3) continue; // a rest day now and then
+      await q.query(`INSERT INTO checkins (gym_id, member_id, membership_id, at, method, result)
+                     VALUES ($1, $2, $3, (($4::date + time '18:00') + make_interval(mins => $5)) AT TIME ZONE $6, 'qr', 'ok')`,
+        [gymId, star.id, star.membership_id, d, (k * 17) % 50, gym.timezone]);
+      added++;
+    }
+    // two classes booked in the coming days
+    if (star.includes_classes) {
+      await q.query(`INSERT INTO bookings (gym_id, session_id, member_id, status)
+                     SELECT $1, s.id, $2, 'booked' FROM class_sessions s
+                      WHERE s.gym_id = $1 AND NOT s.cancelled AND s.starts_at > now() + interval '3 hours' AND s.starts_at < now() + interval '5 days'
+                        AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.member_id = $2 AND b.status = 'booked' AND b.session_id IN (SELECT id FROM class_sessions WHERE starts_at > now()))
+                      ORDER BY s.starts_at LIMIT 2
+                     ON CONFLICT DO NOTHING`, [gymId, star.id]);
+    }
+    // the next coaching session, when they have a package with sessions left
+    const pkg = await one(q, "SELECT id, coach_id FROM pt_packages WHERE member_id = $1 AND coach_id IS NOT NULL AND sessions_used < sessions_total ORDER BY created_at DESC LIMIT 1", [star.id]);
+    if (pkg && !(await one(q, "SELECT 1 FROM pt_sessions WHERE member_id = $1 AND status = 'scheduled' AND starts_at > now()", [star.id]))) {
+      await q.query(`INSERT INTO pt_sessions (gym_id, package_id, member_id, coach_id, starts_at, duration_min)
+                     VALUES ($1, $2, $3, $4, (($5::date + 2) + time '17:00') AT TIME ZONE $6, 60)`, [gymId, pkg.id, star.id, pkg.coach_id, gym.today, gym.timezone]);
+    }
+    // an order from the app, ready at reception
+    const whey = await one(q, "SELECT id, name FROM products WHERE gym_id = $1 AND name LIKE 'Whey protein 2 kg — chocolate'", [gymId]);
+    if (whey && !(await one(q, "SELECT 1 FROM product_requests WHERE member_id = $1 AND status IN ('pending','ready')", [star.id]))) {
+      await q.query("INSERT INTO product_requests (gym_id, member_id, product_id, qty, status, created_at, updated_at) VALUES ($1,$2,$3,1,'ready', now() - interval '20 hours', now() - interval '2 hours')", [gymId, star.id, whey.id]);
+    }
+
+    // what the owner sent lately, in the inbox of everyone who has the app
+    const appMembers = (await many(q, "SELECT mo.id FROM member_overview mo WHERE mo.gym_id = $1 AND mo.archived_at IS NULL AND mo.has_app_access AND mo.status IN ('active','expiring')", [gymId])).map((x) => x.id as string);
+    const challenge = await one(q, "SELECT title FROM challenges WHERE gym_id = $1 AND active ORDER BY starts_on DESC LIMIT 1", [gymId]);
+    const url = (tab: string) => `/m/${gym.slug}${tab === "home" ? "" : `?tab=${tab}`}`;
+    // sent at sensible local hours, never during quiet hours
+    const sent: [key: string, kind: string, text: readonly string[], daysAgo: number, at: string, tab: string][] = [
+      ["bootcamp", "announcement", L.bootcamp, 19, "10:15", "inbox"],
+      ["offer", "offer", L.offer, 9, "12:30", "home"],
+      ["generator", "announcement", L.generator, 3, "17:40", "inbox"],
+      ...(challenge ? [["challenge", "challenge", L.challenge(challenge.title), 1, "18:05", "progress"] as [string, string, readonly string[], number, string, string]] : []),
+    ];
+    const rows: unknown[][] = [];
+    for (const [key, kind, [title, body], daysAgo, time, tab] of sent) {
+      const at: Date = (await one(q, "SELECT ((($1::date - $2::int) + $3::time) AT TIME ZONE $4) AS at", [gym.today, daysAgo, time, gym.timezone])).at;
+      for (const mid of appMembers) {
+        const h = parseInt(mid.slice(0, 2), 16); // a stable spread per member
+        const phone = h % 5 < 3; // 3 in 5 turned phone notifications on
+        const read = mid === star.id ? daysAgo >= 2 : h % 3 !== 0 && daysAgo >= 2;
+        rows.push([gymId, mid, kind, title, body, url(tab), phone ? "sent" : "no_device", phone ? 1 : 0, `demo:${key}:${mid}`,
+          at, read ? new Date(at.getTime() + (1 + (h % 5)) * 3600_000) : null, gym.owner_id]);
+      }
+    }
+    for (let i = 0; i < rows.length; i += 300) {
+      const chunk = rows.slice(i, i + 300);
+      const vals: unknown[] = [];
+      const tuples = chunk.map((r) => {
+        const b = vals.length;
+        vals.push(...r);
+        return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},$${b + 9},$${b + 10},$${b + 10},$${b + 10},$${b + 11},$${b + 12})`;
+      });
+      await q.query(`INSERT INTO notifications (gym_id, member_id, kind, title, body, url, status, devices, dedupe_key, send_after, created_at, sent_at, read_at, created_by)
+                     VALUES ${tuples.join(",")} ON CONFLICT DO NOTHING`, vals);
+    }
+    if (whey) {
+      const [title, body] = L.ready(whey.name);
+      await q.query(`INSERT INTO notifications (gym_id, member_id, kind, title, body, url, status, devices, dedupe_key, send_after, created_at, sent_at)
+                     VALUES ($1,$2,'request_ready',$3,$4,$5,'sent',1,$6, now() - interval '2 hours', now() - interval '2 hours', now() - interval '2 hours') ON CONFLICT DO NOTHING`,
+        [gymId, star.id, title, body, url("shop"), `demo:ready:${star.id}`]);
+    }
+    await refreshProgress(q, gymId, star.id);
+  });
+  return { member: `${star.first_name} ${star.last_name}`, phone: star.phone, pin: "1234" };
+}
+
+/** For a demo gym that already has members: adds the shop, offers and showcase it may lack (nothing is duplicated). */
+export async function refreshDemo(gymId: string) {
+  const R = rng(gymId.charCodeAt(0) * 31);
+  const reception = await one(db, "SELECT id FROM users WHERE gym_id = $1 AND role IN ('owner','manager','reception') ORDER BY role DESC LIMIT 1", [gymId]);
+  const members = (await many(db, "SELECT id FROM members WHERE gym_id = $1 AND archived_at IS NULL", [gymId])).map((m) => m.id as string);
+  await seedShop(gymId, R, reception?.id ?? null, members);
+  await seedEngagement(gymId, R);
+  return seedShowcase(gymId);
 }

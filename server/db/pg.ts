@@ -504,6 +504,12 @@ export class Pool implements Queryable {
       if (w) this.acquire().then(w, () => this.waiters.unshift(w));
       return;
     }
+    // a query that was running when the pool closed: close its connection instead of keeping it (it would keep the process alive)
+    if (this.closed) {
+      this.total--;
+      c.close();
+      return;
+    }
     const w = this.waiters.shift();
     if (w) w(c);
     else this.idle.push(c);

@@ -82,11 +82,11 @@ function BroadcastModal({ open, onClose }: { open: boolean; onClose: () => void 
         <p className="ink-2">
           {preview.count} {preview.count === 1 ? "person" : "people"}
           {channel !== "push" && <> · {preview.whatsapp} {t("by WhatsApp")}</>}
-          {channel !== "whatsapp" && <> · {preview.push} {t("by app notification")}</>}
+          {channel !== "whatsapp" && <> · {preview.push} {t("in the app")}{preview.pushPhones ? ` (${preview.pushPhones} ${t("also on their phone")})` : ""}</>}
           {preview.sample[0] && <>{t(". Example: “")}{preview.sample[0].text}”</>}
         </p>
       )}
-      <p className="muted" style={{ fontSize: "0.85rem" }}>{t("WhatsApp: only members who accept WhatsApp messages. App notification: only members who turned notifications on in the app; it waits for the end of quiet hours.")}</p>
+      <p className="muted" style={{ fontSize: "0.85rem" }}>{t("WhatsApp: only members who accept WhatsApp messages. App notification: every member who has the app sees it in the app's inbox; those who turned notifications on also get it on their phone, after quiet hours.")}</p>
     </Modal>
   );
 }

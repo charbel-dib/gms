@@ -66,15 +66,16 @@ export function registerEngage(r: Router) {
     }));
     const wantWa = b.channel !== "push", wantPush = b.channel !== "whatsapp";
     const people = await many(db, `
-      SELECT mo.id, mo.first_name, mo.phone, mo.whatsapp_opt_in,
+      SELECT mo.id, mo.first_name, mo.phone, mo.whatsapp_opt_in, mo.has_app_access,
              EXISTS (SELECT 1 FROM push_subscriptions ps WHERE ps.member_id = mo.id) AS has_push
         FROM member_overview mo WHERE mo.gym_id = $1 AND mo.archived_at IS NULL AND ${SEGMENTS[b.segment]} LIMIT 2000`, [u.gymId]);
     const waList = wantWa ? people.filter((p) => p.phone && p.whatsapp_opt_in) : [];
-    const pushList = wantPush ? people.filter((p) => p.has_push) : [];
+    // an app notification lands in the inbox of everyone who has the app; it also rings the phone of those who turned notifications on
+    const pushList = wantPush ? people.filter((p) => p.has_app_access || p.has_push) : [];
     const text = (p: any) => b.body.replace(/\{name\}/g, p.first_name);
     if (b.preview) {
       const sample = (waList[0] ?? pushList[0]);
-      return { count: new Set([...waList, ...pushList].map((p) => p.id)).size, whatsapp: waList.length, push: pushList.length, sample: sample ? [{ name: sample.first_name, text: text(sample) }] : [] };
+      return { count: new Set([...waList, ...pushList].map((p) => p.id)).size, whatsapp: waList.length, push: pushList.length, pushPhones: pushList.filter((p) => p.has_push).length, sample: sample ? [{ name: sample.first_name, text: text(sample) }] : [] };
     }
     const stamp = Date.now();
     let sent = 0, queued = 0, pushed = 0;

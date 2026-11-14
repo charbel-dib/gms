@@ -17,7 +17,7 @@ export const SUMMARIES: Record<string, string | [string, string]> = {
   "POST /api/admin/gyms/{id}/restore": "Bring an archived gym back, exactly as it was",
   "DELETE /api/admin/gyms/{id}": ["Delete an archived gym for good", "Only an archived gym. The body must carry `confirm` equal to the gym's slug. Every member, payment, check-in and account of the gym is erased; this cannot be undone."],
   "POST /api/admin/gyms/{id}/reset-owner": "Reset the owner's password (returns the new one once)",
-  "POST /api/admin/gyms/{id}/demo-data": "Fill a demo gym with realistic members, payments, classes and shop sales (refused on real gyms)",
+  "POST /api/admin/gyms/{id}/demo-data": "Fill a demo gym with realistic members, payments, classes, shop, offers and app notifications; on a demo gym that already has members, adds only what it lacks (refused on real gyms)",
   "PUT /api/admin/gyms/{id}/whatsapp": ["Connect a gym's WhatsApp Business number", "Meta phone number ID and access token. A number belongs to one gym only; a gym's number always sends with its own token."],
 
   // dashboard, finance
