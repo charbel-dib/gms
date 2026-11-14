@@ -11,8 +11,45 @@ export function pushSupport(): PushSupport {
   return "ok";
 }
 
+/**
+ * The service worker of a gym's app works on that gym's pages only (/m/<slug>), the same scope as the app's manifest.
+ * Android shows a notification under the installed app (its name and icon) only when the service worker that
+ * received it has the app's scope; with one service worker for every gym (/m/, before November 2026),
+ * notifications showed up as coming from Chrome.
+ */
+const slug = location.pathname.split("/")[2] ?? "";
+const scope = () => `/m/${slug}`;
+
 async function registration() {
-  return (await navigator.serviceWorker.getRegistration("/m/")) ?? navigator.serviceWorker.register("/sw.js", { scope: "/m/" });
+  const want = new URL(scope(), location.origin).href;
+  const regs = await navigator.serviceWorker.getRegistrations();
+  return regs.find((r) => r.scope === want) ?? navigator.serviceWorker.register("/sw.js", { scope: scope() });
+}
+
+/**
+ * Called when the app opens with a signed-in member: registers this gym's service worker, moves a subscription
+ * made under the old shared one (/m/) to it, and tells the server about the device again (it may have been
+ * dropped after failures). Asks nothing: it only acts when notifications are already allowed.
+ */
+export async function setupPush(signedIn: boolean) {
+  if (!("serviceWorker" in navigator)) return;
+  const reg = await registration();
+  if (!signedIn || pushSupport() !== "ok") return;
+  const old = (await navigator.serviceWorker.getRegistrations()).find((r) => r.scope === location.origin + "/m/");
+  let wasOn = false;
+  if (old) {
+    const sub = await old.pushManager.getSubscription().catch(() => null);
+    if (sub) {
+      wasOn = true;
+      await post("/api/m/push/unsubscribe", { endpoint: sub.endpoint }).catch(() => {});
+      await sub.unsubscribe().catch(() => false);
+    }
+    await old.unregister().catch(() => false);
+  }
+  if (Notification.permission !== "granted") return;
+  const sub = await reg.pushManager.getSubscription().catch(() => null);
+  if (sub) await post("/api/m/push/subscribe", sub.toJSON()).catch(() => {});
+  else if (wasOn) await enablePush().catch(() => {});
 }
 
 export async function currentSubscription(): Promise<PushSubscription | null> {

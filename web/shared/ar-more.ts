@@ -178,6 +178,7 @@ export const arMore: Record<string, string> = {
   "by WhatsApp": "عبر واتساب",
   "by app notification": "عبر إشعار في التطبيق",
   "in the app": "في التطبيق",
+  "Install the app first, then turn them on from the app: they will show with the gym's name instead of Chrome's.": "ثبّت التطبيق أولًا، ثم فعّل الإشعارات من داخله: ستظهر باسم النادي بدل Chrome.",
   "also on their phone": "وعلى الهاتف أيضًا",
   ". Example: “": ". مثال: «",
   "WhatsApp: only members who accept WhatsApp messages. App notification: every member who has the app sees it in the app's inbox; those who turned notifications on also get it on their phone, after quiet hours.": "واتساب: المشتركون الذين يقبلون رسائل واتساب فقط. إشعار التطبيق: يظهر في صندوق الرسائل لكل مشترك لديه التطبيق، ويصل أيضًا إلى هاتف من فعّل الإشعارات، بعد انتهاء ساعات الهدوء.",

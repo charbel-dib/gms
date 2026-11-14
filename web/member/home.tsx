@@ -10,7 +10,7 @@ import { fmtDate, getLang, money, t } from "../shared/i18n.ts";
 import { qrSvg } from "../shared/qr.ts";
 import { Bar, Ring, Section, Sheet, Thumb, View, greeting, minutes, when } from "./ui.tsx";
 import { currentSubscription, enablePush, pushSupport } from "./push.ts";
-import { InstallCard } from "./install.tsx";
+import { InstallCard, detectPlatform } from "./install.tsx";
 
 export function PassSheet({ me, open, onClose }: { me: any; open: boolean; onClose: () => void }) {
   const m = me.member;
@@ -82,7 +82,9 @@ function NotifyCard() {
       <Icon name="bell" width={22} height={22} />
       <div style={{ flex: 1 }}>
         <b>{t("Turn on notifications")}</b>
-        <div className="m-muted" style={{ fontSize: "0.85rem" }}>{state === "ios" ? t("On iPhone: add the app to your home screen first (Share → Add to Home Screen), then open it from there.") : t("Class reminders, your membership and gym news.")}</div>
+        <div className="m-muted" style={{ fontSize: "0.85rem" }}>{state === "ios" ? t("On iPhone: add the app to your home screen first (Share → Add to Home Screen), then open it from there.")
+          : detectPlatform().os === "android" && !detectPlatform().standalone ? t("Install the app first, then turn them on from the app: they will show with the gym's name instead of Chrome's.")
+          : t("Class reminders, your membership and gym news.")}</div>
       </div>
       {state === "offer" && <button className="m-btn" disabled={busy} onClick={async () => {
         setBusy(true);

@@ -137,8 +137,7 @@ export async function processQueue(limit = 200): Promise<{ sent: number; noDevic
       `UPDATE notifications SET send_after = now() + interval '5 minutes'
         WHERE id IN (SELECT id FROM notifications WHERE status = 'queued' AND send_after <= now() ORDER BY send_after LIMIT $1 FOR UPDATE SKIP LOCKED)
         RETURNING id, gym_id, member_id, kind, title, body, url,
-                  (SELECT slug FROM gyms WHERE id = notifications.gym_id) AS slug,
-                  (SELECT logo IS NOT NULL FROM gyms WHERE id = notifications.gym_id) AS has_logo`,
+                  (SELECT slug FROM gyms WHERE id = notifications.gym_id) AS slug`,
       [limit],
     );
     for (const n of rows) {
@@ -150,11 +149,15 @@ export async function processQueue(limit = 200): Promise<{ sent: number; noDevic
       }
       const message = {
         title: n.title, body: n.body, url: n.url, tag: `${n.kind}-${n.id}`, id: n.id,
-        icon: n.has_logo ? `/api/public/gyms/${n.slug}/logo` : "/icon-192.png", badge: "/icon-192.png",
+        // the gym's app icon (a PNG; it falls back to the GMS icon), and a white-on-transparent badge for Android's status bar
+        icon: `/api/public/gyms/${n.slug}/app-icon/192`, badge: "/badge-96.png",
       };
       let ok = 0;
       for (const s of subs) {
-        const r = await sendPush(s, message, { urgency: n.kind === "receipt" || n.kind === "announcement" ? "normal" : "high", topic: n.kind });
+        // "high": every push shows something to the member, and a phone in standby (in a pocket, outside) only
+        // receives "normal" ones when it next wakes up, sometimes hours later.
+        // No Topic: with one, a phone that was offline would get only the last notification of each kind.
+        const r = await sendPush(s, message, { urgency: "high" });
         if (r.ok) {
           ok++;
           await db.query("UPDATE push_subscriptions SET failures = 0, last_ok_at = now() WHERE id = $1", [s.id]);

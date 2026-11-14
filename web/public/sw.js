@@ -1,7 +1,7 @@
 /* GMS member app service worker: instant start, offline pass, push notifications.
    Assets are cache-first (hashed names), pages network-first, API never cached
    except the member's own pass data for offline display. */
-const CACHE = "gms-v3";
+const CACHE = "gms-v4";
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener("fetch", (e) => {
@@ -23,7 +23,7 @@ self.addEventListener("push", (e) => {
   e.waitUntil(self.registration.showNotification(data.title || "Your gym", {
     body: data.body || "",
     icon: data.icon || "/icon-192.png",
-    badge: data.badge || "/icon-192.png",
+    badge: data.badge || "/badge-96.png",
     tag: data.tag,
     data: { url: data.url || "/" },
     lang: "",

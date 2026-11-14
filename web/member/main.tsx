@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { get, post } from "../shared/api.ts";
 import { Icon, Spinner, Toasts, toastError } from "../shared/ui.tsx";
 import { getLang, setLang, t, useLang } from "../shared/i18n.ts";
-import { disablePush } from "./push.ts";
+import { disablePush, setupPush } from "./push.ts";
 import { HomeView, ProductSheet } from "./home.tsx";
 import { AskView, ClassesView, CoachView, InboxView, MeView, ProgressView, SettingsView, ShopView } from "./screens.tsx";
 import type { View } from "./ui.tsx";
@@ -142,8 +142,9 @@ function App() {
       document.querySelector('meta[name="theme-color"]')?.setAttribute("content", "#f4f7f9");
     }, () => setGymErr(true));
     loadMe();
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js", { scope: "/m/" }).catch(() => {});
   }, []);
+  // this gym's service worker, and the member's notifications kept attached to this device
+  useEffect(() => { if (me !== undefined) setupPush(!!me).catch(() => {}); }, [me === undefined, !!me]);
   if (gymErr) return <div className="m-login"><h1>{t("Gym not found.")}</h1><p className="m-muted">{t("Check the link your gym sent you.")}</p></div>;
   if (!gym || me === undefined) return <div className="m-login" style={{ minHeight: "100vh", justifyItems: "center" }}><Spinner /></div>;
   if (installPage) return <InstallPage gym={gym} onContinue={() => { setInstallPage(false); history.replaceState(null, "", `/m/${slug}`); }} />;
